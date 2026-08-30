@@ -1,0 +1,31 @@
+FlightPortrait Network
+Copyright 2026 YODE PTE LTD
+
+This product includes software and data from other projects.
+
+MapLibre GL JS 4.7.1 (web/vendor/)
+  Copyright (c) 2023, MapLibre contributors, and earlier Mapbox /
+  glfx.js / d3-color copyrights as listed in web/vendor/LICENSE.txt.
+  BSD-3-Clause and MIT. Full text: web/vendor/LICENSE.txt
+
+OurAirports (web/assets/airports.json, web/assets/runways.json)
+  Public domain. https://ourairports.com/
+
+Natural Earth land (web/assets/land.json)
+  Public domain. https://www.naturalearthdata.com/
+
+Basemap tiles at runtime
+  OpenFreemap, not vendored. https://openfreemap.org/
+
+Aircraft photos at runtime
+  Fetched in the visitor's browser from planespotters.net and credited
+  per image. Not stored in this repository.
+
+Data served by data.flightportrait.com
+  Open Database License (ODbL) 1.0. Copyright FlightPortrait network
+  feeders. https://opendatacommons.org/licenses/odbl/
+
+Airline names, logos, and livery marks shown on the map (including
+files under web/assets/airline-tails/) are property of their owners
+and are displayed for identification. Apache-2.0 does not grant
+trademark rights. FlightPortrait is a trademark of YODE PTE LTD.

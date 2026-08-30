@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlightPortrait network feeder terms</title>
+<meta name="theme-color" content="#F5F1E6">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E;
+    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);
+    font:17px/1.65 Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:640px;margin:0 auto;padding:24px}
+  .caps{font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:12px;letter-spacing:.1em}
+  .topbar{position:sticky;top:0;z-index:5;background:var(--paper);
+    border-bottom:1px solid var(--line)}
+  .topbar .inner{max-width:1000px;margin:0 auto;display:flex;
+    align-items:center;justify-content:space-between;height:56px;
+    padding:0 24px;gap:16px}
+  .wordmark{display:flex;align-items:center;gap:10px;text-decoration:none;
+    color:var(--ink);font-size:16px}
+  .wordmark img{width:22px;height:22px;display:block;border-radius:5px}
+  .wordmark .net{color:var(--quiet)}
+  .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
+  .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
+    white-space:nowrap}
+  .topnav a:hover{color:var(--red)}
+  h1{font-size:34px;line-height:1.1;font-weight:400;margin:40px 0 8px}
+  h2{font-size:19px;font-weight:400;margin:30px 0 8px}
+  p{margin-bottom:12px}
+  a{color:var(--ink)}
+  .meta{color:var(--quiet);font-size:14px;margin-bottom:8px}
+  footer{padding:40px 0;color:var(--quiet);font-size:14px}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="inner">
+    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span class="net">network</span></a>
+    <nav class="topnav" aria-label="Network">
+      <a href="/network/">Live map</a>
+      <a href="/network/?mode=airlines">Airlines</a>
+      <a href="/network/?mode=join">Join</a>
+      <a href="https://docs.flightportrait.com">Docs</a>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+
+  <h1>Feeder terms.</h1>
+  <p class="meta">Version 1, August 2026. These terms may be revised; material changes will be announced on this page. The network is operated by YODE PTE LTD, Singapore.</p>
+
+  <h2>1. Your data.</h2>
+  <p>The signals your receiver picks up are yours. By feeding the network you grant us a non-exclusive right to aggregate your data with other stations', to use the aggregate in FlightPortrait products, and to publish the aggregate as open data under ODbL 1.0. The grant is not exclusive and ends, for everything after that moment, when you stop feeding.</p>
+
+  <h2>2. What we collect.</h2>
+  <p>The aircraft messages you send, your station UUID, and connection statistics such as message rate and connection time. Your IP address is used to hold the connection open and is not stored. Your full UUID is not stored; we keep a one-way hash.</p>
+
+  <h2>3. What is public.</h2>
+  <p>The public roster shows a generated station identifier, your area rounded to approximately 11 km, first and last heard dates, and online status. The area is computed from received traffic. We do not ask for, hold, or publish an address or exact coordinates.</p>
+
+  <h2>4. Non-exclusivity.</h2>
+  <p>Feeding this network does not restrict feeding any other. Our own stations feed the open aggregators alongside this network.</p>
+
+  <h2>5. No warranty.</h2>
+  <p>The network is provided as is, without warranty or uptime commitment. ADS-B data is unauthenticated by design; it is hobbyist observation, not an air traffic service, and must not be used for navigation or safety of life.</p>
+
+  <h2>6. Ending.</h2>
+  <p>You may stop feeding at any time, without notice. On request we will delete your station's registry history. Data already published under ODbL remains under its license.</p>
+
+  <footer>Questions: hello@flightportrait.com</footer>
+</div>
+</body>
+</html>

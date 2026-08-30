@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- One airframe's observed life: identity and the flight log in one
+     /v1/airframes/{hex} call, photo from planespotters (credited).
+     The legs are what the open trace archives actually show, gaps
+     stated as gaps. No schedules, no inference, no "maintenance":
+     observation only. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airframe. FlightPortrait network</title>
+<meta name="theme-color" content="#F5F1E6">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
+    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
+    --card:#FAF7EE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);overflow-x:hidden;
+    font:17px/1.6 Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
+    -webkit-font-smoothing:antialiased}
+  .caps{font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:12px;letter-spacing:.1em}
+  .wrap{max-width:680px;margin:0 auto;padding:0 24px}
+  .topbar{position:sticky;top:0;z-index:5;background:var(--paper)}
+  .topbar .wrap{max-width:1000px;display:flex;align-items:center;
+    justify-content:space-between;height:64px}
+  .wordmark{display:flex;align-items:center;gap:10px;text-decoration:none;
+    color:var(--ink);font-size:17px}
+  .wordmark img{width:24px;height:24px;display:block;border-radius:5px}
+  .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
+  .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
+    white-space:nowrap}
+  .topnav a:hover{color:var(--red)}
+  main a{color:var(--ink)}
+
+  .head{padding:36px 0 8px}
+  h1{font-size:44px;line-height:1.1;font-weight:400}
+  .sub{font-size:18px;color:var(--quiet);margin-top:4px}
+  .photo{margin:20px 0 4px;display:none}
+  .photo.show{display:block}
+  .photo img{width:100%;height:auto;border-radius:6px;display:block;
+    border:1px solid var(--line)}
+  .credit{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;
+    letter-spacing:.04em;color:var(--quiet);margin-top:5px}
+  .credit a{color:var(--quiet)}
+
+  .stats{display:flex;gap:36px;flex-wrap:wrap;padding:22px 0;
+    border-bottom:1px solid var(--line)}
+  .stat .n{font-size:28px;line-height:1;display:block}
+  .stat .caps{color:var(--quiet);display:block;margin-top:6px}
+
+  .log{padding:10px 0 60px}
+  .day{padding:14px 0 2px;color:var(--quiet)}
+  .leg{display:flex;gap:14px;align-items:baseline;padding:7px 0;
+    border-bottom:1px solid rgba(34,31,26,.06);
+    font-variant-numeric:tabular-nums}
+  .leg .pair{min-width:11ch}
+  .leg .times{color:var(--quiet);flex:1}
+  .leg .alt{color:var(--quiet);font-size:14px}
+  .gap{padding:12px 0;color:var(--quiet);font-style:italic;
+    border-bottom:1px solid rgba(34,31,26,.06)}
+  .empty{padding:40px 0;color:var(--quiet)}
+  .note{color:var(--quiet);font-size:14px;padding:16px 0 0}
+  .livelink{padding:14px 0 0;display:none}
+  .livelink.show{display:block}
+  a.textlink{display:inline-flex;align-items:center;gap:9px;
+    color:var(--red);text-decoration:none;white-space:nowrap}
+  a.textlink::after{content:"\2192"}
+  a.textlink:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span style="color:var(--quiet)">network</span></a>
+    <nav class="topnav" aria-label="Network">
+      <a href="/network/">Live map</a>
+      <a href="/network/?mode=airlines">Airlines</a>
+      <a href="/network/?mode=join">Join</a>
+      <a href="https://docs.flightportrait.com">Docs</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="head">
+      <h1 id="reg">&nbsp;</h1>
+      <div class="sub" id="ident"></div>
+      <div class="livelink" id="livelink"><a class="textlink" id="livehref" href="/network/">On the map now</a></div>
+    </div>
+    <div class="photo" id="photo"></div>
+    <div class="stats" id="stats" style="display:none">
+      <div class="stat"><span class="n" id="s-legs"></span><span class="caps">flights observed</span></div>
+      <div class="stat"><span class="n" id="s-airports"></span><span class="caps">airports</span></div>
+      <div class="stat"><span class="n" id="s-pair"></span><span class="caps">most flown</span></div>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  // Talks to the instance we operate. For local hacking, set
+  // window.FP_API before this script.
+  var API = window.FP_API || "https://data.flightportrait.com";
+  var hex = (new URLSearchParams(location.search).get("hex") ||
+             location.hash.slice(1) || "").toLowerCase();
+
+  function el(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  if (!/^[0-9a-f]{6}$/.test(hex)) {
+    el("reg").textContent = "Airframe";
+    el("log").innerHTML = "<div class='empty'>No aircraft given. " +
+      "Open an aircraft from <a href='/network/'>the live map</a> and " +
+      "follow its history link.</div>";
+    return;
+  }
+
+  var typeNames = {};
+  var typesReady = fetch("assets/types.json")
+    .then(function (r) { return r.json(); })
+    .then(function (d) { typeNames = d; }).catch(function () {});
+
+  // photo, credited (visitor's browser fetches, tar1090-style)
+  fetch("https://api.planespotters.net/pub/photos/hex/" + hex)
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var p = (d.photos || [])[0];
+      if (!p) return;
+      el("photo").innerHTML = "<a href='" + esc(p.link) +
+        "' target='_blank' rel='noopener'><img src='" +
+        esc(p.thumbnail_large.src) + "' alt=''></a>" +
+        "<div class='credit'>&copy; " + esc(p.photographer) +
+        " &middot; <a href='" + esc(p.link) +
+        "' target='_blank' rel='noopener'>planespotters.net</a></div>";
+      el("photo").className = "photo show";
+    }).catch(function () {});
+
+  // is it in the network's sky right now?
+  fetch(API + "/v1/aircraft").then(function (r) { return r.json(); })
+    .then(function (d) {
+      if ((d.aircraft || []).some(function (a) { return a.hex === hex; })) {
+        el("livehref").href = "/network/#" + hex;
+        el("livelink").className = "livelink show";
+      }
+    }).catch(function () {});
+
+  function hm(ts) {
+    if (!ts) return "";
+    var d = new Date(ts * 1000);
+    return ("0" + d.getUTCHours()).slice(-2) + ":" +
+           ("0" + d.getUTCMinutes()).slice(-2);
+  }
+  function dur(a, b) {
+    if (!a || !b || b <= a) return "";
+    var m = Math.round((b - a) / 60);
+    return Math.floor(m / 60) + "h" + ("0" + (m % 60)).slice(-2);
+  }
+
+  fetch(API + "/v1/airframes/" + hex).then(function (r) {
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }).then(function (d) {
+    typesReady.then(function () { render(d); });
+  }).catch(function () {
+    el("reg").textContent = hex.toUpperCase();
+    el("log").innerHTML = "<div class='empty'>No flight log for this " +
+      "aircraft in the archive window. The log grows nightly.</div>";
+  });
+
+  function render(d) {
+    el("reg").textContent = d.reg || d.hex.toUpperCase();
+    var entry = d.type && typeNames[d.type];
+    var operator = d.operator || (d.airline && d.airline.name);
+    var bits = [(entry && entry[0]) || d.type_name || d.type,
+                d.hex.toUpperCase(), operator];
+    el("ident").textContent = bits.filter(Boolean).join(" · ");
+    d.legs = d.legs || [];
+    if (!d.legs.length) {
+      el("log").innerHTML = "<div class='empty'>No flight log for this " +
+        "aircraft in the archive window. The log grows nightly.</div>";
+      return;
+    }
+
+    // stats
+    var airports = {}, pairs = {};
+    d.legs.forEach(function (l) {
+      airports[l.org] = airports[l.dst] = 1;
+      var key = [l.org, l.dst].sort().join("–");
+      pairs[key] = (pairs[key] || 0) + 1;
+    });
+    var topPair = Object.keys(pairs).sort(function (a, b) {
+      return pairs[b] - pairs[a];
+    })[0] || "–";
+    el("s-legs").textContent = d.legs.length;
+    el("s-airports").textContent = Object.keys(airports).length;
+    el("s-pair").textContent = topPair;
+    el("stats").style.display = "";
+
+    // the log, grouped by date, gaps said out loud
+    var log = el("log");
+    var html = "";
+    var lastDate = null;
+    d.legs.forEach(function (l) {
+      if (l.date !== lastDate) {
+        if (lastDate) {
+          var gapDays = Math.round(
+            (Date.parse(lastDate) - Date.parse(l.date)) / 86400000) - 1;
+          if (gapDays >= 3) {
+            html += "<div class='gap'>quiet for " + gapDays +
+                    " days</div>";
+          }
+        }
+        html += "<div class='day caps'>" + esc(l.date) + "</div>";
+        lastDate = l.date;
+      }
+      var pair = l.org === l.dst
+        ? "circuit at " + esc(l.org)
+        : esc(l.org) + " → " + esc(l.dst);
+      html += "<div class='leg'><span class='pair'>" +
+        (l.callsign ? esc(l.callsign) + " · " : "") + pair +
+        "</span><span class='times'>" +
+        hm(l.dep_ts) + (l.arr_ts ? "–" + hm(l.arr_ts) : "") +
+        (dur(l.dep_ts, l.arr_ts) ? " · " + dur(l.dep_ts, l.arr_ts) : "") +
+        "</span><span class='alt'>" +
+        (l.max_alt ? Number(l.max_alt).toLocaleString() + " ft" : "") +
+        "</span></div>";
+    });
+    html += "<div class='note'>Times UTC. Observed flights from openly " +
+      "licensed trace archives, last " + (d.window_days || 60) +
+      " days; a quiet day means the archives did not see it, nothing " +
+      "more. Data ODbL.</div>";
+    log.innerHTML = html;
+  }
+})();
+</script>
+</body>
+</html>

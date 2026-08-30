@@ -1,0 +1,11 @@
+# Exactly what the service imports — nothing else. No boto3, no Pillow,
+# no fleet dependencies; that absence is the boundary made auditable.
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+psycopg[binary]
+httpx
+# IANA timezone database for zoneinfo (the slim image ships no system
+# tzdata) — used to cluster departures in each airport's local time.
+tzdata
