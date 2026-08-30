@@ -226,10 +226,17 @@ EX_TRACE = {
     ],
 }
 
+# The point item is the live aircraft item plus a distance field.
+SCH_POINT_ITEM = _obj(
+    dict(SCH_AIRCRAFT_ITEM["properties"],
+         dst=_t("number", "Distance from the query point, nautical miles.")),
+    required=["hex", "dst"],
+    description="readsb passthrough fields plus dst (distance, nm).")
+
 SCH_POINT = _obj({
-    "ac": _arr(SCH_AIRCRAFT_ITEM,
+    "ac": _arr(SCH_POINT_ITEM,
                description="Snapshot aircraft within the radius, nearest "
-                           "first, plus dst (distance, nm)."),
+                           "first."),
     "msg": _t("string", "Always \"No error\" on 200."),
     "now": _t("number", "Snapshot time, unix seconds UTC."),
     "total": _t("integer"),
@@ -285,9 +292,10 @@ SCH_AIRFRAME = _obj({
     "source": _t("string", "Registry row provenance.", nullable=True),
     "airline": _t("object", "Operator airline when resolved.",
                   nullable=True),
-    "legs": {"description": "Observed legs, newest first. Empty array = "
-                            "not seen in the window; null = the log "
-                            "artifact is not loaded.",
+    "legs": {"description": "Observed legs, newest first, up to 200 "
+                            "(the most recent when an airframe has more). "
+                            "Empty array = not seen in the window; null = "
+                            "the log artifact is not loaded.",
              "oneOf": [_arr(SCH_AIRFRAME_LEG), {"type": "null"}]},
     "window_days": _SCH_WINDOW,
     "coverage": _SCH_COVERAGE,
@@ -577,7 +585,7 @@ SCH_INDEX = _obj({
     "docs": _t("string", "Human documentation."),
     "openapi": _t("string", "Machine-readable spec path."),
     "swagger": _t("string", "Interactive spec UI path."),
-    "source": _t("string", "Public repository (map client and docs)."),
+    "source": _t("string", "Public repository (map client and API service)."),
     "terms": _t("string"),
     "attribution": _t("string", "The ODbL credit line."),
     "feed": _t("string", "Where to point an antenna."),

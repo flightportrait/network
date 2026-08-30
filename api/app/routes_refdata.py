@@ -184,6 +184,9 @@ def airline(icao: spec.AirlineICAO, request: Request, response: Response,
     out["n_routes"] = session.execute(
         select(func.count()).select_from(RefRoute)
         .where(RefRoute.airline_icao == row.icao)).scalar_one()
+    out["n_countries"] = session.execute(
+        select(func.count()).select_from(RefAirlineCountry)
+        .where(RefAirlineCountry.airline_icao == row.icao)).scalar_one()
     return out
 
 

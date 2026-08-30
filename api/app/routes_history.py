@@ -44,7 +44,7 @@ def _dark() -> ApiError:
                 "`airframe`). Cache: 1 h edge.",
     operation_id="airframe",
     responses=spec.ok(spec.EX_AIRFRAME, spec.R429, spec.R404, spec.R422,
-                      schema=spec.SCH_AIRFRAME),
+                      spec.R503, schema=spec.SCH_AIRFRAME),
     openapi_extra=spec.STABLE,
 )
 def airframe(hex: spec.Hex, request: Request, response: Response,
@@ -173,7 +173,7 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
                 "`airport`). Cache: 1 h edge.",
     operation_id="airport",
     responses=spec.ok(spec.EX_AIRPORT, spec.R429, spec.R404, spec.R422,
-                      schema=spec.SCH_AIRPORT),
+                      spec.R503, schema=spec.SCH_AIRPORT),
     openapi_extra=spec.STABLE,
 )
 def airport(code: spec.AirportCode, request: Request, response: Response,
