@@ -114,9 +114,13 @@
 
   function el(id) { return document.getElementById(id); }
   function esc(s) {
-    return String(s).replace(/[&<>"]/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    return String(s).replace(/[&<>"'\/]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "/": "&#47;" }[c];
     });
+  }
+  function httpsOnly(u) {
+    u = String(u == null ? "" : u);
+    return /^https:\/\//i.test(u) ? u : "";
   }
 
   if (!/^[0-9a-f]{6}$/.test(hex)) {
@@ -138,11 +142,11 @@
     .then(function (d) {
       var p = (d.photos || [])[0];
       if (!p) return;
-      el("photo").innerHTML = "<a href='" + esc(p.link) +
+      el("photo").innerHTML = "<a href='" + esc(httpsOnly(p.link)) +
         "' target='_blank' rel='noopener'><img src='" +
-        esc(p.thumbnail_large.src) + "' alt=''></a>" +
+        esc(httpsOnly(p.thumbnail_large.src)) + "' alt=''></a>" +
         "<div class='credit'>&copy; " + esc(p.photographer) +
-        " &middot; <a href='" + esc(p.link) +
+        " &middot; <a href='" + esc(httpsOnly(p.link)) +
         "' target='_blank' rel='noopener'>planespotters.net</a></div>";
       el("photo").className = "photo show";
     }).catch(function () {});

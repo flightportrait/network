@@ -1400,15 +1400,23 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
         renderPhoto(hex);
       }).catch(function () { photoCache[hex] = null; renderPhoto(hex); });
   }
+  // planespotters is a third party fetched in the visitor's browser;
+  // escape every field and allow only https URLs (esc alone would not
+  // stop a javascript: href)
+  function httpsOnly(u) {
+    u = String(u == null ? "" : u);
+    return /^https:\/\//i.test(u) ? u : "";
+  }
   function renderPhoto(hex) {
     if (state.selected !== hex) return;
     var box = el("d-photo");
     var p = photoCache[hex];
     if (!p) { box.className = "photo"; box.innerHTML = ""; return; }
-    box.innerHTML = "<a href='" + p.link + "' target='_blank' " +
-      "rel='noopener'><img src='" + p.src + "' alt=''></a>" +
-      "<div class='credit'>&copy; " + p.photographer +
-      " &middot; <a href='" + p.link +
+    var link = esc(httpsOnly(p.link)), src = esc(httpsOnly(p.src));
+    box.innerHTML = "<a href='" + link + "' target='_blank' " +
+      "rel='noopener'><img src='" + src + "' alt=''></a>" +
+      "<div class='credit'>&copy; " + esc(p.photographer) +
+      " &middot; <a href='" + link +
       "' target='_blank' rel='noopener'>planespotters.net</a></div>";
     box.className = "photo show";
   }
@@ -1732,8 +1740,8 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
         var tail = a.lat == null
           ? "<span class='nofix'>no fix</span>"
           : "<span class='alt'>" + alt + "</span>";
-        li.innerHTML = "<span class='cs'>" + (a.flight || a.hex) +
-          "</span><span class='ty'>" + (a.t || "") + "</span>" + tail;
+        li.innerHTML = "<span class='cs'>" + esc(a.flight || a.hex) +
+          "</span><span class='ty'>" + esc(a.t || "") + "</span>" + tail;
         li.addEventListener("click", function () { select(a.hex); });
         ul.appendChild(li);
       });
@@ -1758,8 +1766,8 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       if (state.aircraft.length) renderWidgets();
     }).catch(function () {});
   function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    return String(s == null ? "" : s).replace(/[&<>"'\/]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "/": "&#47;" }[c];
     });
   }
   function typeNameOf(a) {
@@ -3649,11 +3657,14 @@ window.__initJoin = function () {
         if (mine !== af.token) return;
         var p = (d.photos || [])[0];
         if (!p) return;
-        el("af-photo").innerHTML = "<a href='" + esc(p.link) +
+        var pl = esc(/^https:\/\//i.test(p.link || "") ? p.link : "");
+        var ps = esc(/^https:\/\//i.test(p.thumbnail_large.src || "")
+          ? p.thumbnail_large.src : "");
+        el("af-photo").innerHTML = "<a href='" + pl +
           "' target='_blank' rel='noopener'><img src='" +
-          esc(p.thumbnail_large.src) + "' alt=''></a>" +
+          ps + "' alt=''></a>" +
           "<div class='credit'>&copy; " + esc(p.photographer) +
-          " &middot; <a href='" + esc(p.link) +
+          " &middot; <a href='" + pl +
           "' target='_blank' rel='noopener'>planespotters.net</a></div>";
         el("af-photo").className = "photo show";
       }).catch(function () {});
