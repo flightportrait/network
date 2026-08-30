@@ -280,3 +280,25 @@ def test_flight_dark_when_all_sources_missing(ctx, tmp_path):
     response = client.get("/v1/flights/SQ322")
     assert response.status_code == 503
     assert response.json()["error"] == "artifact_unavailable"
+
+
+def test_flight_tail_count_excludes_circuits(ctx, tmp_path):
+    # a tail's flight count must exclude circuits and one-sided legs,
+    # the same predicate legs/recent use
+    client, app, sm, settings, readsb = ctx
+    db = tmp_path / "legs.db"
+    _build(str(db), [
+        ("aa1111", "N1", "A320", "TST100", "2026-08-25", "SIN", "KUL",
+         _utc(25, 8), None, 30000),
+        ("aa1111", "N1", "A320", "TST100", "2026-08-26", "SIN", "KUL",
+         _utc(26, 8), None, 30000),
+        ("aa1111", "N1", "A320", "TST100", "2026-08-27", "SIN", "SIN",
+         _utc(27, 8), None, 5000),        # circuit — must not count
+        ("aa1111", "N1", "A320", "TST100", "2026-08-28", "SIN", None,
+         _utc(28, 8), None, 30000),       # one-sided — must not count
+    ])
+    app.state.legs = LegBook(str(db))
+    body = client.get("/v1/flights/TST100").json()
+    tail = body["aircraft"][0]
+    assert tail["hex"] == "aa1111"
+    assert tail["flights"] == 2          # not 4

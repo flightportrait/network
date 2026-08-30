@@ -323,9 +323,10 @@ SCH_FLIGHT = _obj({
                              "the derived routes artifact. Null when "
                              "unknown or the artifact is not loaded.",
               "oneOf": [_arr(_t("string")), {"type": "null"}]},
-    "legs": {"description": "Observed legs, busiest first, with typical "
-                            "local times when the inferred timetable "
-                            "knows them. Null = log artifact not loaded.",
+    "legs": {"description": "Observed legs, busiest first (top 10), with "
+                            "typical local times when the inferred "
+                            "timetable knows them. Null = log artifact "
+                            "not loaded.",
              "oneOf": [_arr(_obj({
                  "org": _t("string"), "dst": _t("string"),
                  "flights": _t("integer", "Observed count."),
@@ -337,16 +338,16 @@ SCH_FLIGHT = _obj({
                                      "destination.", nullable=True),
                  "type": _t("string", "Dominant type.", nullable=True),
              })), {"type": "null"}]},
-    "aircraft": {"description": "Airframes flying it, busiest first. "
-                                "Null = log artifact not loaded.",
+    "aircraft": {"description": "Airframes flying it, busiest first "
+                                "(top 8). Null = log artifact not loaded.",
                  "oneOf": [_arr(_obj({
                      "hex": _t("string"),
                      "reg": _t("string", nullable=True),
                      "type": _t("string", nullable=True),
                      "flights": _t("integer"),
                  })), {"type": "null"}]},
-    "recent": {"description": "Latest operations, newest first. Null = "
-                              "log artifact not loaded.",
+    "recent": {"description": "Latest operations, newest first (up to "
+                              "10). Null = log artifact not loaded.",
                "oneOf": [_arr(_obj({
                    "date": _t("string"),
                    "org": _t("string"), "dst": _t("string"),

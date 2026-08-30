@@ -143,8 +143,12 @@ class LegBook:
                      (callsign,)).fetchall()
             if not legs:
                 return None
+            # same valid-leg predicate as legs/recent, so a tail's count
+            # is over the flights that actually count (not circuits or
+            # one-sided sightings) — the docstring's promise, in SQL
             tails = q("SELECT hex, reg, type, COUNT(*)"
                       " FROM legs WHERE callsign = ? AND hex IS NOT NULL"
+                      " AND org IS NOT NULL AND dst IS NOT NULL AND org <> dst"
                       " GROUP BY hex ORDER BY 4 DESC LIMIT 8",
                       (callsign,)).fetchall()
             recent = q("SELECT date, org, dst, dep_ts, arr_ts"
