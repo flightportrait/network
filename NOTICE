@@ -11,8 +11,12 @@ MapLibre GL JS 4.7.1 (web/vendor/)
 OurAirports (web/assets/airports.json, web/assets/runways.json)
   Public domain. https://ourairports.com/
 
-Natural Earth land (web/assets/land.json)
-  Public domain. https://www.naturalearthdata.com/
+Natural Earth (web/assets/land.json, web/assets/countries.json)
+  Simplified land and country boundaries. Public domain.
+  https://www.naturalearthdata.com/
+
+Aircraft type designators (web/assets/types.json)
+  ICAO type designator to name and category. Factual reference data.
 
 Basemap tiles at runtime
   OpenFreemap, not vendored. https://openfreemap.org/
@@ -24,6 +28,10 @@ Aircraft photos at runtime
 Data served by data.flightportrait.com
   Open Database License (ODbL) 1.0. Copyright FlightPortrait network
   feeders. https://opendatacommons.org/licenses/odbl/
+  Exception: the airport departures board may include rows inferred
+  from published timetables (each row carries a `source`). Those rows
+  are not feeder observations and are not part of the ODbL feeder
+  dataset.
 
 Airline names, logos, and livery marks shown on the map (including
 files under web/assets/airline-tails/) are property of their owners

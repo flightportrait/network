@@ -1,11 +1,13 @@
 # Exactly what the service imports — nothing else. No boto3, no Pillow,
-# no fleet dependencies; that absence is the boundary made auditable.
-fastapi
-uvicorn[standard]
-sqlalchemy
-alembic
-psycopg[binary]
-httpx
+# no data-pipeline dependencies; that absence is the boundary made
+# auditable. Pinned to compatible releases so CI and the deployed image
+# resolve the same set. Python 3.12.
+fastapi~=0.141.1
+uvicorn[standard]~=0.52.4
+sqlalchemy~=2.0.52
+alembic~=1.19.1
+psycopg[binary]~=3.3.4
+httpx~=0.28.1
 # IANA timezone database for zoneinfo (the slim image ships no system
 # tzdata) — used to cluster departures in each airport's local time.
 tzdata

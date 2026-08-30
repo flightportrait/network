@@ -21,6 +21,6 @@ This is the code we run, not a product:
 - The v1 contract is frozen: operations marked `stable` in the spec
   only ever gain fields. For API shape changes, open an issue first.
 
-Tests: `pip install -r api/requirements.txt pytest && python -m pytest
-api/tests/` — SQLite and a fake readsb stand in for the real thing; no
+Tests (Python 3.12): `pip install -r api/requirements.txt pytest &&
+python -m pytest api/tests/` — SQLite and a fake readsb stand in for the real thing; no
 network, no Docker. The spec exports with `python api/export_openapi.py`.

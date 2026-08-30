@@ -34,10 +34,13 @@ DESCRIPTION = (
     "seconds UTC; registry timestamps are ISO 8601 UTC; board and schedule "
     "times are HH:MM in the origin airport's local time.\n"
     "\n"
-    "**Data honesty.** Everything here is observation, never a published "
-    "schedule or an official registry. Gaps mean the network's sources did "
-    "not hear it, nothing more. History responses carry `coverage: "
-    "\"observed\"` as a reminder.\n"
+    "**Data honesty.** History is observation, never an official registry. "
+    "Gaps mean the network's sources did not hear it, nothing more. "
+    "Responses carry `coverage: \"observed\"` as a reminder. The one "
+    "exception is the airport departures board, whose rows may be inferred "
+    "from published timetables — each board row carries its own `source` "
+    "(observed / published / both); a published row is not a receiver "
+    "observation.\n"
     "\n"
     "**Errors.** Every non-200 body is `{\"error\": <code>, \"detail\": "
     "<human text>}` with `Cache-Control: no-store`. 404 `not_found` / "
@@ -405,9 +408,14 @@ SCH_AIRPORT = _obj({
         "arr": _t("string", "HH:MM, local at destination.", nullable=True),
         "type": _t("string", nullable=True),
         "flights": _t("integer", "Observation count behind the row."),
-        "source": _t("string", "observed | published | both."),
-    }), description="Inferred typical departures, local time, "
-                    "dep-sorted."),
+        "source": _t("string", "Provenance of THIS row: observed (from "
+                               "receivers), published (from a timetable), "
+                               "or both. Unlike the observed stats, a "
+                               "published row is not a receiver "
+                               "observation."),
+    }), description="Inferred typical departures, local time, dep-sorted. "
+                    "Rows are a mix of observation and published timetable "
+                    "data; check each row's source."),
     "airlines": _arr(_obj({
         "icao": _t("string"), "flights": _t("integer"),
     }), description="Busiest airlines on the board, top 20."),
