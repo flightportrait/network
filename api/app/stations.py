@@ -150,7 +150,12 @@ def upsert_presence(session, rows: list[dict],
         open_session.positions_total = max(open_session.positions_total,
                                            row["positions_total"])
 
-        presence[half_id] = dict(row, connected_since=started_at.isoformat())
+        # Live stats only — the full UUID never enters the long-lived
+        # presence map (it is the self-view credential; keep it out of
+        # process state, same as it is kept out of the database).
+        live = {k: v for k, v in row.items() if k != "uuid"}
+        live["connected_since"] = started_at.isoformat()
+        presence[half_id] = live
 
     # Stations with an open session that were absent from this poll have
     # disconnected: close at the last moment we actually saw them.

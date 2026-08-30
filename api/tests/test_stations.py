@@ -18,6 +18,17 @@ def _register(sm, app):
     return presence
 
 
+def test_presence_map_holds_no_uuid(ctx):
+    client, app, sm, settings, readsb = ctx
+    presence = _register(sm, app)
+    # the half_id key is the documented 16-hex prefix; what must NOT be
+    # here is the full UUID credential in any value, or a "uuid" field
+    full = RECEIVER_UUID.replace("-", "")
+    for live in presence.values():
+        assert "uuid" not in live
+        assert full not in str(live)
+
+
 def test_roster_is_coarse_and_leak_free(ctx):
     client, app, sm, settings, readsb = ctx
     _register(sm, app)

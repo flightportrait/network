@@ -78,6 +78,22 @@ def test_error_envelope_uniform(ctx):
         assert response.headers["cache-control"] == "no-store"
 
 
+def test_unhandled_error_is_the_envelope(ctx):
+    from starlette.testclient import TestClient
+    client, app, sm, settings, readsb = ctx
+    # force an uncaught error inside a route (roster query blows up)
+    def boom(*a, **k):
+        raise RuntimeError("db is down")
+    app.state.sessionmaker = boom
+    # a real server returns the handler's response; TestClient only does
+    # so with re-raise off
+    with TestClient(app, raise_server_exceptions=False) as raw:
+        r = raw.get("/v1/stations")
+    assert r.status_code == 500
+    assert r.json() == {"error": "internal_error", "detail": "internal error"}
+    assert r.headers["cache-control"] == "no-store"
+
+
 def test_aircraft_field_allowlist(ctx):
     client, app, sm, settings, readsb = ctx
     app.state.snapshot = build_snapshot(

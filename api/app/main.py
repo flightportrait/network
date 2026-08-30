@@ -7,6 +7,7 @@ stations registry in its own Postgres. Apache-2.0; the data it
 serves is ODbL 1.0. Published so the station privacy handling is
 auditable — there is one network, and this is the code it runs.
 """
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -27,6 +28,8 @@ from .routes_db import RouteBook
 from .settings import Settings
 from .snapshot import Snapshot
 from .traces import TraceBook
+
+log = logging.getLogger("network-api")
 
 
 def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
@@ -104,6 +107,19 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
         return JSONResponse(
             status_code=422,
             content={"error": "invalid_request", "detail": detail},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    # Any uncaught error is still the documented envelope, never a
+    # stack trace or a stringified row (which could carry a UUID). The
+    # cause is logged server-side; the client gets an opaque code.
+    @app.exception_handler(Exception)
+    async def unhandled_error(request, exc):
+        log.exception("unhandled error on %s %s",
+                      request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"error": "internal_error", "detail": "internal error"},
             headers={"Cache-Control": "no-store"},
         )
 
