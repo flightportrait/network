@@ -119,7 +119,7 @@ def airframe(hex: spec.Hex, request: Request, response: Response,
 def flight(callsign: spec.Callsign, request: Request, response: Response,
            session=Depends(get_session)):
     settings = request.app.state.settings
-    ratelimit.throttle(request, settings.airport_rate_limit,
+    ratelimit.throttle(request, settings.flight_rate_limit,
                        settings.rate_window_s, bucket="flight")
     callsign = callsign.strip().upper()
     if not (2 <= len(callsign) <= 12) or not callsign.isalnum():

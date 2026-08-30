@@ -50,13 +50,18 @@ def now(request: Request, response: Response):
     ratelimit.throttle(request, settings.now_rate_limit,
                        settings.rate_window_s, bucket="now")
     snapshot = _fresh_snapshot(request)
-    presence = request.app.state.presence
+    state = request.app.state
+    # station_count is null unless a station poll succeeded recently — a
+    # stalled clients poller must not keep reporting vanished feeders as
+    # connected (the sky snapshot and the station poll fail independently).
+    fresh_presence = (time.time() - state.presence_at
+                      <= settings.station_presence_stale_s)
+    known = state.presence_available and fresh_presence
     response.headers["Cache-Control"] = CACHE_LIVE
     return {
         "aircraft_count": snapshot.aircraft_count,
         "aircraft_with_pos": snapshot.with_pos_count,
-        "station_count": (len(presence)
-                          if request.app.state.presence_available else None),
+        "station_count": len(state.presence) if known else None,
         "generated_at": snapshot.generated_at,
     }
 

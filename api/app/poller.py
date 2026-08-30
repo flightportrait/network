@@ -7,6 +7,7 @@ synchronously; the loops exist only in production.
 """
 import asyncio
 import logging
+import time
 
 import httpx
 
@@ -48,6 +49,10 @@ async def poll_stations_once(app) -> None:
             session, app.state.settings.session_retention_days)
     finally:
         session.close()
+    # Stamp a successful poll. Any later failure (not just a 404) backs
+    # the loop off silently, so /v1/now uses this to null the count once
+    # the presence map is stale, instead of reporting old feeders as live.
+    app.state.presence_at = time.time()
 
 
 async def poll_receivers_once(app) -> None:

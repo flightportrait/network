@@ -34,6 +34,7 @@ def test_now_counts_and_cache(ctx):
         {"now": time.time(), "aircraft": [A350, {"hex": "abc123"}]},
         settings.max_aircraft)
     app.state.presence = {"deadbeefdeadbeef": {}}
+    app.state.presence_at = time.time()
     response = client.get("/v1/now")
     assert response.status_code == 200
     body = response.json()
@@ -47,6 +48,16 @@ def test_now_counts_and_cache(ctx):
 def test_now_station_count_null_in_fallback_mode(ctx):
     client, app, sm, settings, readsb = ctx
     app.state.presence_available = False
+    assert client.get("/v1/now").json()["station_count"] is None
+
+
+def test_now_station_count_null_when_poll_stale(ctx):
+    client, app, sm, settings, readsb = ctx
+    # feeders present, but the last successful station poll is old:
+    # report null, not a frozen count of gone feeders
+    app.state.presence = {"deadbeefdeadbeef": {}}
+    app.state.presence_available = True
+    app.state.presence_at = time.time() - settings.station_presence_stale_s - 10
     assert client.get("/v1/now").json()["station_count"] is None
 
 

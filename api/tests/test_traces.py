@@ -45,6 +45,30 @@ def test_positionless_not_recorded():
     assert book.get("aaa111") is None
 
 
+def test_rejects_noncanonical_hex():
+    book = TraceBook()
+    book.record(_snap(10, [
+        {"hex": "GARBAGE", "lat": 1.0, "lon": 2.0},   # not hex
+        {"hex": "12345", "lat": 1.0, "lon": 2.0},     # too short
+        {"hex": "ABCDEF", "lat": 1.0, "lon": 2.0},    # ok (upper)
+    ]))
+    assert book.get("garbage") is None
+    assert book.get("12345") is None
+    assert book.get("abcdef") is not None
+
+
+def test_global_cardinality_cap_evicts_oldest():
+    book = TraceBook(max_aircraft=3)
+    for i, t in enumerate([10, 11, 12]):
+        book.record(_snap(t, [{"hex": "%06x" % i, "lat": 1.0 + i,
+                               "lon": 2.0}]))
+    # a 4th distinct aircraft evicts the oldest-seen (000000)
+    book.record(_snap(13, [{"hex": "000003", "lat": 9.0, "lon": 2.0}]))
+    assert book.get("000000") is None
+    assert book.get("000003") is not None
+    assert len(book._traces) == 3
+
+
 def test_prune_after_retention():
     book = TraceBook(retention_s=100)
     book.record(_snap(10, [{"hex": "aaa111", "lat": 1.0, "lon": 2.0}]))

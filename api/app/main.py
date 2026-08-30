@@ -65,9 +65,11 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     app.state.snapshot = Snapshot()
     app.state.traces = TraceBook(
         retention_s=settings.trace_retention_s,
-        max_points=settings.trace_max_points)
+        max_points=settings.trace_max_points,
+        max_aircraft=settings.trace_max_aircraft)
     app.state.presence = {}
     app.state.presence_available = True
+    app.state.presence_at = 0.0
     app.state.routes = RouteBook(settings.routes_path)
     from .legs_db import LegBook
     app.state.legs = LegBook(settings.legs_path)

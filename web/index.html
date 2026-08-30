@@ -3113,6 +3113,9 @@ window.__initJoin = function () {
         stats.className = "stats";
         return null;
       }
+      // 429 is "slow down", not an outage — keep the last state and wait
+      // for the next tick rather than telling the feeder the network died
+      if (r.status === 429) return null;
       if (!r.ok) throw new Error(r.status);
       return r.json();
     }).then(function (d) {
@@ -3139,7 +3142,9 @@ window.__initJoin = function () {
     });
   }
   check();
-  setInterval(check, 10000);
+  // 30 s stays well inside the self-view budget (60 per 600 s), even
+  // with the setup page open in two tabs
+  setInterval(check, 30000);
 };
 
 // ---- airport view ---------------------------------------------------

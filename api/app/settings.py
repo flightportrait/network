@@ -75,6 +75,11 @@ class Settings:
     # A station unseen for this long counts as offline in rosters/counters.
     offline_after_s: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_OFFLINE_AFTER_S", 60))
+    # If no station poll has succeeded within this window, /v1/now reports
+    # station_count as null rather than a stale value. Must exceed the
+    # station poll interval by a comfortable margin.
+    station_presence_stale_s: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_STATION_PRESENCE_STALE_S", 90))
 
     max_point_radius_nm: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_MAX_RADIUS_NM", 250))
@@ -84,6 +89,10 @@ class Settings:
         "NETWORK_API_TRACE_RETENTION_S", 1800))
     trace_max_points: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_TRACE_MAX_POINTS", 720))
+    # Global cap on distinct aircraft the trace book holds. Bounds memory
+    # under a hostile or poisoned feed; oldest-seen are evicted past it.
+    trace_max_aircraft: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_TRACE_MAX_AIRCRAFT", 20000))
     trace_rate_limit: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_TRACE_RATE_LIMIT", 600))
     # The ODbL routes artifact (callsign -> [origin, dest]), delivered
@@ -99,6 +108,8 @@ class Settings:
         "NETWORK_API_AIRFRAME_RATE_LIMIT", 300))
     airport_rate_limit: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_AIRPORT_RATE_LIMIT", 120))
+    flight_rate_limit: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_FLIGHT_RATE_LIMIT", 120))
     # Reference-data lookups: open, cached hard, one
     # shared bucket — slow-moving data never earns a bigger slice of the
     # box than the live sky.
