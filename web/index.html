@@ -1122,7 +1122,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       // the map. Generated icons are normalized to one box, so the
       // A380-vs-Cessna size difference lives in the icon-size match
       // expression below.
-      Promise.all(ICON_KINDS.map(function (kind) {
+      var iconLoads = ICON_KINDS.map(function (kind) {
         return map.loadImage("assets/icons/" + kind + ".png")
           .then(function (resp) {
             map.addImage("icon-" + kind, resp.data, { pixelRatio: 3 });
@@ -1131,7 +1131,15 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
             map.addImage("icon-" + kind, iconImage(kind, 96),
                          { pixelRatio: 2 });
           });
-      })).then(initLayers);
+      });
+      // the airport marker: a control tower once you zoom in (dots
+      // stay at low zoom). Missing file -> dots at every zoom, so the
+      // map never depends on it.
+      iconLoads.push(map.loadImage("assets/icons/airport.png")
+        .then(function (resp) {
+          map.addImage("airport-tower", resp.data, { pixelRatio: 3 });
+        }).catch(function () {}));
+      Promise.all(iconLoads).then(initLayers);
     });
 
     function initLayers() {
@@ -1237,6 +1245,22 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
                  "circle-color": "#F5F1E6",
                  "circle-stroke-color": "rgba(34,31,26,.7)",
                  "circle-stroke-width": 1.3 } }, "routeline");
+      // hand the dots off to the tower glyph once markers are big
+      // enough for it to read (zoom >= APT_TOWER_Z)
+      var APT_TOWER_Z = 7;
+      if (map.hasImage("airport-tower")) {
+        map.setLayerZoomRange("sky-apts-major", 3.4, APT_TOWER_Z);
+        map.setLayerZoomRange("sky-apts", 5.8, APT_TOWER_Z);
+        map.addLayer({ id: "sky-apt-towers", type: "symbol",
+          source: "sky-apts", minzoom: APT_TOWER_Z,
+          layout: {
+            "icon-image": "airport-tower",
+            "icon-anchor": "bottom",
+            "icon-size": ["interpolate", ["linear"], ["zoom"],
+              APT_TOWER_Z, 0.5, 11, 0.8],
+            "icon-allow-overlap": true
+          } }, "routeline");
+      }
       if (map.getStyle().glyphs) {
         map.addLayer({ id: "sky-apt-labels", type: "symbol",
           source: "sky-apts", minzoom: 6.2,
@@ -1281,7 +1305,8 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
           window.__openAirport(e.features[0].properties.code);
         }
       }
-      ["sky-apts-major", "sky-apts"].forEach(function (id) {
+      ["sky-apts-major", "sky-apts", "sky-apt-towers"].forEach(function (id) {
+        if (!map.getLayer(id)) return;
         map.on("mousemove", id, aptTip);
         map.on("mouseleave", id, aptTipHide);
         map.on("click", id, aptClick);
