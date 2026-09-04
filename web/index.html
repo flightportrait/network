@@ -179,12 +179,12 @@
   /* Join: a panel over the LIVE sky — the map keeps playing behind it,
      and the moment the antenna connects, the proof is right there. */
   /* A soft scrim keeps the live sky visible but yields the focus. */
-  .joinscrim{position:absolute;inset:0 var(--col-w) 0 0;z-index:3;
-    background:rgba(245,241,230,.45);display:none}
+  .joinscrim{position:absolute;inset:0;z-index:40;
+    background:rgba(34,31,26,.5);display:none}
   body.mode-join .joinscrim{display:block}
-  .joinpanel{position:absolute;top:84px;bottom:26px;z-index:4;
-    left:calc((100% - var(--col-w)) / 2);transform:translateX(-50%);
-    width:700px;max-width:calc(100% - var(--col-w) - 36px);
+  .joinpanel{position:absolute;top:84px;bottom:26px;z-index:41;
+    left:50%;transform:translateX(-50%);
+    width:700px;max-width:calc(100% - 36px);
     background:var(--paper);border:1px solid var(--line);border-radius:8px;
     padding:26px 30px;box-shadow:0 10px 40px rgba(34,31,26,.28);
     overflow-y:auto;overscroll-behavior:contain;display:none;
