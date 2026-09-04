@@ -200,9 +200,11 @@
   .joinpanel code{font:0.86em/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     background:var(--card);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
   .prewrap{position:relative}
-  .prewrap .copy{position:absolute;top:8px;right:8px;padding:5px 11px;font-size:13px}
-  .prewrap .copy.done{background:var(--red)}
-  .joinpanel pre{background:var(--ink);color:rgba(245,241,230,.9);white-space:pre;overflow-x:auto;padding-right:84px;
+  .prewrap .copy{position:absolute;top:10px;right:10px;padding:4px 11px;font-size:13px;
+    background:var(--paper);color:var(--ink);border:1px solid rgba(245,241,230,.35)}
+  .prewrap .copy:hover{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+  .prewrap .copy.done{background:var(--ink);color:var(--paper);border-color:var(--paper)}
+  .joinpanel pre{background:var(--ink);color:rgba(245,241,230,.9);white-space:pre;overflow-x:auto;padding-top:44px;
     border-radius:6px;padding:14px 18px;overflow-x:auto;margin:12px 0;
     font:12.5px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   .joinpanel pre .v{color:#E5B24A}
@@ -781,10 +783,10 @@
 
     <h2 style="margin-top:22px">Do you already have a receiver?</h2>
     <div class="doors" role="tablist">
-      <button class="door" id="door-no" role="tab" aria-controls="path-no">No, I am starting from nothing.<small>The Station: a kit of about US$100, one line to type, and a short setup on your phone.</small></button>
-      <button class="door" id="door-yes" role="tab" aria-controls="path-yes">Yes, it feeds other networks.<small>Add one line. Nothing else changes.</small></button>
+      <button class="door" id="door-no" role="tab" aria-controls="path-no">No, I am starting from nothing.</button>
+      <button class="door" id="door-yes" role="tab" aria-controls="path-yes">Yes, it feeds other networks.</button>
     </div>
-    <!-- founder: the two door labels and their small print are the sentences most people will read; please pass over them. -->
+    <!-- founder: the two door labels are the sentences most people will read; please pass over them. -->
 
     <!-- ================= No: the Station ================= -->
     <div class="path" id="path-no" role="tabpanel">
