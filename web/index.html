@@ -187,6 +187,8 @@
   .aclist li:hover,.aclist li.sel{background:var(--card)}
   .aclist .pic,.aclist .tail{width:32px;height:28px;flex:none;
     object-fit:contain}
+  .aclist .tail[data-a]{cursor:pointer}
+  .aclist .tail[data-a]:hover{transform:scale(1.08)}
   .aclist .pic{padding:5px;transform:rotate(45deg);opacity:.85}
   .aclist .who{flex:1;min-width:0;display:flex;flex-direction:column}
   .aclist .cs{font-size:15px;line-height:1.2;white-space:nowrap}
@@ -229,14 +231,15 @@
   .wrow .why .k{display:block;font-family:'Helvetica Neue',Arial,sans-serif;
     font-size:11px;letter-spacing:.08em}
 
-  /* ---- modes: one shell, two stages. body.mode-airlines swaps the
-     MapLibre sky for the airlines world and the column's panel. ---- */
+  /* ---- one stage. The map is always the live sky; body.mode-airlines
+     only swaps the column's browse panel. An airline, once picked, is
+     an overlay on the sky (routes, shading when zoomed out) with its
+     card on the stage, and it stays until closed, whichever panel the
+     column shows. body.al-on marks that overlay. ---- */
   .mode-panel{flex:1;min-height:0;display:flex;flex-direction:column}
   #al-panel{display:none}
   body.mode-airlines #al-panel{display:flex}
   body.mode-airlines #sky-panel{display:none}
-  body.mode-airlines .mapnote,
-  body.mode-airlines .detail{display:none}
   /* Join: a panel over the LIVE sky — the map keeps playing behind it,
      and the moment the antenna connects, the proof is right there. */
   /* A soft scrim keeps the live sky visible but yields the focus. */
@@ -291,10 +294,6 @@
   .joinpanel .note{background:var(--card);border:1px solid var(--line);
     border-radius:6px;padding:14px 18px;font-size:14.5px;
     color:var(--quiet);margin:22px 0 0}
-  body:not(.mode-airlines)
-    .aldetail:not(.aptdetail):not(.fldetail):not(.afdetail),
-  body:not(.mode-airlines) .routebar,
-  body:not(.mode-airlines) #tip{display:none}
 
   /* Selected airline: floating card, same grammar as the aircraft card,
      bottom-left where it sits on open ocean instead of on a hub. */
@@ -369,7 +368,7 @@
     border:1px solid var(--line);border-radius:20px;overflow:hidden;
     background:var(--paper);box-shadow:0 2px 12px rgba(34,31,26,.15);
     font-family:'Helvetica Neue',Arial,sans-serif}
-  body.mode-airlines .viewpill{display:inline-flex}
+  body.al-on .viewpill{display:inline-flex}
   body.af-open .viewpill{display:none!important}
   .viewpill button{border:0;background:var(--paper);color:var(--quiet);
     font-size:12.5px;letter-spacing:.05em;padding:8px 18px;cursor:pointer}
@@ -504,6 +503,11 @@
     padding:7px 12px;font-size:14px;box-shadow:0 2px 14px rgba(34,31,26,.2)}
   #tip .m{color:var(--quiet);font-size:12.5px}
   .allist{list-style:none;margin-top:6px}
+  .allist .group{padding:14px 20px 6px;color:var(--quiet);cursor:default;
+    border-bottom:none;font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:12px;letter-spacing:.1em}
+  .allist .group:hover{background:none}
+  .allist .group .n{color:var(--quiet);margin-left:6px}
   .allist li{padding:5px 20px;display:flex;align-items:center;gap:11px;
     cursor:pointer;border-bottom:1px solid rgba(34,31,26,.06)}
   .allist li:hover,.allist li.sel{background:var(--card)}
@@ -672,17 +676,13 @@
       max-width:none;max-height:none;transform:none;border:none;
       border-radius:0;box-shadow:none;background:none;
       overflow-y:auto;flex:1;min-height:0;padding:2px 20px 24px}
-    /* Precedence: a picked route outranks the airline card; each mode
-       shows only its own cards. */
+    /* Precedence: a picked route outranks the airline card. Join owns
+       the sheet while open. */
     #sheet-cards:has(.routebar:not([hidden])) .aldetail{display:none}
-    body:not(.mode-airlines) #sheet-cards
-      .aldetail:not(.aptdetail):not(.fldetail):not(.afdetail),
-    body:not(.mode-airlines) #sheet-cards .routebar{display:none}
     body.mode-join #sheet-cards .detail,
     body.mode-join #sheet-cards .aptdetail,
     body.mode-join #sheet-cards .fldetail,
     body.mode-join #sheet-cards .afdetail{display:none}
-    body.mode-airlines #sheet-cards .detail{display:none}
     body.mode-join #sheet-cards .joinpanel{display:block}
     .joinscrim{display:none}
     .mapnote{top:74px}
@@ -1434,7 +1434,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
         map.getCanvas().style.cursor = "";
       }
       function aptClick(e) {
-        if (document.body.classList.contains("mode-airlines")) return;
+        if (document.body.classList.contains("al-on")) return;
         // an aircraft under the same pointer wins; the field is what
         // remains when the sky there is empty
         if (map.queryRenderedFeatures(e.point,
@@ -1642,6 +1642,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
   }
 
   function select(hex) {
+    if (window.__closeAirline) window.__closeAirline(false);
     state.selected = hex;
     if (history.replaceState) {
       history.replaceState(null, "",
@@ -1828,6 +1829,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       pushPositions();
       renderList();
       renderWidgets();
+      if (window.__rosterSky) window.__rosterSky();
       if (state.selected) { renderDetail(); updateTrail(); }
       else if (map && map.getSource("aircraft") && location.hash.length > 1 &&
                findAircraft(location.hash.slice(1))) {
@@ -1941,7 +1943,14 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
           "<span class='who'><span class='cs'>" +
           esc(a.flight || a.r || a.hex) + "</span><span class='ty'>" +
           sub + "</span></span>" + routeCell(a) + tail;
-        li.addEventListener("click", function () { select(a.hex); });
+        li.addEventListener("click", function (e) {
+          var tail = e.target.closest(".tail[data-a]");
+          if (tail && window.__goAirline) {
+            window.__goAirline(tail.getAttribute("data-a"));
+            return;
+          }
+          select(a.hex);
+        });
         ul.appendChild(li);
       });
   }
@@ -2015,14 +2024,37 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
     .then(function (r) { return r.ok ? r.json() : { airlines: {} }; })
     .then(function (d) { tails = d.airlines || {}; renderWidgets(); renderList(); })
     .catch(function () {});
-  function markFor(a) {
+  function operatorOf(a) {
     var m = /^([A-Z]{3})\d/.exec(String(a.flight || "").trim());
-    var entry = m && tails[m[1]];
+    return m ? m[1] : null;
+  }
+  function markFor(a) {
+    var op = operatorOf(a);
+    var entry = op && tails[op];
     var rel = entry && entry["64"];
     return rel
-      ? "<img class='tail' alt='' src='assets/airline-tails/" + esc(rel) + "'>"
+      ? "<img class='tail' data-a='" + op + "' title='" +
+        esc((airlineNames && airlineNames[op]) || op) +
+        "' alt='' src='assets/airline-tails/" + esc(rel) + "'>"
       : "<img class='pic' alt='' src='assets/icons/" + iconFor(a) + ".png'>";
   }
+  // the sky's own framing, for the airline overlay to hand back to
+  window.__skyFitted = function () { return state.fitted; };
+  window.__skyRefit = function () {
+    if (state.touched) return;
+    state.fitted = false;
+    maybeFit(toFeatures(state.aircraft,
+      function (a) { return [a.lat, a.lon]; }));
+  };
+  // the operators in the sky right now, for the roster's first group
+  window.__skyOperators = function () {
+    var ops = {};
+    state.aircraft.forEach(function (a) {
+      var op = operatorOf(a);
+      if (op) ops[op] = (ops[op] || 0) + 1;
+    });
+    return ops;
+  };
   function renderWidgets() {
     var flying = state.aircraft.filter(function (a) {
       return a.lat != null && a.alt_baro !== "ground";
@@ -2197,6 +2229,12 @@ window.__initAirlines = function () {
   var SKY_APT_LAYERS = ["sky-apts-major", "sky-apts", "sky-apt-labels"];
   var shadedIsos = [];
   var hoverArc = null;
+  // Work that needs the overlay layers waits here until the basemap is
+  // up; the card and the roster never wait for tiles.
+  var layersReady = false, afterLayers = [];
+  function whenLayers(fn) {
+    if (layersReady) fn(); else afterLayers.push(fn);
+  }
   function ensureLayers(done) {
     if (M.getSource && M.getSource("al-arcs")) return done();
     var feats = [];
@@ -2210,13 +2248,13 @@ window.__initAirlines = function () {
     M.addSource("al-countries", { type: "geojson", promoteId: "iso",
       data: { type: "FeatureCollection", features: feats } });
     M.addLayer({ id: "al-countries", type: "fill", source: "al-countries",
-      layout: { visibility: "none" },
+      maxzoom: 6.5, layout: { visibility: "none" },
       paint: { "fill-color": ["to-color",
         ["coalesce", ["feature-state", "c"], "rgba(0,0,0,0)"]],
         "fill-opacity": 0.8 } }, before);
     M.addSource("al-cdots", { type: "geojson", data: EMPTY });
     M.addLayer({ id: "al-cdots", type: "circle", source: "al-cdots",
-      layout: { visibility: "none" },
+      maxzoom: 6.5, layout: { visibility: "none" },
       paint: { "circle-radius": 4, "circle-color": ["get", "color"],
         "circle-stroke-color": "#F5F1E6", "circle-stroke-width": 1 } },
       before);
@@ -2262,12 +2300,12 @@ window.__initAirlines = function () {
       hideTip();
     });
     M.on("click", "al-arcs", function (e) {
-      if (!document.body.classList.contains("mode-airlines")) return;
+      if (!overlayOn()) return;
       e.preventDefault();
       selectLeg(e.features[0].id);
     });
     M.on("click", function (e) {
-      if (!document.body.classList.contains("mode-airlines")) return;
+      if (!overlayOn()) return;
       if (!M.queryRenderedFeatures(e.point,
             { layers: ["al-arcs"] }).length) clearLeg();
     });
@@ -2280,7 +2318,7 @@ window.__initAirlines = function () {
     });
     M.on("mouseleave", "al-apts", hideTip);
     M.on("click", "al-apts", function (e) {
-      if (!document.body.classList.contains("mode-airlines")) return;
+      if (!overlayOn()) return;
       if (window.__openAirport) {
         window.__openAirport(e.features[0].properties.code);
       }
@@ -2303,28 +2341,55 @@ window.__initAirlines = function () {
     M.on("mouseleave", "al-countries", hideTip);
     done();
   }
-  // Called by the mode controller: airlines layers on, sky layers off,
-  // and back. Idempotent, safe before layers exist.
+  // The overlay is on while an airline or alliance is picked. The sky
+  // never goes away: aircraft keep moving under the routes. The
+  // airline's own airport dots replace the sky's beacons while its
+  // routes are drawn; the airframe timeline owns the stage while open.
+  function overlayOn() {
+    return !!state.current && !document.body.classList.contains("af-open");
+  }
   window.__syncModeLayers = function () {
+    var on = !!state.current;
+    document.body.classList.toggle("al-on", on);
     if (!M || !M.getLayer) return;
-    var airlines = document.body.classList.contains("mode-airlines");
-    // the airframe timeline owns the stage while open: its routes and
-    // airports only, no airline overlay underneath
     var afOpen = document.body.classList.contains("af-open");
+    var routes = on && !afOpen && state.view === "routes";
     SKY_LAYERS.forEach(function (id) {
-      if (M.getLayer(id)) M.setLayoutProperty(id, "visibility",
-        airlines ? "none" : "visible");
+      if (M.getLayer(id)) M.setLayoutProperty(id, "visibility", "visible");
     });
     SKY_APT_LAYERS.forEach(function (id) {
       if (M.getLayer(id)) M.setLayoutProperty(id, "visibility",
-        (airlines || afOpen) ? "none" : "visible");
+        (routes || afOpen) ? "none" : "visible");
     });
     AL_LAYERS.forEach(function (id) {
       if (M.getLayer(id)) M.setLayoutProperty(id, "visibility",
-        (airlines && !afOpen) ? "visible" : "none");
+        (on && !afOpen) ? "visible" : "none");
     });
-    if (airlines && !afOpen) applyView();
+    if (on && !afOpen) applyView();
   };
+
+  // The camera the visitor had before the first airline took it; given
+  // back when the overlay closes, so browsing airlines never loses the
+  // sky they were watching.
+  var savedCam = null, tookCamera = false;
+  function takeCamera() {
+    if (tookCamera || !M) return;
+    tookCamera = true;
+    // a deep link can land before the sky has framed itself; then
+    // there is nothing worth keeping, and the sky refits on close
+    if (window.__skyFitted && !window.__skyFitted()) return;
+    savedCam = { center: M.getCenter(), zoom: M.getZoom() };
+  }
+  function giveBackCamera() {
+    tookCamera = false;
+    if (!M) { savedCam = null; return; }
+    if (savedCam) {
+      M.easeTo({ center: savedCam.center, zoom: savedCam.zoom, duration: 900 });
+    } else if (window.__skyRefit) {
+      window.__skyRefit();
+    }
+    savedCam = null;
+  }
 
   var tip = null;
   function positionTip(e) {
@@ -2768,8 +2833,9 @@ window.__initAirlines = function () {
     var top = order.slice(0, 40);
     el("d-routelist").innerHTML = top.length ? top.map(function (i) {
       var l = routes.legs[i];
-      var ac = (l.aircraft && l.aircraft[0])
-        ? '<span class="ac">' + l.aircraft[0].t + "</span>" : "";
+      var a0 = l.aircraft && l.aircraft[0];
+      var ac = a0 && (a0.name || a0.type)
+        ? '<span class="ac">' + esc(a0.name || a0.type) + "</span>" : "";
       return '<div class="rrow" data-i="' + i + '"><span class="pair">' +
         l.org + '<span class="arrow">&harr;</span>' + l.dst +
         '</span><span class="n">' + ac + freqLabel(l) + "</span></div>";
@@ -2796,13 +2862,17 @@ window.__initAirlines = function () {
   function applyView() {
     var routes = state.view === "routes";
     if (!routes) clearCountryFilter();
-    var inMode = document.body.classList.contains("mode-airlines");
-    function vis(id, on) {
+    var on = overlayOn();
+    function vis(id, show) {
       if (M.getLayer(id)) M.setLayoutProperty(id, "visibility",
-        on && inMode ? "visible" : "none");
+        show && on ? "visible" : "none");
     }
     vis("al-arcs", routes); vis("al-apts", routes);
     vis("al-countries", !routes); vis("al-cdots", !routes);
+    SKY_APT_LAYERS.forEach(function (id) {
+      if (M.getLayer(id)) M.setLayoutProperty(id, "visibility",
+        (routes && on) ? "none" : "visible");
+    });
     el("d-routelist").hidden = !routes;
     el("d-viewlabel").textContent =
       routes ? "Observed network" : "Countries observed";
@@ -2810,7 +2880,7 @@ window.__initAirlines = function () {
     el("v-routes").classList.toggle("on", routes);
     el("d-note").textContent = routes ? ROUTE_NOTE : COUNTRY_NOTE;
     if (!routes) clearLeg();          // no route pick outside the routes view
-    if (!state.current) return;
+    if (!state.current || !layersReady) return;
     if (routes) clearCountries();
     else paintCountries(state.current.countries, state.current.brand);
   }
@@ -2896,9 +2966,12 @@ window.__initAirlines = function () {
     state.allianceSlug = slug;
     state.selected = null;
     state.current = null;
+    window.__syncModeLayers();
     el("al-detail").hidden = true;
     el("ft-detail").hidden = true;
     el("ag-detail").hidden = false;
+    if (el("detail").classList.contains("show")) el("d-close").click();
+    takeCamera();
     el("ag-name").textContent = summary.name;
     el("ag-asof").textContent = "Official roster checked " +
       summary.source_checked_at;
@@ -2920,11 +2993,12 @@ window.__initAirlines = function () {
       });
       state.current = { countries: countries, brand: "#B8402E",
                         routesData: data.routes, alliance: slug };
-      if (M && M.getSource("al-arcs")) {
+      whenLayers(function () {
+        if (state.allianceSlug !== slug || state.selected) return;
         paintRoutes(data.routes, state.current.brand);
         fitToAirline(data.routes);
-        applyView();
-      }
+        window.__syncModeLayers();
+      });
       renderAllianceMembers(data.detail.memberships);
     }).catch(function () {
       if (state.allianceSlug !== slug || state.selected) return;
@@ -2933,7 +3007,7 @@ window.__initAirlines = function () {
     });
   }
 
-  function clearAllianceFilter() {
+  function clearAllianceFilter(keepCamera) {
     clearCountryFilter();
     clearLeg();
     state.allianceSlug = null;
@@ -2946,6 +3020,9 @@ window.__initAirlines = function () {
       M.getSource("al-arcs").setData(EMPTY);
       M.getSource("al-apts").setData(EMPTY);
     }
+    window.__syncModeLayers();
+    if (keepCamera === true) { savedCam = null; tookCamera = false; }
+    else giveBackCamera();
     renderAllianceFilters();
     renderRoster(el("al-search").value);
     if (history.replaceState) {
@@ -2954,16 +3031,58 @@ window.__initAirlines = function () {
   }
 
   // ---- roster --------------------------------------------------------
+  // The roster opens with the airlines in the sky right now, then
+  // everyone the network has observed. Regrouped only when the set of
+  // operators overhead changes, so the list never jumps under a reader.
+  var skyKey = "";
+  window.__rosterSky = function () {
+    var ops = window.__skyOperators ? window.__skyOperators() : {};
+    var key = Object.keys(ops).sort().join(",");
+    if (key === skyKey) return;
+    skyKey = key;
+    if (state.airlines.length) renderRoster(el("al-search").value);
+  };
+  function groupRow(list, label, n) {
+    var li = document.createElement("li");
+    li.className = "group";
+    li.textContent = label;
+    if (n != null) {
+      var count = document.createElement("span");
+      count.className = "n"; count.textContent = n;
+      li.appendChild(count);
+    }
+    list.appendChild(li);
+  }
   function renderRoster(filter) {
     var f = (filter || "").trim().toUpperCase();
     var list = el("allist");
     list.innerHTML = "";
     var shown = 0;
+    var ops = (!f && !state.allianceSlug && window.__skyOperators)
+      ? window.__skyOperators() : {};
+    var overhead = state.airlines.filter(function (a) { return ops[a.icao]; })
+      .sort(function (x, y) { return ops[y.icao] - ops[x.icao]; });
+    if (overhead.length) {
+      groupRow(list, "Overhead now", overhead.length);
+      overhead.forEach(function (a) { list.appendChild(rosterRow(a)); shown++; });
+      groupRow(list, "Everyone observed");
+    }
     state.airlines.forEach(function (a) {
       if (state.allianceSlug && !isActiveAlliance(a, state.allianceSlug)) return;
       if (f && !(a.icao.indexOf(f) >= 0 || (a.iata || "").indexOf(f) >= 0 ||
                  a.name.toUpperCase().indexOf(f) >= 0)) return;
       shown++;
+      list.appendChild(rosterRow(a));
+    });
+    el("count-airlines").textContent = state.airlines.length;
+    if (!shown) {
+      var li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "No airline matches.";
+      list.appendChild(li);
+    }
+  }
+  function rosterRow(a) {
       var li = document.createElement("li");
       li.tabIndex = 0;
       li.className = a.icao === state.selected ? "sel" : "";
@@ -2981,15 +3100,7 @@ window.__initAirlines = function () {
       li.addEventListener("keydown", function (e) {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
       });
-      list.appendChild(li);
-    });
-    el("count-airlines").textContent = shown;
-    if (!shown) {
-      var li = document.createElement("li");
-      li.className = "empty";
-      li.textContent = "No airline matches.";
-      list.appendChild(li);
-    }
+      return li;
   }
 
   // ---- selection -----------------------------------------------------
@@ -3020,6 +3131,9 @@ window.__initAirlines = function () {
       history.replaceState(null, "", airlinesURL(icao));
     }
     renderRoster(el("al-search").value);
+    // one card on the stage: the aircraft card yields to the airline
+    if (el("detail").classList.contains("show")) el("d-close").click();
+    takeCamera();
     // instant response from what the roster already knows; the rest
     // fills in when the fetch lands
     state.currentName = a.name;
@@ -3041,11 +3155,15 @@ window.__initAirlines = function () {
       state.current = { countries: d.countries, brand: brand };
       state.current.routesData = d.routes;
       clearCountryFilter();
-      paintRoutes(d.routes, brand);
-      fitToAirline(d.routes);
       renderRouteList(d.routes);
       clearLeg();                     // drop any pick from the previous airline
-      applyView();
+      window.__syncModeLayers();
+      whenLayers(function () {
+        if (state.selected !== icao) return;
+        paintRoutes(d.routes, brand);
+        fitToAirline(d.routes);
+        window.__syncModeLayers();
+      });
 
       el("d-name").textContent = a.name;
       el("d-codes").textContent = a.icao + (a.iata ? " · " + a.iata : "");
@@ -3125,18 +3243,22 @@ window.__initAirlines = function () {
     el("count-airlines").textContent = state.airlines.length;
     renderAllianceFilters();
     renderRoster("");
-    if (state.allianceSlug) selectAlliance(state.allianceSlug);
+    // the deep link opens now; its paint lands when the map is up
+    var want = (window.__pendingAirline ||
+      new URLSearchParams(location.search).get("a") || "").toUpperCase();
+    window.__pendingAirline = null;
+    var start = state.airlines.filter(function (a) { return a.icao === want; })[0];
+    if (start) select(start.icao);
+    else if (state.allianceSlug) selectAlliance(state.allianceSlug);
     var boot = function () {
       M = window.__fpMap;
       if (!M) { setTimeout(boot, 200); return; }
       if (!M.isStyleLoaded()) { M.once("load", boot); return; }
       ensureLayers(function () {
+        layersReady = true;
+        var queued = afterLayers; afterLayers = [];
+        queued.forEach(function (fn) { fn(); });
         window.__syncModeLayers();
-        var want = (new URLSearchParams(location.search).get("a") || "").toUpperCase();
-        var start = state.airlines.filter(function (a) { return a.icao === want; })[0];
-        if (start) select(start.icao);
-        else if (state.allianceSlug) selectAlliance(state.allianceSlug);
-        else if (state.airlines.length) select(state.airlines[0].icao);
       });
     };
     boot();
@@ -3154,11 +3276,11 @@ window.__initAirlines = function () {
   });
   el("rc-sched").hidden = true;
   // Deselect the airline entirely: card away, layers empty, roster back.
-  function deselectAirline() {
+  function deselectAirline(keepCamera) {
     el("ft-detail").hidden = true;
     clearCountryFilter();
     clearLeg();
-    if (M.getSource("al-arcs")) {
+    if (M && M.getSource && M.getSource("al-arcs")) {
       clearCountries();
       M.getSource("al-arcs").setData(EMPTY);
       M.getSource("al-apts").setData(EMPTY);
@@ -3166,17 +3288,32 @@ window.__initAirlines = function () {
     state.selected = null;
     state.current = null;
     el("al-detail").hidden = true;
+    window.__syncModeLayers();
     if (state.allianceSlug) {
       selectAlliance(state.allianceSlug);
       return;
     }
+    if (keepCamera === true) { savedCam = null; tookCamera = false; }
+    else giveBackCamera();
     renderRoster(el("al-search").value);
     if (history.replaceState) {
       history.replaceState(null, "", airlinesURL());
     }
   }
-  el("al-close").addEventListener("click", deselectAirline);
-  el("ag-close").addEventListener("click", clearAllianceFilter);
+  el("al-close").addEventListener("click", function () { deselectAirline(); });
+  el("ag-close").addEventListener("click", function () { clearAllianceFilter(); });
+  // Doors for the rest of the page: open an airline by ICAO; close the
+  // overlay entirely (restore = false when something else takes the
+  // camera, like a flight to an aircraft).
+  window.__selectAirline = function (icao) {
+    if (!state.airlines.length) { window.__pendingAirline = icao; return; }
+    select(icao);
+  };
+  window.__closeAirline = function (restore) {
+    if (!state.current && !state.selected && !state.allianceSlug) return;
+    if (state.allianceSlug) clearAllianceFilter(restore === false);
+    else deselectAirline(restore === false);
+  };
   // Fleet drill-down: a type's bar swaps the whole card for the type's
   // tails; the chevron walks back to the airline.
   var ftToken = 0;
@@ -3457,11 +3594,9 @@ window.__initJoin = function () {
     current = null;
     card.hidden = true;
     clearRunways();
-    if (restoreAirline &&
-        document.body.classList.contains("mode-airlines")) {
+    if (restoreAirline) {
       el("al-detail").hidden = false;
-    } else if (restoreAlliance &&
-        document.body.classList.contains("mode-airlines")) {
+    } else if (restoreAlliance) {
       el("ag-detail").hidden = false;
     }
     restoreAirline = false;
@@ -4098,7 +4233,6 @@ window.__initJoin = function () {
       bootedAirlines = true; window.__initAirlines();
     }
     if (join && !bootedJoin) { bootedJoin = true; window.__initJoin(); }
-    if (window.__syncModeLayers) window.__syncModeLayers();
     document.title = airlines ? "Airlines · FlightPortrait network"
       : join ? "Join · FlightPortrait network"
       : "The FlightPortrait network";
@@ -4115,6 +4249,14 @@ window.__initJoin = function () {
         mode === "sky" ? location.pathname : "?mode=" + mode);
     }
   }
+  // a tail mark anywhere on the page opens its airline: the column
+  // shows the roster, the overlay lands on the sky
+  window.__goAirline = function (icao) {
+    if (!icao) return;
+    window.__pendingAirline = icao;
+    if (currentMode() !== "airlines") setPageMode("airlines", true);
+    if (window.__selectAirline) window.__selectAirline(icao);
+  };
   function modeFromUrl() {
     var q = new URLSearchParams(location.search);
     if (q.get("mode") === "airlines" || q.get("a")) return "airlines";
@@ -4150,15 +4292,11 @@ window.__initJoin = function () {
   // ---- sheet reacts to content: a card appearing lifts it to half,
   // the last card closing drops it to peek ----------------------------
   function anyCardVisible() {
-    var m = currentMode();
-    if (m === "join") return true;
-    if (!el("apt-detail").hidden || !el("fl-detail").hidden ||
-        !el("af-detail").hidden) return true;
-    if (m === "airlines") {
-      return !el("al-detail").hidden || !el("ag-detail").hidden ||
-        !el("routecard").hidden;
-    }
-    return el("detail").classList.contains("show");
+    if (currentMode() === "join") return true;
+    return !el("apt-detail").hidden || !el("fl-detail").hidden ||
+      !el("af-detail").hidden || !el("al-detail").hidden ||
+      !el("ag-detail").hidden || !el("routecard").hidden ||
+      el("detail").classList.contains("show");
   }
   var lastCardState = false;
   function onCardChange() {
@@ -4208,14 +4346,12 @@ window.__initJoin = function () {
     if (!el("fl-detail").hidden) { el("fl-close").click(); return; }
     if (!el("apt-detail").hidden) { el("apt-close").click(); return; }
     if (m === "join") { setPageMode("sky", true); return; }
-    if (m === "airlines") {
-      if (!el("routecard").hidden) { el("rc-close").click(); return; }
-      if (!el("al-detail").hidden) { el("al-close").click(); return; }
-      if (!el("ag-detail").hidden) { el("ag-close").click(); return; }
-      if (window.__alClearFilter && window.__alClearFilter()) return;
-      setPageMode("sky", true); return;
-    }
-    if (el("detail").classList.contains("show")) el("d-close").click();
+    if (!el("routecard").hidden) { el("rc-close").click(); return; }
+    if (!el("al-detail").hidden) { el("al-close").click(); return; }
+    if (!el("ag-detail").hidden) { el("ag-close").click(); return; }
+    if (window.__alClearFilter && window.__alClearFilter()) return;
+    if (el("detail").classList.contains("show")) { el("d-close").click(); return; }
+    if (m === "airlines") setPageMode("sky", true);
   });
 
   // phone menu
