@@ -141,6 +141,17 @@
     background:var(--paper);border:1px solid var(--line);border-radius:8px;
     padding:16px 20px;box-shadow:0 4px 24px rgba(34,31,26,.18);display:none}
   .detail.show{display:block}
+  .detail .operator{display:flex;align-items:center;gap:8px;
+    margin-bottom:6px;padding-right:22px;color:var(--quiet);font-size:14px}
+  .detail .operator[hidden]{display:none}
+  .detail .operator img{width:30px;height:26px;object-fit:contain;display:block}
+  .detail .operator span{white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  /* Only when it is real: a squawk or transponder emergency */
+  .detail .alert{margin-top:10px;padding:8px 12px;border-radius:6px;
+    background:var(--red);color:var(--paper);font-size:14px}
+  .detail .alert[hidden]{display:none}
+  .detail .sub .stale{color:var(--red)}
   .detail .top{display:flex;justify-content:space-between;align-items:baseline}
   .detail .cs{font-size:22px}
   .detail .sub{color:var(--quiet);font-size:14px;margin-top:2px}
@@ -756,8 +767,10 @@
 </div>
 <div class="detail" id="detail">
   <button class="cardclose" id="d-close" aria-label="Close">&times;</button>
+  <div class="operator" id="d-operator" hidden><img id="d-operator-tail" alt=""><span id="d-operator-name"></span></div>
   <div class="top"><span class="cs" id="d-cs"></span></div>
   <div class="sub" id="d-sub"></div>
+  <div class="alert" id="d-alert" hidden></div>
   <div style="margin-top:6px"><a id="d-history" class="hist" href="#">Airframe history</a></div>
   <div class="photo" id="d-photo"></div>
   <div class="route" id="d-route"></div>
@@ -1728,7 +1741,30 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
     card.className = "detail show";
     el("d-cs").textContent = a.flight || a.hex;
     var typeName = (a.t && typeNames[a.t] && typeNames[a.t][0]) || a.t;
-    el("d-sub").textContent = [typeName, a.r].filter(Boolean).join(" · ");
+    var sub = [typeName, a.r].filter(Boolean).map(esc).join(" · ");
+    // a position older than half a minute explains a frozen icon
+    if (a.seen_pos != null && a.seen_pos >= 30) {
+      sub += (sub ? " · " : "") + "<span class='stale'>position " +
+        Math.round(a.seen_pos) + " s old</span>";
+    }
+    el("d-sub").innerHTML = sub;
+    // the operator, when the callsign says who it is
+    var op = operatorOf(a);
+    var opName = op && airlineNames && airlineNames[op];
+    var opTail = op && tails[op] && tails[op]["64"];
+    el("d-operator").hidden = !(opName || opTail);
+    el("d-operator-name").textContent = opName || op || "";
+    el("d-operator-tail").hidden = !opTail;
+    if (opTail) el("d-operator-tail").src = "assets/airline-tails/" + opTail;
+    // an emergency, only when there is one
+    var EMERG = { general: "Emergency declared", lifeguard: "Lifeguard flight",
+                  minfuel: "Minimum fuel", nordo: "Radio failure",
+                  unlawful: "Unlawful interference", downed: "Downed aircraft" };
+    var SQUAWK = { "7500": "Hijack squawk 7500", "7600": "Radio failure, squawk 7600",
+                   "7700": "Emergency, squawk 7700" };
+    var alert = (a.emergency && EMERG[a.emergency]) || SQUAWK[a.squawk] || "";
+    el("d-alert").hidden = !alert;
+    el("d-alert").textContent = alert;
     el("d-history").href = "plane.html?hex=" + a.hex;
     el("d-history").dataset.hex = a.hex;
     loadPhoto(a.hex);
@@ -1736,14 +1772,22 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
     var alt = a.alt_baro === "ground" ? "on the ground"
       : (a.alt_baro != null ? Number(a.alt_baro).toLocaleString() + " ft" : "–");
     var rows = [
-      ["Altitude", alt],
+      ["Altitude", alt]
+    ];
+    // climbing or descending, said only when it is happening
+    if (typeof a.baro_rate === "number" && Math.abs(a.baro_rate) >= 200 &&
+        a.alt_baro !== "ground") {
+      rows.push([a.baro_rate > 0 ? "Climbing" : "Descending",
+        Math.abs(a.baro_rate).toLocaleString() + " ft/min"]);
+    }
+    rows.push(
       ["Speed", a.gs != null ? Math.round(a.gs) + " kt" : "–"],
       ["Heading", a.track != null ? Math.round(a.track) + "°" : "–"],
       ["Squawk", a.squawk || "–"],
       ["Hex", a.hex],
       ["Position", a.lat != null
         ? a.lat.toFixed(3) + ", " + a.lon.toFixed(3) : "no fix"]
-    ];
+    );
     el("d-grid").innerHTML = rows.map(function (r) {
       return "<span class='k'>" + r[0] + "</span><span class='v'>" +
              r[1] + "</span>";

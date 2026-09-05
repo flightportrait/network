@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 AIRCRAFT_FIELDS = (
     "hex", "flight", "t", "r", "lat", "lon", "alt_baro", "gs",
     "track", "category", "squawk", "seen", "seen_pos",
+    "baro_rate", "emergency",
 )
 
 

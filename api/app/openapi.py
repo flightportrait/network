@@ -185,6 +185,11 @@ SCH_AIRCRAFT_ITEM = _obj({
     "squawk": _t("string", "Transponder code, 4 octal digits."),
     "seen": _t("number", "Seconds since the last message."),
     "seen_pos": _t("number", "Seconds since the last position."),
+    "baro_rate": _t("integer", "Vertical rate, feet per minute, "
+                               "positive climbing."),
+    "emergency": _t("string", "Transponder emergency state: none, "
+                              "general, lifeguard, minfuel, nordo, "
+                              "unlawful, downed, reserved."),
 }, required=["hex"],
     description="readsb passthrough dialect. Optional fields are absent "
                 "when unknown, never null.")
@@ -200,7 +205,8 @@ EX_AIRCRAFT = {
         "hex": "76cd06", "flight": "SIA123", "t": "A359", "r": "9V-SHF",
         "lat": 1.5, "lon": 103.8, "alt_baro": 6325, "gs": 285.9,
         "track": 85.4, "category": "A5", "squawk": "2136",
-        "seen": 0.2, "seen_pos": 1.1,
+        "seen": 0.2, "seen_pos": 1.1, "baro_rate": 1856,
+        "emergency": "none",
     }],
 }
 
