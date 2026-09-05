@@ -23,7 +23,7 @@
     --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E;
     --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
     --card:#FAF7EE; --sea:#E9E2D0; --land:#EDE7D6;
-    --col-w:340px; --detail-w:320px;
+    --col-w:380px; --detail-w:320px;
   }
   [hidden]{display:none!important}
   *{margin:0;padding:0;box-sizing:border-box;
@@ -72,6 +72,31 @@
     box-shadow:0 1px 8px rgba(34,31,26,.12);display:none;pointer-events:none;
     max-width:80%;text-align:center}
   .mapnote.show{display:block}
+  /* First visit: one card on the sky that says what this is, then
+     never again on this device (localStorage). Deep links and the
+     other modes skip it; whoever arrived for a specific thing came
+     knowing. */
+  .intro{position:absolute;left:18px;top:74px;z-index:4;width:400px;
+    max-width:calc(100% - var(--col-w) - 36px);
+    background:var(--paper);border:1px solid var(--line);border-radius:8px;
+    padding:18px 22px 16px;box-shadow:0 4px 24px rgba(34,31,26,.18);
+    display:none;font-size:15px;line-height:1.55}
+  .intro.show{display:block}
+  .intro h2{font-size:22px;line-height:1.15;font-weight:400;margin:0 0 8px;
+    padding-right:22px}
+  .intro p{margin:0 0 8px;color:var(--quiet)}
+  .intro p a{color:var(--ink)}
+  .intro p a#intro-join{color:var(--red)}
+  .intro .acts{display:flex;gap:14px;align-items:center;margin-top:12px}
+  .intro .acts a{display:inline-flex;align-items:center;gap:6px;
+    color:var(--red);text-decoration:none;white-space:nowrap}
+  .intro .acts a::after{content:"\2192"}
+  .intro .acts a:hover{text-decoration:underline}
+  .intro .acts button{background:var(--ink);color:var(--paper);border:none;
+    cursor:pointer;border-radius:6px;padding:7px 14px;
+    font:14px Palatino,Georgia,serif}
+  .intro .acts button:hover{background:var(--red)}
+  body.mode-airlines .intro,body.mode-join .intro{display:none}
   .maplibregl-canvas:focus-visible{outline:2px solid var(--red)}
   .maplibregl-ctrl-attrib{background:rgba(245,241,230,.8)!important;
     color:var(--quiet)!important;font-size:11px}
@@ -92,16 +117,27 @@
     color:var(--ink);font-size:16px}
   .wordmark img{width:22px;height:22px;display:block;border-radius:5px}
   .wordmark .net{color:var(--quiet)}
-  .counts{display:flex;gap:28px;padding:16px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  /* Column head: one headline, one quiet line, the sky drawn as a row
+     of type icons. Everything below shares one row grammar. */
+  .counts{display:flex;gap:28px;padding:16px 20px;
+    border-bottom:1px solid var(--line);flex-wrap:wrap}
   .count .n{font-size:30px;line-height:1;display:block}
   .count .caps{color:var(--quiet);display:block;margin-top:6px}
-  .skymix{flex-basis:100%;color:var(--quiet);font-size:14px;margin-top:2px}
-  .status{padding:10px 20px;border-bottom:1px solid var(--line);
-    display:flex;justify-content:space-between;align-items:center}
-  .status .caps{color:var(--quiet)}
+  .head{padding:24px 20px 20px;border-bottom:1px solid var(--line)}
+  .headline{display:flex;align-items:baseline;gap:10px}
+  .headline .n{font-size:38px;line-height:1}
+  .headline .unit{font-size:16px;color:var(--quiet)}
+  .subline{color:var(--quiet);margin-top:10px;display:flex;flex-wrap:wrap;
+    align-items:center}
+  .subline .sep{margin:0 8px}
   .dot{display:inline-block;width:7px;height:7px;border-radius:50%;
     background:#3D7A50;margin-right:7px;vertical-align:1px}
   .dot.down{background:var(--red)}
+  .skymix{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:16px}
+  .skymix .mixitem{display:inline-flex;align-items:center;gap:6px;
+    font-size:14px;color:var(--quiet);font-variant-numeric:tabular-nums}
+  .skymix .mixitem img{width:24px;height:24px;display:block;
+    transform:rotate(45deg);opacity:.85}
 
   /* Selected aircraft: a floating card on the map's left, FR24-style —
      the map stays the stage, the card sits on it. */
@@ -140,33 +176,58 @@
     font:15px Palatino,Georgia,serif}
   .search input:focus-visible{outline:2px solid var(--red);outline-offset:1px}
   .search input::placeholder{color:var(--quiet)}
+  /* The header shares the row's columns: what is listed, route, feet */
+  .widget .blockhead.listhead{display:flex;align-items:baseline;gap:12px}
+  .listhead .h-who{flex:1}
+  .listhead .h-route{flex:none}
+  .listhead .h-alt{flex:none;min-width:5.5ch;text-align:right;margin-left:8px}
   .aclist{list-style:none}
-  .aclist li{padding:9px 20px;display:flex;justify-content:space-between;
-    gap:10px;cursor:pointer;border-bottom:1px solid rgba(34,31,26,.06)}
+  .aclist li{padding:8px 20px;display:flex;align-items:center;
+    gap:12px;cursor:pointer}
   .aclist li:hover,.aclist li.sel{background:var(--card)}
-  .aclist .cs{min-width:8ch}
-  .aclist .ty{color:var(--quiet);flex:1}
-  .aclist .alt{color:var(--quiet);font-variant-numeric:tabular-nums}
+  .aclist .pic,.aclist .tail{width:32px;height:28px;flex:none;
+    object-fit:contain}
+  .aclist .pic{padding:5px;transform:rotate(45deg);opacity:.85}
+  .aclist .who{flex:1;min-width:0;display:flex;flex-direction:column}
+  .aclist .cs{font-size:15px;line-height:1.2;white-space:nowrap}
+  .aclist .ty{color:var(--quiet);font-size:12px;line-height:1.2;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .aclist .route{color:var(--ink);font-size:14px;white-space:nowrap;
+    flex:none;font-variant-numeric:tabular-nums}
+  .aclist .route .arr{margin:0 3px;color:var(--quiet)}
+  .aclist .alt{color:var(--quiet);font-size:11.5px;min-width:5.5ch;
+    margin-left:8px;
+    text-align:right;flex:none;font-variant-numeric:tabular-nums}
   .aclist .nofix{color:var(--quiet);font-size:12px;
     font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:.06em}
   .aclist .empty{color:var(--quiet);cursor:default;border-bottom:none}
   .aclist .empty:hover{background:none}
 
-  /* Widgets: the sky narrated, not enumerated. Each one is a small
-     card of curation — a special visitor, a superlative — and each is
-     a door onto the map, never a dead statistic. */
-  .widget{padding:14px 20px 16px;border-bottom:1px solid var(--line)}
+  /* Blocks under the head: the list of what is in view, with its
+     search. Rows are doors onto the map, never dead statistics. */
+  .widget{padding:16px 20px}
   .widget .caps{color:var(--quiet);display:block;margin-bottom:8px}
-  .wrow{display:flex;justify-content:space-between;align-items:baseline;
-    gap:12px;padding:5px 0;cursor:pointer;border-radius:4px}
+  .widget.listblock{padding:16px 0 16px}
+  .widget.listblock .caps{padding:0 20px}
+  .wrow{display:flex;align-items:center;gap:12px;padding:6px 0;
+    cursor:pointer}
   .wrow:hover .big{color:var(--red)}
-  .wrow .big{font-size:18px}
+  .wrow .pic{width:22px;height:22px;flex:none;transform:rotate(45deg);
+    opacity:.85}
+  .wrow .tail{width:30px;height:26px;flex:none;display:grid;
+    place-items:center}
+  .wrow .tail img{width:30px;height:26px;object-fit:contain;display:block}
+  .wrow .tail.blank{border:1px solid var(--line);border-radius:3px;
+    width:26px;height:22px}
+  .wrow .who{flex:1;min-width:0}
+  .wrow .big{font-size:17px;line-height:1.2;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .wrow .sub{color:var(--quiet);font-size:13px;margin-top:1px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .wrow .why{color:var(--quiet);font-size:14px;text-align:right;
-    font-variant-numeric:tabular-nums}
-  .visitor{cursor:pointer}
-  .visitor .big{font-size:20px;line-height:1.25}
-  .visitor:hover .big{color:var(--red)}
-  .visitor .why{color:var(--quiet);font-size:14px;margin-top:3px}
+    font-variant-numeric:tabular-nums;flex:none}
+  .wrow .why .k{display:block;font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:11px;letter-spacing:.08em}
 
   /* ---- modes: one shell, two stages. body.mode-airlines swaps the
      MapLibre sky for the airlines world and the column's panel. ---- */
@@ -493,21 +554,31 @@
   .agmember.unobserved{opacity:.55}
   @media(max-width:420px){.agmembers{grid-template-columns:1fr}}
 
-  /* Mobile chrome: bottom tabs + sheet handle. Hidden on desktop. */
+  /* Mobile chrome: bottom tabs, sheet handle, burger menu. Hidden on
+     desktop, where the column foot carries the same links. */
   .tabbar{display:none}
   .sheet-handle{display:none}
+  .burger{display:none}
+  .menu{display:none}
+  .menuscrim{display:none}
 
-  /* The live-sky search only covers what is overhead right now; hidden
-     until search is a finished, everything-searching feature. */
-  #sky-panel .search{display:none}
+  #sky-panel .search{padding:0 20px 8px}
+  .listblock .blockhead{padding:8px 20px 8px}
 
-  .col-foot{border-top:1px solid var(--line);padding:14px 20px;font-size:14px}
+  .col-foot{border-top:1px solid var(--line);padding:16px 20px;font-size:14px}
   .col-foot a.textlink{display:inline-flex;align-items:center;gap:8px;
     color:var(--red);text-decoration:none;white-space:nowrap}
   .col-foot a.textlink::after{content:"\2192"}
   .col-foot a.textlink:hover{text-decoration:underline}
-  .col-foot .quietlinks{margin-top:6px;color:var(--quiet);font-size:13px}
+  .col-foot .quietlinks{margin-top:8px;color:var(--quiet);font-size:13px}
   .col-foot .quietlinks a{color:var(--quiet)}
+  .col-foot{position:relative}
+  .col-foot .social{position:absolute;right:16px;top:16px;display:flex;
+    gap:12px}
+  .col-foot .social a{color:var(--quiet);display:block;width:18px;
+    height:18px}
+  .col-foot .social a:hover{color:var(--red)}
+  .col-foot .social svg{width:18px;height:18px;display:block}
 
   @media(max-width:760px){
     :root{--col-w:0px}
@@ -516,6 +587,40 @@
     .topbar{padding:10px 14px 0;height:64px}
     .topbar .wordmark span.net{display:none}
     .topnav a{display:none}
+    .burger{display:block;pointer-events:auto;background:none;border:none;
+      color:var(--ink);width:40px;height:40px;padding:8px;margin:-6px -8px 0 0;
+      cursor:pointer}
+    .burger svg{width:24px;height:24px;display:block}
+    /* Slides in from the right; the scrim fades. [hidden] only after
+       the slide-out has finished (the script waits for transitionend). */
+    .menuscrim{display:block;position:fixed;inset:0;z-index:9;
+      background:rgba(34,31,26,.28);opacity:0;transition:opacity .25s ease;
+      pointer-events:none}
+    .menu{display:flex;flex-direction:column;gap:2px;position:fixed;
+      top:0;right:0;bottom:0;z-index:10;width:min(300px,84vw);
+      background:var(--paper);border-left:1px solid var(--line);
+      padding:64px 26px 26px;box-shadow:-8px 0 30px rgba(34,31,26,.18);
+      padding-bottom:calc(26px + env(safe-area-inset-bottom));
+      transform:translateX(100%);
+      transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+    .menu.open{transform:none}
+    .menuscrim.open{opacity:1;pointer-events:auto}
+    .menu[hidden],.menuscrim[hidden]{display:none}
+    @media(prefers-reduced-motion:reduce){
+      .menu,.menuscrim{transition:none}
+    }
+    /* Links gather at the bottom, where the thumb is. */
+    .menu{justify-content:flex-end}
+    .menu a{color:var(--ink);text-decoration:none;font-size:19px;
+      padding:10px 0;border-bottom:1px solid var(--line)}
+    .menu .social{display:flex;gap:18px;padding:18px 0 0}
+    .menu .social a{border:none;padding:0;width:22px;height:22px;
+      color:var(--quiet)}
+    .menu .social svg{width:22px;height:22px;display:block}
+    .menu .quiet{margin-top:22px;color:var(--quiet);font-size:13px}
+    /* The column foot's links live in the menu here; the sheet keeps
+       its height for the sky. */
+    .col-foot{display:none}
 
     /* Bottom tab bar: the mode switcher, where thumbs are. */
     .tabbar{position:fixed;left:0;right:0;bottom:0;height:54px;z-index:8;
@@ -540,9 +645,15 @@
       padding:9px 0 3px;cursor:grab;touch-action:none;flex:none}
     .sheet-handle::before{content:"";display:block;width:40px;height:4px;
       border-radius:2px;background:rgba(34,31,26,.25);margin:0 auto}
+    .head{padding:8px 20px 16px}
+    .headline .n{font-size:30px}
     .counts{padding:10px 20px}
     .count .n{font-size:24px}
+    /* At the peek stop the panel is squeezed to nothing; clip it so its
+       lines never paint under the foot. */
+    .col .mode-panel{overflow:hidden}
     .col-foot{padding:12px 20px}
+    .col-foot .social{top:14px}
 
     /* Cards live INSIDE the sheet (the sheet manager moves them in).
        A visible card replaces the browse panel; closing it brings the
@@ -575,6 +686,7 @@
     body.mode-join #sheet-cards .joinpanel{display:block}
     .joinscrim{display:none}
     .mapnote{top:74px}
+    .intro{left:14px;right:14px;top:74px;width:auto;max-width:none}
     /* The layer pill floats just below the header, compact. */
     .viewpill{top:66px;transform:translateX(-50%);left:50%}
     .viewpill button{font-size:11.5px;padding:6px 13px}
@@ -595,10 +707,24 @@
     <a href="/network/?mode=airlines" id="nav-airlines">Airlines</a>
     <a href="/network/?mode=join" id="nav-join">Join</a>
   </nav>
+  <button class="burger" id="burger" type="button" aria-label="Menu"
+          aria-expanded="false" aria-controls="menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
 </header>
 
 <div id="map" aria-label="Live map of aircraft heard by the network"></div>
 <div class="mapnote" id="mapnote"></div>
+<div class="intro" id="intro" role="dialog" aria-labelledby="intro-h">
+  <button class="cardclose" id="intro-close" aria-label="Close">&times;</button>
+  <h2 id="intro-h">We draw the sky over our homes</h2>
+  <p>Welcome to the FlightPortrait network. We're a group of aviation fans running an antenna and contributing to making ADS-B data public, free, and easily accessible.</p>
+  <p>This network powers the <a href="/">FlightPortrait frames</a> and helps us run the service without ads, or mandatory subscriptions.</p>
+  <p>If you want to join this hobby and contribute to the network, <a href="/network/?mode=join" id="intro-join">add your antenna</a>.</p>
+  <div class="acts">
+    <button type="button" id="intro-ok">Got it</button>
+  </div>
+</div>
 <div class="detail" id="detail">
   <button class="cardclose" id="d-close" aria-label="Close">&times;</button>
   <div class="top"><span class="cs" id="d-cs"></span></div>
@@ -818,35 +944,19 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
  <button class="sheet-handle" id="sheet-handle" aria-label="Expand panel"></button>
  <div id="sheet-cards"></div>
  <div class="mode-panel" id="sky-panel">
-  <div class="counts">
-    <div class="count"><span class="n" id="count-aircraft">&ndash;</span><span class="caps">aircraft now</span></div>
-    <div class="count"><span class="n" id="count-stations">&ndash;</span><span class="caps">stations online</span></div>
+  <div class="head">
+    <div class="headline"><span class="n" id="count-aircraft">&ndash;</span><span class="unit">aircraft overhead</span></div>
+    <div class="subline caps"><span class="dot" id="statusdot"></span><span id="statusline">connecting</span><span class="sep">&middot;</span><span id="count-stations">&ndash;</span>&nbsp;<span id="count-stations-unit">stations</span><span class="sep">&middot;</span><span id="updated"></span></div>
     <div class="skymix" id="skymix" hidden></div>
   </div>
-  <div class="status">
-    <span class="caps"><span class="dot" id="statusdot"></span><span id="statusline">connecting</span></span>
-    <span class="caps" id="updated"></span>
-  </div>
-
   <div class="col-scroll">
-    <div class="search">
-      <input id="search" type="search" placeholder="Callsign, type, registration"
-             autocomplete="off" spellcheck="false" aria-label="Search aircraft">
-    </div>
-    <div class="blockhead caps" id="list-head" style="display:none"></div>
-    <ul class="aclist" id="aclist"></ul>
-
-    <div class="widget" id="w-visitor" style="display:none">
-      <span class="caps">Special visitor</span>
-      <div class="visitor" id="w-visitor-body"></div>
-    </div>
-    <div class="widget" id="w-super" style="display:none">
-      <span class="caps">In the sky</span>
-      <div id="w-super-body"></div>
-    </div>
-    <div class="widget" id="w-airlines" style="display:none">
-      <span class="caps">Airlines overhead</span>
-      <div id="w-airlines-body"></div>
+    <div class="widget listblock">
+      <div class="search">
+        <input id="search" type="search" placeholder="Callsign, type, registration"
+               autocomplete="off" spellcheck="false" aria-label="Search aircraft">
+      </div>
+      <div class="blockhead caps listhead"><span class="h-who" id="list-head"></span><span class="h-route">route</span><span class="h-alt">ft</span></div>
+      <ul class="aclist" id="aclist"></ul>
     </div>
   </div>
  </div>
@@ -870,6 +980,14 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
     <div class="quietlinks">
       Data &copy; network feeders, ODbL &middot; <a href="https://docs.flightportrait.com">Docs</a> &middot; <a href="/network/terms.html">Terms</a>
     </div>
+    <div class="social" aria-label="FlightPortrait elsewhere">
+      <a href="https://github.com/flightportrait/network" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.8a10.2 10.2 0 0 0-3.2 19.9c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.6 1 1.6 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.3-.3-4.7-1.1-4.7-5 0-1.1.4-2 1-2.8-.1-.2-.4-1.3.1-2.7 0 0 .9-.3 2.8 1a9.7 9.7 0 0 1 5.2 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.5.1 2.7.6.8 1 1.7 1 2.8 0 3.9-2.4 4.7-4.7 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 12 1.8z"/></svg></a>
+      <a href="https://www.instagram.com/flightportrait" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg></a>
+      <a href="https://www.tiktok.com/@yoann.tlm" target="_blank" rel="noopener" aria-label="TikTok" title="TikTok">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.3 2.6a5.6 5.6 0 0 0 4.6 4.5v3.2a8.7 8.7 0 0 1-4.6-1.5v6.4a6.4 6.4 0 1 1-5.5-6.3v3.3a3.2 3.2 0 1 0 2.3 3.1V2.6z"/></svg></a>
+    </div>
   </div>
 </aside>
 
@@ -886,6 +1004,25 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
     <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="9" r="1.6" fill="currentColor" stroke="none"/><path d="M12 11v10"/><path d="M8.6 5.6a4.8 4.8 0 0 1 6.8 0"/><path d="M5.9 2.9a8.6 8.6 0 0 1 12.2 0"/></svg>
     <span>Join</span>
   </a>
+</nav>
+
+<!-- Phone menu: what the desktop column foot carries, behind a burger.
+     The tab bar already holds the three modes. -->
+<div class="menuscrim" id="menuscrim" hidden></div>
+<nav class="menu" id="menu" aria-label="More" hidden>
+  <button class="cardclose" id="menu-close" aria-label="Close">&times;</button>
+  <a href="/">The Frame</a>
+  <a href="https://docs.flightportrait.com">Docs</a>
+  <a href="/network/terms.html">Feeder terms</a>
+  <div class="social">
+    <a href="https://github.com/flightportrait/network" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.8a10.2 10.2 0 0 0-3.2 19.9c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.6 1 1.6 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.3-.3-4.7-1.1-4.7-5 0-1.1.4-2 1-2.8-.1-.2-.4-1.3.1-2.7 0 0 .9-.3 2.8 1a9.7 9.7 0 0 1 5.2 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.5.1 2.7.6.8 1 1.7 1 2.8 0 3.9-2.4 4.7-4.7 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 12 1.8z"/></svg></a>
+    <a href="https://www.instagram.com/flightportrait" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg></a>
+    <a href="https://www.tiktok.com/@yoann.tlm" target="_blank" rel="noopener" aria-label="TikTok" title="TikTok">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.3 2.6a5.6 5.6 0 0 0 4.6 4.5v3.2a8.7 8.7 0 0 1-4.6-1.5v6.4a6.4 6.4 0 1 1-5.5-6.3v3.3a3.2 3.2 0 1 0 2.3 3.1V2.6z"/></svg></a>
+  </div>
+  <p class="quiet">Data &copy; network feeders, ODbL 1.0</p>
 </nav>
 
 <script src="vendor/maplibre-gl.js"></script>
@@ -1111,6 +1248,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }),
                    "bottom-right");
     map.on("dragstart", function () { state.touched = true; });
+    map.on("moveend", renderListSoon);
     map.on("zoomstart", function (e) {
       if (e.originalEvent) state.touched = true;
     });
@@ -1313,8 +1451,15 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       });
       setSkyAirports();
 
-      refresh();
-      setInterval(refresh, 10000);
+      // the sky has been polling since script start; plot what it has
+      pushPositions();
+      renderListSoon();
+      if (!state.selected && location.hash.length > 1 &&
+          findAircraft(location.hash.slice(1))) {
+        select(location.hash.slice(1));
+      }
+      maybeFit(toFeatures(state.aircraft,
+        function (a) { return [a.lat, a.lon]; }));
     }
   }
 
@@ -1326,6 +1471,10 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
   }).catch(function () {
     startMap(FALLBACK_STYLE);
   });
+
+  // The counts and the column do not need the map; they answer first.
+  refresh();
+  setInterval(refresh, 10000);
 
   // ---- card enrichment ------------------------------------------------
   // Type names come from our own table; photos from planespotters.net
@@ -1680,7 +1829,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       renderList();
       renderWidgets();
       if (state.selected) { renderDetail(); updateTrail(); }
-      else if (location.hash.length > 1 &&
+      else if (map && map.getSource("aircraft") && location.hash.length > 1 &&
                findAircraft(location.hash.slice(1))) {
         select(location.hash.slice(1));
       }
@@ -1694,6 +1843,8 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       .then(function (d) {
         el("count-stations").textContent =
           d.station_count == null ? "–" : d.station_count;
+        el("count-stations-unit").textContent =
+          d.station_count === 1 ? "station" : "stations";
       }).catch(function () {});
 
     // stations still fetched: their coarse positions widen the first
@@ -1704,19 +1855,25 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       }).catch(function () {});
   }
 
-  var bootAt = Date.now();
+  // The first view is wherever the network is listening: the aircraft
+  // with a fix plus the online stations. Data may land before the map
+  // exists (the sky polls from script start; the basemap can take
+  // seconds); initLayers retries. A visitor who has already moved the
+  // map is never yanked.
   function maybeFit(feats) {
-    if (state.fitted || state.touched) return;
-    if (Date.now() - bootAt > 8000) { state.fitted = true; return; }
+    if (state.fitted || state.touched || !map) return;
     var pts = feats.map(function (f) { return f.geometry.coordinates; });
     state.stations.forEach(function (s) {
-      if (s.coarse_lat != null) pts.push([s.coarse_lon, s.coarse_lat]);
+      if (s.online && s.coarse_lat != null) {
+        pts.push([s.coarse_lon, s.coarse_lat]);
+      }
     });
     if (!pts.length) return;
     var b = new maplibregl.LngLatBounds(pts[0], pts[0]);
     pts.forEach(function (p) { b.extend(p); });
     map.fitBounds(b, { padding: 90, maxZoom: 9, duration: 1200 });
     state.fitted = true;
+    renderListSoon();
   }
 
   function matchesQuery(a, q) {
@@ -1738,24 +1895,38 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
 
   // The map is the list. The column shows aircraft rows only while a
   // search query is typed; otherwise the space belongs to the widgets.
+  function inView(a) {
+    if (a.lat == null) return false;
+    // until the basemap is up and the first fit has landed, the map is
+    // nowhere in particular: list everything
+    if (!map || !map.isStyleLoaded() ||
+        (!state.fitted && !state.touched)) return true;
+    var b = map.getBounds();
+    return a.lon >= b.getWest() && a.lon <= b.getEast() &&
+           a.lat >= b.getSouth() && a.lat <= b.getNorth();
+  }
   function renderList() {
     var ul = el("aclist");
     var head = el("list-head");
     ul.innerHTML = "";
     var q = el("search").value.trim();
-    if (!q) { head.style.display = "none"; return; }
-    head.textContent = "Search";
-    head.style.display = "";
-    var list = filteredAircraft();
+    var list = q ? filteredAircraft() : state.aircraft.filter(inView);
+    head.textContent = q ? "Matching" : "In view";
     if (!list.length) {
       var li = document.createElement("li");
       li.className = "empty";
-      li.textContent = "Nothing matches that search.";
+      li.textContent = q ? "Nothing matches that search."
+        : (state.aircraft.length ? "Nothing in view. Pan the map."
+                                 : "A quiet sky right now.");
       ul.appendChild(li);
       return;
     }
     list.slice()
-      .sort(function (a, b2) { return (a.seen || 0) - (b2.seen || 0); })
+      .sort(function (a, b2) {
+        var x = typeof a.alt_baro === "number" ? a.alt_baro : -1;
+        var y = typeof b2.alt_baro === "number" ? b2.alt_baro : -1;
+        return y - x;
+      })
       .slice(0, 80)
       .forEach(function (a) {
         var li = document.createElement("li");
@@ -1765,19 +1936,53 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
         var tail = a.lat == null
           ? "<span class='nofix'>no fix</span>"
           : "<span class='alt'>" + alt + "</span>";
-        li.innerHTML = "<span class='cs'>" + esc(a.flight || a.hex) +
-          "</span><span class='ty'>" + esc(a.t || "") + "</span>" + tail;
+        var sub = esc(typeNameOf(a));
+        li.innerHTML = markFor(a) +
+          "<span class='who'><span class='cs'>" +
+          esc(a.flight || a.r || a.hex) + "</span><span class='ty'>" +
+          sub + "</span></span>" + routeCell(a) + tail;
         li.addEventListener("click", function () { select(a.hex); });
         ul.appendChild(li);
       });
   }
+  // routes for the rows on screen: the same cache the card reads, filled
+  // a few callsigns at a time so a busy sky never floods the API
+  var routeQueue = [], routeBusy = 0;
+  function wantRoute(callsign) {
+    if (!callsign || callsign in routeCache ||
+        routeQueue.indexOf(callsign) !== -1) return;
+    routeQueue.push(callsign);
+    pumpRoutes();
+  }
+  function pumpRoutes() {
+    while (routeBusy < 3 && routeQueue.length) {
+      var cs = routeQueue.shift();
+      if (cs in routeCache) continue;
+      routeCache[cs] = undefined; routeBusy++;
+      (function (cs) {
+        fetch(API + "/v1/flights/" + encodeURIComponent(cs))
+          .then(function (r) { return r.ok ? r.json() : {}; })
+          .then(function (d) { routeCache[cs] = d.route || null; })
+          .catch(function () { routeCache[cs] = null; })
+          .then(function () {
+            routeBusy--; renderListSoon(); pumpRoutes();
+          });
+      })(cs);
+    }
+  }
+  function routeCell(a) {
+    var cs = String(a.flight || "").trim();
+    var chain = cs && routeCache[cs];
+    if (!chain) { if (cs) wantRoute(cs); return ""; }
+    return "<span class='route'>" + chain.map(esc)
+      .join("<span class='arr'>\u2192</span>") + "</span>";
+  }
+  var listTimer = null;
+  function renderListSoon() {
+    clearTimeout(listTimer);
+    listTimer = setTimeout(renderList, 120);
+  }
 
-  // ---- widgets --------------------------------------------------------
-  // Curation over enumeration. "Special visitor" borrows the frame's
-  // editorial idea: surface the rarest airframe overhead, by silhouette
-  // class (a helicopter or a four-engine heavy beats another A320).
-  var RARITY = { heli: 5, wide4: 4, bizjet: 2, wide: 2, prop: 2,
-                 ga: 1, narrow: 0 };
   // operator names from the same public registry the airlines mode
   // speaks; loaded once, the widget waits quietly until it answers
   var airlineNames = null;
@@ -1804,114 +2009,51 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       "<span class='big'>" + esc(a.flight || a.r || a.hex) + "</span>" +
       "<span class='why'>" + esc(label) + " · " + esc(value) + "</span></div>";
   }
+  // airline tail marks, the same manifest the airlines page draws from
+  var tails = {};
+  fetch("assets/airline-tails/manifest.json")
+    .then(function (r) { return r.ok ? r.json() : { airlines: {} }; })
+    .then(function (d) { tails = d.airlines || {}; renderWidgets(); renderList(); })
+    .catch(function () {});
+  function markFor(a) {
+    var m = /^([A-Z]{3})\d/.exec(String(a.flight || "").trim());
+    var entry = m && tails[m[1]];
+    var rel = entry && entry["64"];
+    return rel
+      ? "<img class='tail' alt='' src='assets/airline-tails/" + esc(rel) + "'>"
+      : "<img class='pic' alt='' src='assets/icons/" + iconFor(a) + ".png'>";
+  }
   function renderWidgets() {
     var flying = state.aircraft.filter(function (a) {
       return a.lat != null && a.alt_baro !== "ground";
     });
 
-    // one quiet line saying what kind of sky it is
+    // the sky as a row of type icons with counts
     var MIX = [
-      { kinds: { narrow: 1 }, one: "airliner", many: "airliners" },
-      { kinds: { wide: 1, wide4: 1 }, one: "heavy", many: "heavies" },
-      { kinds: { bizjet: 1 }, one: "bizjet", many: "bizjets" },
-      { kinds: { prop: 1 }, one: "prop", many: "props" },
-      { kinds: { ga: 1 }, one: "light aircraft", many: "light aircraft" },
-      { kinds: { heli: 1 }, one: "helicopter", many: "helicopters" }
+      { kinds: { narrow: 1 }, icon: "narrow", one: "airliner", many: "airliners" },
+      { kinds: { wide: 1, wide4: 1 }, icon: "wide", one: "heavy", many: "heavies" },
+      { kinds: { bizjet: 1 }, icon: "bizjet", one: "bizjet", many: "bizjets" },
+      { kinds: { prop: 1 }, icon: "prop", one: "prop", many: "props" },
+      { kinds: { ga: 1 }, icon: "ga", one: "light aircraft", many: "light aircraft" },
+      { kinds: { heli: 1 }, icon: "heli", one: "helicopter", many: "helicopters" }
     ];
-    var mixParts = [];
+    var mix = "";
     MIX.forEach(function (g) {
-      var n = flying.filter(function (a) {
-        return g.kinds[iconFor(a)];
-      }).length;
-      if (n) mixParts.push(n + " " + (n === 1 ? g.one : g.many));
+      var n = flying.filter(function (a) { return g.kinds[iconFor(a)]; }).length;
+      if (!n) return;
+      var word = n === 1 ? g.one : g.many;
+      mix += "<span class='mixitem' title='" + n + " " + esc(word) + "'>" +
+        "<img alt='" + esc(word) + "' src='assets/icons/" + g.icon + ".png'>" +
+        n + "</span>";
     });
-    el("skymix").textContent = mixParts.join(" · ");
-    el("skymix").hidden = !mixParts.length;
-
-    // special visitor: best rarity above the everyday, ties broken by
-    // wingspan class staying stable while it remains overhead
-    var best = null, bestScore = 0;
-    flying.forEach(function (a) {
-      var score = RARITY[iconFor(a)] || 0;
-      if (score > bestScore ||
-          (best && a.hex === state.visitorHex && score === bestScore)) {
-        best = a; bestScore = score;
-      }
-    });
-    var vbox = el("w-visitor");
-    if (best && bestScore >= 2) {
-      state.visitorHex = best.hex;
-      el("w-visitor-body").innerHTML =
-        "<div class='big'>" + esc(typeNameOf(best) || "Unusual type") +
-        "</div><div class='why'>" +
-        esc([best.flight || best.hex, best.r].filter(Boolean).join(" · ")) +
-        "</div>";
-      el("w-visitor-body").onclick = function () { select(best.hex); };
-      vbox.style.display = "";
-    } else {
-      state.visitorHex = null;
-      vbox.style.display = "none";
-    }
-
-    // superlatives: one line each, only when they say something
-    var rows = "";
-    var highest = null, fastest = null;
-    flying.forEach(function (a) {
-      if (typeof a.alt_baro === "number" &&
-          (!highest || a.alt_baro > highest.alt_baro)) highest = a;
-      if (a.gs != null && (!fastest || a.gs > fastest.gs)) fastest = a;
-    });
-    if (highest && highest.alt_baro >= 10000) {
-      rows += widgetRow("highest", highest,
-        Number(highest.alt_baro).toLocaleString() + " ft");
-    }
-    if (fastest && fastest.gs >= 250 &&
-        (!highest || fastest.hex !== highest.hex)) {
-      rows += widgetRow("fastest", fastest, Math.round(fastest.gs) + " kt");
-    }
-    var sbox = el("w-super");
-    el("w-super-body").innerHTML = rows;
-    sbox.style.display = rows ? "" : "none";
-    Array.prototype.forEach.call(
-      sbox.querySelectorAll(".wrow"), function (row) {
-        row.addEventListener("click", function () {
-          select(row.getAttribute("data-hex"));
-        });
-      });
-
-    // airlines overhead: the same sky grouped by operator, each row a
-    // door into that airline's whole network
-    var abox = el("w-airlines");
-    var aRows = "";
-    if (airlineNames) {
-      var byOp = {};
-      flying.forEach(function (a) {
-        var m = /^([A-Z]{3})\d/.exec(String(a.flight || "").trim());
-        if (m && airlineNames[m[1]]) byOp[m[1]] = (byOp[m[1]] || 0) + 1;
-      });
-      aRows = Object.keys(byOp).sort(function (x, y) {
-        return byOp[y] - byOp[x] || (x < y ? -1 : 1);
-      }).slice(0, 5).map(function (icao) {
-        return "<div class='wrow' data-a='" + esc(icao) + "'>" +
-          "<span class='big'>" + esc(airlineNames[icao]) + "</span>" +
-          "<span class='why'>" + byOp[icao] + "</span></div>";
-      }).join("");
-    }
-    el("w-airlines-body").innerHTML = aRows;
-    abox.style.display = aRows ? "" : "none";
-    Array.prototype.forEach.call(
-      abox.querySelectorAll(".wrow"), function (row) {
-        row.addEventListener("click", function () {
-          location.href = "/network/?mode=airlines&a=" +
-            row.getAttribute("data-a");
-        });
-      });
+    el("skymix").innerHTML = mix;
+    el("skymix").hidden = !mix;
   }
 
   function tickUpdated() {
     if (!state.generatedAt) { el("updated").textContent = ""; return; }
     var age = Math.max(0, Math.round(Date.now() / 1000 - state.generatedAt));
-    el("updated").textContent = "updated " + age + "s ago";
+    el("updated").textContent = age + "s ago";
   }
   setInterval(tickUpdated, 1000);
 })();
@@ -4076,10 +4218,70 @@ window.__initJoin = function () {
     if (el("detail").classList.contains("show")) el("d-close").click();
   });
 
+  // phone menu
+  (function () {
+    var menu = el("menu"), scrim = el("menuscrim"), burger = el("burger");
+    function setMenu(open) {
+      burger.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) {
+        menu.hidden = false; scrim.hidden = false;
+        void menu.offsetWidth;   // commit the off-screen start, then slide
+        menu.classList.add("open"); scrim.classList.add("open");
+      } else {
+        menu.classList.remove("open"); scrim.classList.remove("open");
+        var done = false;
+        function hide() {
+          if (done) return; done = true;
+          menu.hidden = true; scrim.hidden = true;
+        }
+        menu.addEventListener("transitionend", hide, { once: true });
+        setTimeout(hide, 350);   // reduced motion: no transitionend
+      }
+    }
+    burger.addEventListener("click", function () {
+      setMenu(!menu.classList.contains("open"));
+    });
+    el("menu-close").addEventListener("click", function () { setMenu(false); });
+    scrim.addEventListener("click", function () { setMenu(false); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && menu.classList.contains("open")) {
+        setMenu(false); e.stopPropagation();
+      }
+    }, true);
+  })();
+
   placeCards();
   if (mq.addEventListener) mq.addEventListener("change", placeCards);
   else mq.addListener(placeCards);
   if (modeFromUrl() !== "sky") setPageMode(modeFromUrl(), false);
+
+  // ---- first visit ----------------------------------------------------
+  // One card, once per device, on a plain arrival at the live map. A
+  // deep link (an aircraft, an airline, a route) or another mode means
+  // the visitor came for something specific; nothing to explain.
+  (function () {
+    var KEY = "fp-network-intro";
+    var seen = false;
+    try { seen = !!localStorage.getItem(KEY); } catch (e) {}
+    if (seen || modeFromUrl() !== "sky" || location.hash.length > 1 ||
+        location.search.length > 1) return;
+    var card = el("intro");
+    function dismiss() {
+      card.classList.remove("show");
+      try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {}
+    }
+    el("intro-close").addEventListener("click", dismiss);
+    el("intro-ok").addEventListener("click", dismiss);
+    el("intro-join").addEventListener("click", function (e) {
+      e.preventDefault(); dismiss(); setPageMode("join", true);
+    });
+    // picking anything on the sky is the lesson learned
+    el("map").addEventListener("click", dismiss, { once: true });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && card.classList.contains("show")) dismiss();
+    });
+    card.classList.add("show");
+  })();
 })();
 </script>
 </body>
