@@ -1409,46 +1409,66 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
 
       // Airports: fixed quiet marks under the moving sky — paper
       // beacons ringed in ink, every one a door into the airport card.
-      // Tiered by OurAirports size class so the world view stays
-      // clean: majors appear first, regional fields as you zoom in.
-      // Inserted before routeline so the sky always draws above them;
-      // labels added after plane-labels so aircraft win collisions.
+      // Each field carries z, the zoom it earns a place at (see
+      // thinAirports): the world view holds a few great hubs and each
+      // level lets in the next rank, growing and fading up over the
+      // level before its own so nothing pops. Inserted before routeline
+      // so the sky always draws above them; labels added after
+      // plane-labels so aircraft win collisions.
       map.addSource("sky-apts", { type: "geojson",
         data: { type: "FeatureCollection", features: [] } });
-      map.addLayer({ id: "sky-apts-major", type: "circle",
-        source: "sky-apts", minzoom: 3.4,
-        filter: ["==", ["get", "tier"], 2],
-        paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"],
-                   3.5, 3.5, 6, 5, 10, 7],
-                 "circle-color": "#F5F1E6",
-                 "circle-stroke-color": "rgba(34,31,26,.85)",
-                 "circle-stroke-width": 1.6 } }, "routeline");
+      // a field is in the layer from one level under its own — the
+      // room its fade needs — and settled from its own level up
+      function aptFilter(lead) {
+        var f = ["step", ["zoom"], ["<=", ["get", "z"], 2 + lead]];
+        for (var L = 2; L < APT_MAX_Z; L++) {
+          f.push(L, ["<=", ["get", "z"], L + lead]);
+        }
+        return f;
+      }
+      // zoom-driven paint whose value at each level knows the field's
+      // z: `off` until the level before its own, then `on` for that
+      // level (a number or a function of the level)
+      function aptRamp(on, off) {
+        var e = ["interpolate", ["linear"], ["zoom"]];
+        for (var L = 1; L <= APT_MAX_Z; L++) {
+          e.push(L, ["case", ["<=", ["get", "z"], L],
+                     typeof on === "function" ? on(L) : on, off]);
+        }
+        return e;
+      }
+      function aptRadius(L) {
+        var major = Math.min(7, 3.5 + 0.5 * Math.max(0, L - 3));
+        return ["case", ["==", ["get", "tier"], 2], major,
+                Math.max(2.6, major - 1.4)];
+      }
       map.addLayer({ id: "sky-apts", type: "circle", source: "sky-apts",
-        minzoom: 5.8, filter: ["!=", ["get", "tier"], 2],
-        paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"],
-                   6, 3, 10, 5],
+        minzoom: 1.5, filter: aptFilter(1),
+        paint: { "circle-radius": aptRamp(aptRadius, 0),
+                 "circle-opacity": aptRamp(1, 0),
                  "circle-color": "#F5F1E6",
-                 "circle-stroke-color": "rgba(34,31,26,.7)",
-                 "circle-stroke-width": 1.3 } }, "routeline");
+                 "circle-stroke-color": "rgba(34,31,26,.8)",
+                 "circle-stroke-opacity": aptRamp(1, 0),
+                 "circle-stroke-width": 1.5 } }, "routeline");
       // hand the dots off to the tower glyph once markers are big
       // enough for it to read (zoom >= APT_TOWER_Z)
       var APT_TOWER_Z = 7;
       if (map.hasImage("airport-tower")) {
-        map.setLayerZoomRange("sky-apts-major", 3.4, APT_TOWER_Z);
-        map.setLayerZoomRange("sky-apts", 5.8, APT_TOWER_Z);
+        map.setLayerZoomRange("sky-apts", 1.5, APT_TOWER_Z);
         map.addLayer({ id: "sky-apt-towers", type: "symbol",
-          source: "sky-apts", minzoom: APT_TOWER_Z,
+          source: "sky-apts", minzoom: APT_TOWER_Z, filter: aptFilter(1),
           layout: {
             "icon-image": "airport-tower",
             "icon-anchor": "bottom",
             "icon-size": ["interpolate", ["linear"], ["zoom"],
               APT_TOWER_Z, 0.5, 11, 0.8],
             "icon-allow-overlap": true
-          } }, "routeline");
+          },
+          paint: { "icon-opacity": aptRamp(1, 0) } }, "routeline");
       }
       if (map.getStyle().glyphs) {
         map.addLayer({ id: "sky-apt-labels", type: "symbol",
-          source: "sky-apts", minzoom: 6.2,
+          source: "sky-apts", minzoom: 6.2, filter: aptFilter(0),
           layout: {
             "text-field": ["get", "code"],
             "text-font": ["Noto Sans Regular"],
@@ -1490,7 +1510,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
           window.__openAirport(e.features[0].properties.code);
         }
       }
-      ["sky-apts-major", "sky-apts", "sky-apt-towers"].forEach(function (id) {
+      ["sky-apts", "sky-apt-towers"].forEach(function (id) {
         if (!map.getLayer(id)) return;
         map.on("mousemove", id, aptTip);
         map.on("mouseleave", id, aptTipHide);
@@ -1538,6 +1558,57 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
     .then(function (d) { airports = d; setSkyAirports(); })
     .catch(function () {});
 
+  // The zoom each field earns a place at. Fields are taken in rank
+  // order (tools/rank_airports.py: size class, then runways) and each
+  // gets the lowest level that admits its rank (APT_CAP, so the world
+  // view is the great hubs and not the best field of every empty
+  // region) where no higher-ranked field sits within APT_GAP screen
+  // pixels of it; a field placed at level L holds that ground at every
+  // level above. Large airports may show from the world view, medium
+  // ones from a regional zoom; whatever never finds room comes in with
+  // everything at APT_MAX_Z.
+  var APT_GAP = 26, APT_Z0 = { 2: 2, 1: 5 }, APT_MAX_Z = 9;
+  var APT_CAP = { 2: 40, 3: 160, 4: 600, 5: 2800, 6: 4200 };
+  function thinAirports(feats) {
+    feats.sort(function (a, b) { return a.properties.rank - b.properties.rank; });
+    var grids = {};
+    for (var L = 2; L < APT_MAX_Z; L++) grids[L] = {};
+    function px(f, L) {                    // web mercator, 512px tiles
+      var c = f.geometry.coordinates, s = 512 * Math.pow(2, L);
+      var lat = Math.max(-85, Math.min(85, c[1])) * Math.PI / 180;
+      return [(c[0] + 180) / 360 * s,
+              (0.5 - Math.log(Math.tan(Math.PI / 4 + lat / 2)) /
+               (2 * Math.PI)) * s];
+    }
+    function key(p, dx, dy) {
+      return (Math.floor(p[0] / APT_GAP) + dx) + ":" +
+             (Math.floor(p[1] / APT_GAP) + dy);
+    }
+    function free(g, p) {
+      for (var dx = -1; dx <= 1; dx++) for (var dy = -1; dy <= 1; dy++) {
+        var cell = g[key(p, dx, dy)];
+        if (!cell) continue;
+        for (var i = 0; i < cell.length; i++) {
+          var ex = cell[i][0] - p[0], ey = cell[i][1] - p[1];
+          if (ex * ex + ey * ey < APT_GAP * APT_GAP) return false;
+        }
+      }
+      return true;
+    }
+    feats.forEach(function (f) {
+      var z = APT_MAX_Z;
+      for (var L = APT_Z0[f.properties.tier] || 5; L < APT_MAX_Z; L++) {
+        if (APT_CAP[L] && f.properties.rank > APT_CAP[L]) continue;
+        if (free(grids[L], px(f, L))) { z = L; break; }
+      }
+      for (var M = z; M < APT_MAX_Z; M++) {
+        var p = px(f, M), k = key(p, 0, 0);
+        (grids[M][k] = grids[M][k] || []).push(p);
+      }
+      f.properties.z = z;
+    });
+  }
+
   // One dot per field: every airport appears under both its IATA and
   // ICAO codes, and the shorter (IATA) code wins because that is what
   // the routes table and the airport card speak.
@@ -1550,11 +1621,13 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       var prev = seen[k];
       if (prev && prev.code.length <= code.length) return;
       var f = { type: "Feature",
-        properties: { code: code, name: a[0], tier: a[3] || 1 },
+        properties: { code: code, name: a[0], tier: a[3] || 1,
+                      rank: a[4] || 1e6 },
         geometry: { type: "Point", coordinates: [a[2], a[1]] } };
       if (prev) { feats[prev.i] = f; prev.code = code; }
       else { seen[k] = { code: code, i: feats.length }; feats.push(f); }
     });
+    thinAirports(feats);
     map.getSource("sky-apts").setData(
       { type: "FeatureCollection", features: feats });
   }
@@ -2277,7 +2350,7 @@ window.__initAirlines = function () {
                     "plane-labels"];
   // the airport beacons follow the sky but also yield to the airframe
   // timeline, which draws only its own routes and fields
-  var SKY_APT_LAYERS = ["sky-apts-major", "sky-apts", "sky-apt-labels"];
+  var SKY_APT_LAYERS = ["sky-apts", "sky-apt-towers", "sky-apt-labels"];
   var shadedIsos = [];
   var hoverArc = null;
   // Work that needs the overlay layers waits here until the basemap is
