@@ -18,6 +18,11 @@ Natural Earth (web/assets/land.json, web/assets/countries.json)
 Aircraft type designators (web/assets/types.json)
   ICAO type designator to name and category. Factual reference data.
 
+Lucide icons (inline SVG in web/index.html: plane, route,
+radio-tower, menu)
+  Copyright (c) Lucide Icons and Contributors. ISC License.
+  https://lucide.dev/
+
 Basemap tiles at runtime
   OpenFreemap, not vendored. https://openfreemap.org/
 
