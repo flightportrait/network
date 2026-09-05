@@ -325,8 +325,16 @@
      destination, flight, aircraft; sorted by the airport's clock;
      opens at the next departure, the rows before it a scroll away. */
   .aptdetail{width:392px}
-  .boardhead{display:flex;justify-content:space-between;align-items:baseline;
-    padding:16px 0 8px;color:var(--quiet)}
+  .boardhead{display:flex;justify-content:space-between;align-items:center;
+    padding:14px 0 10px;color:var(--quiet)}
+  .boardswitch{display:inline-flex;border:1px solid var(--line);
+    border-radius:20px;overflow:hidden;background:var(--paper)}
+  .boardswitch button{border:0;background:none;color:var(--quiet);
+    cursor:pointer;padding:5px 12px;font:13px Palatino,Georgia,serif}
+  .boardswitch button.on{background:var(--ink);color:var(--paper)}
+  .boardswitch button:focus-visible{outline:2px solid var(--red);
+    outline-offset:-2px}
+  .bempty{padding:16px 20px;color:var(--quiet);font-size:14px}
   .boardhead .clock{font-variant-numeric:tabular-nums}
   .board{margin:0 -20px}
   .bcols,.brow{display:grid;grid-template-columns:42px minmax(0,1fr) 88px 56px;
@@ -827,18 +835,17 @@
   <button class="cardclose" id="apt-close" aria-label="Close airport">&times;</button>
   <div class="nm" id="apt-name"></div>
   <div class="sub" id="apt-sub"></div>
-  <div class="figures">
-    <div><span class="n" id="apt-deps">&ndash;</span><span class="caps">departures</span></div>
-    <div><span class="n" id="apt-dsts">&ndash;</span><span class="caps">destinations</span></div>
-    <div><span class="n" id="apt-tails">&ndash;</span><span class="caps">airframes</span></div>
-  </div>
   <div class="boardhead" id="apt-board-head" hidden>
-    <span class="caps">Departures</span>
+    <div class="boardswitch" role="tablist" aria-label="Board">
+      <button type="button" id="apt-dep" class="on" role="tab" aria-selected="true">Departures</button>
+      <button type="button" id="apt-arr" role="tab" aria-selected="false">Arrivals</button>
+    </div>
     <span class="caps clock" id="apt-clock"></span>
   </div>
   <div class="board" id="apt-board" hidden>
-    <div class="bcols caps"><span>time</span><span>destination</span><span>flight</span><span class="r">aircraft</span></div>
+    <div class="bcols caps"><span>time</span><span id="apt-col-place">destination</span><span>flight</span><span class="r">aircraft</span></div>
     <div class="brows" id="apt-board-rows"></div>
+    <div class="bempty" id="apt-board-empty" hidden></div>
   </div>
   <div class="blockhead caps" id="apt-routes-head" hidden>Busiest routes</div>
   <div class="routes" id="apt-routes" hidden></div>
@@ -1675,6 +1682,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
 
   function select(hex) {
     if (window.__closeAirline) window.__closeAirline(false);
+    if (window.__closeAirport) window.__closeAirport(true);
     state.selected = hex;
     if (history.replaceState) {
       history.replaceState(null, "",
@@ -3003,6 +3011,7 @@ window.__initAirlines = function () {
     el("ft-detail").hidden = true;
     el("ag-detail").hidden = false;
     if (el("detail").classList.contains("show")) el("d-close").click();
+    if (window.__closeAirport) window.__closeAirport(true);
     takeCamera();
     el("ag-name").textContent = summary.name;
     el("ag-asof").textContent = "Official roster checked " +
@@ -3163,8 +3172,9 @@ window.__initAirlines = function () {
       history.replaceState(null, "", airlinesURL(icao));
     }
     renderRoster(el("al-search").value);
-    // one card on the stage: the aircraft card yields to the airline
+    // one card on the stage: the aircraft card and the airport yield
     if (el("detail").classList.contains("show")) el("d-close").click();
+    if (window.__closeAirport) window.__closeAirport(true);
     takeCamera();
     // instant response from what the roster already knows; the rest
     // fills in when the fetch lands
@@ -3507,6 +3517,10 @@ window.__initJoin = function () {
   }
   var card = el("apt-detail");
   var apts = {}, runways = null, current = null, token = 0;
+  var data = null, side = "dep";      // the loaded airport, the board shown
+  // The camera before the airport took it, handed back on close (the
+  // same contract as the airline overlay).
+  var savedCam = null;
   // tails and type names, the same files the rest of the page reads
   var tails = {}, typeNames = {};
   fetch("assets/airline-tails/manifest.json")
@@ -3533,7 +3547,6 @@ window.__initJoin = function () {
     } catch (e) { return null; }
   }
   var clockTimer = null;
-  var restoreAirline = false, restoreAlliance = false;
   fetch("assets/airports.json").then(function (r) { return r.json(); })
     .then(function (d) { apts = d; }).catch(function () {});
   function loadRunways() {
@@ -3559,6 +3572,64 @@ window.__initJoin = function () {
       paint: { "line-color": "rgba(34,31,26,.55)", "line-width": width,
                "line-dasharray": [2, 2] } });
   }
+  // the field's routes, thin ink arcs out to every observed destination
+  var TO_R = Math.PI / 180, TO_D = 180 / Math.PI;
+  function arc(A, B) {
+    var f1 = A[1] * TO_R, l1 = A[2] * TO_R, f2 = B[1] * TO_R, l2 = B[2] * TO_R;
+    var dd = 2 * Math.asin(Math.sqrt(Math.pow(Math.sin((f2 - f1) / 2), 2) +
+      Math.cos(f1) * Math.cos(f2) * Math.pow(Math.sin((l2 - l1) / 2), 2)));
+    var coords = [], prev = null;
+    for (var i = 0; i <= 40; i++) {
+      var f = i / 40, lon, lat;
+      if (dd === 0) { lon = A[2]; lat = A[1]; }
+      else {
+        var a = Math.sin((1 - f) * dd) / Math.sin(dd);
+        var b = Math.sin(f * dd) / Math.sin(dd);
+        var x = a * Math.cos(f1) * Math.cos(l1) + b * Math.cos(f2) * Math.cos(l2);
+        var y = a * Math.cos(f1) * Math.sin(l1) + b * Math.cos(f2) * Math.sin(l2);
+        var z = a * Math.sin(f1) + b * Math.sin(f2);
+        lat = Math.atan2(z, Math.sqrt(x * x + y * y)) * TO_D;
+        lon = Math.atan2(y, x) * TO_D;
+      }
+      if (prev != null) {
+        while (lon - prev > 180) lon -= 360;
+        while (lon - prev < -180) lon += 360;
+      }
+      prev = lon;
+      coords.push([lon, lat]);
+    }
+    return coords;
+  }
+  function ensureArcs(M) {
+    if (M.getSource("apt-arcs")) return;
+    M.addSource("apt-arcs", { type: "geojson",
+      data: { type: "FeatureCollection", features: [] } });
+    var before = M.getLayer("planes") ? "planes" : undefined;
+    M.addLayer({ id: "apt-arcs", type: "line", source: "apt-arcs",
+      layout: { "line-cap": "round" },
+      paint: { "line-color": "#221F1A", "line-width": ["get", "w"],
+               "line-opacity": 0.32 } }, before);
+  }
+  function drawArcs(code, routes) {
+    var M = mapRef();
+    if (!M || !M.getSource("apt-arcs")) return;
+    var A = apts[code];
+    var max = 1;
+    routes.forEach(function (r) { max = Math.max(max, r.flights); });
+    M.getSource("apt-arcs").setData({ type: "FeatureCollection",
+      features: A ? routes.filter(function (r) { return apts[r.dst]; })
+        .map(function (r) {
+          return { type: "Feature",
+            properties: { w: 0.6 + 1.8 * r.flights / max },
+            geometry: { type: "LineString", coordinates: arc(A, apts[r.dst]) } };
+        }) : [] });
+  }
+  function clearArcs() {
+    var M = mapRef();
+    if (M && M.getSource("apt-arcs")) {
+      M.getSource("apt-arcs").setData({ type: "FeatureCollection", features: [] });
+    }
+  }
   function drawRunways(code) {
     var M = mapRef();
     if (!M || !M.getSource("apt-runways")) return;
@@ -3582,56 +3653,78 @@ window.__initJoin = function () {
     var a = apts[code];
     return (a && a[0]) || code;
   }
+  function renderBoard() {
+    var d = data;
+    var board = el("apt-board");
+    var wrap = el("apt-board-rows");
+    var dep = side === "dep";
+    el("apt-dep").classList.toggle("on", dep);
+    el("apt-arr").classList.toggle("on", !dep);
+    el("apt-dep").setAttribute("aria-selected", dep ? "true" : "false");
+    el("apt-arr").setAttribute("aria-selected", dep ? "false" : "true");
+    el("apt-col-place").textContent = dep ? "destination" : "origin";
+    var rows = ((d && (dep ? d.board : d.arrivals)) || []).filter(function (b) {
+      return dep ? (b.dst && b.dep) : (b.org && b.arr);
+    }).sort(function (x, y) {
+      var a = dep ? x.dep : x.arr, b = dep ? y.dep : y.arr;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    var now = d && d.tz ? localClock(d.tz) : null;
+    var nextIdx = -1;
+    if (now) {
+      rows.some(function (b, i) {
+        if ((dep ? b.dep : b.arr) >= now) { nextIdx = i; return true; }
+        return false;
+      });
+    }
+    wrap.innerHTML = rows.map(function (b, i) {
+      var cls = "brow" + (nextIdx > 0 && i < nextIdx ? " past" : "") +
+        (i === nextIdx ? " next" : "");
+      var place = dep ? b.dst : b.org;
+      var big = dep ? b.dep : b.arr, small = dep ? b.arr : b.dep;
+      return "<div class='" + cls + "' data-cs='" + esc(b.flight) + "'>" +
+        "<span class='t'>" + esc(big) +
+        (small ? "<span class='arr'>" + (dep ? "arr " : "dep ") + esc(small) +
+          "</span>" : "") +
+        "</span><span class='to apcode' data-code='" + esc(place) + "'>" +
+        "<span class='city'>" + esc(cityOf(place)) + "</span>" +
+        "<span class='code'>" + esc(place) + "</span></span>" +
+        "<span class='fn'>" + tailFor(b.flight) + esc(b.flight) + "</span>" +
+        "<span class='ac' title='" + esc(b.type || "") + "'>" +
+        esc(shortType(b.type)) + "</span></div>";
+    }).join("");
+    var empty = el("apt-board-empty");
+    empty.hidden = !!rows.length;
+    empty.textContent = dep ? "No departures observed here yet."
+                            : "No arrivals observed here yet.";
+    // rows before now sit a scroll above; the next one leads
+    wrap.scrollTop = 0;
+    if (nextIdx > 0) {
+      var target = wrap.children[nextIdx];
+      if (target) wrap.scrollTop = Math.max(0, target.offsetTop - wrap.offsetTop - 4);
+    }
+  }
+  el("apt-dep").addEventListener("click", function () { side = "dep"; renderBoard(); });
+  el("apt-arr").addEventListener("click", function () { side = "arr"; renderBoard(); });
   function render(code, d) {
+    data = d;
     var a = apts[code];
-    var obs = d && d.observed;
     el("apt-name").textContent = (a && a[0]) || (d && d.name) || code;
     el("apt-sub").textContent = code + (d && d.name ? " · " + d.name : "");
-    el("apt-deps").textContent = obs ? obs.departures.toLocaleString() : "–";
-    el("apt-dsts").textContent = obs ? obs.destinations : "–";
-    el("apt-tails").textContent = obs ? obs.tails.toLocaleString() : "–";
-
-    // the board, in the airport's own time, opening at the next departure
-    var board = el("apt-board");
-    var rows = ((d && d.board) || []).filter(function (b) {
-      return b.dst && b.dep;
-    }).sort(function (x, y) { return x.dep < y.dep ? -1 : x.dep > y.dep ? 1 : 0; });
-    el("apt-board-head").hidden = board.hidden = !rows.length;
+    var hasBoard = !!(d && ((d.board && d.board.length) ||
+                            (d.arrivals && d.arrivals.length)));
+    el("apt-board-head").hidden = el("apt-board").hidden = !hasBoard;
+    // arrivals only where the API serves them
+    el("apt-arr").hidden = !(d && d.arrivals);
+    if (el("apt-arr").hidden) side = "dep";
     clearInterval(clockTimer);
-    var now = d && d.tz ? localClock(d.tz) : null;
     function tickClock() {
       var t = d && d.tz ? localClock(d.tz) : null;
       el("apt-clock").textContent = t ? t + " local" : "";
     }
     tickClock();
     if (d && d.tz) clockTimer = setInterval(tickClock, 15000);
-    var nextIdx = -1;
-    if (now) {
-      rows.some(function (b, i) {
-        if (b.dep >= now) { nextIdx = i; return true; }
-        return false;
-      });
-    }
-    el("apt-board-rows").innerHTML = rows.map(function (b, i) {
-      var cls = "brow" + (nextIdx > 0 && i < nextIdx ? " past" : "") +
-        (i === nextIdx ? " next" : "");
-      return "<div class='" + cls + "' data-cs='" + esc(b.flight) + "'>" +
-        "<span class='t'>" + esc(b.dep) +
-        (b.arr ? "<span class='arr'>arr " + esc(b.arr) + "</span>" : "") +
-        "</span><span class='to apcode' data-code='" + esc(b.dst) + "'>" +
-        "<span class='city'>" + esc(cityOf(b.dst)) + "</span>" +
-        "<span class='code'>" + esc(b.dst) + "</span></span>" +
-        "<span class='fn'>" + tailFor(b.flight) + esc(b.flight) + "</span>" +
-        "<span class='ac' title='" + esc(b.type || "") + "'>" +
-        esc(shortType(b.type)) + "</span></div>";
-    }).join("");
-    // rows before now sit a scroll above; the next departure leads
-    var wrap = el("apt-board-rows");
-    wrap.scrollTop = 0;
-    if (nextIdx > 0) {
-      var target = wrap.children[nextIdx];
-      if (target) wrap.scrollTop = Math.max(0, target.offsetTop - wrap.offsetTop - 4);
-    }
+    if (hasBoard) renderBoard();
 
     var routes = (d && d.observed && d.observed.routes) || [];
     el("apt-routes-head").hidden = el("apt-routes").hidden = !routes.length;
@@ -3649,9 +3742,13 @@ window.__initJoin = function () {
     current = code;
     document.title = code + " · FlightPortrait network";
     var mine = ++token;
-    // one card at a time; remember whose place we took
-    restoreAirline = !el("al-detail").hidden;
-    restoreAlliance = !el("ag-detail").hidden;
+    var M = mapRef(), a = apts[code];
+    // the airport takes the stage: the airline overlay goes, and the
+    // camera the visitor had is kept for the way back
+    if (savedCam == null && M && card.hidden) {
+      savedCam = { center: M.getCenter(), zoom: M.getZoom() };
+    }
+    if (window.__closeAirline) window.__closeAirline(false);
     el("al-detail").hidden = true;
     el("ag-detail").hidden = true;
     el("fl-detail").hidden = true;
@@ -3664,44 +3761,55 @@ window.__initJoin = function () {
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (mine !== token) return;
-        if (d) { render(code, d); return; }
+        if (d) {
+          render(code, d);
+          onMap(function () {
+            drawArcs(code, (d.observed && d.observed.routes) || []);
+          });
+          return;
+        }
         el("apt-sub").textContent = code +
-          " · no observed departures in the archive window";
+          " · nothing observed here in the archive window";
       }).catch(function () {
         if (mine !== token) return;
         el("apt-sub").textContent = code + " · the network is not answering";
       });
-    var M = mapRef(), a = apts[code];
     if (M && a) {
-      M.flyTo({ center: [a[2], a[1]], zoom: 11.5, duration: 1100 });
+      M.flyTo({ center: [a[2], a[1]], zoom: 10, duration: 1100 });
     }
-    // runways need the style; a slow basemap must not break the card
-    function paint() {
-      if (mine !== token || !M) return;
-      ensureLayers(M);
+    // layers need the style; a slow basemap must not break the card
+    function onMap(fn) {
+      if (!M) return;
+      function go() { if (mine === token) { ensureLayers(M); ensureArcs(M); fn(); } }
+      if (M.isStyleLoaded()) go(); else M.once("load", go);
+    }
+    onMap(function () {
       loadRunways().then(function () {
         if (mine === token) drawRunways(code);
       });
-    }
-    if (M) {
-      if (M.isStyleLoaded()) paint(); else M.once("load", paint);
-    }
+    });
   };
-  function close() {
+  function close(keepCamera) {
     token++;
     current = null;
+    data = null;
     card.hidden = true;
     clearInterval(clockTimer);
     clearRunways();
-    if (restoreAirline) {
-      el("al-detail").hidden = false;
-    } else if (restoreAlliance) {
-      el("ag-detail").hidden = false;
+    clearArcs();
+    var M = mapRef();
+    if (savedCam && M && keepCamera !== true) {
+      M.easeTo({ center: savedCam.center, zoom: savedCam.zoom, duration: 900 });
     }
-    restoreAirline = false;
-    restoreAlliance = false;
+    savedCam = null;
   }
-  el("apt-close").addEventListener("click", close);
+  // the airline overlay, when it takes the stage, closes the airport
+  // without a camera hand-back (its own fit takes over)
+  window.__closeAirport = function (keepCamera) {
+    if (!current) return;
+    close(keepCamera);
+  };
+  el("apt-close").addEventListener("click", function () { close(); });
   card.addEventListener("click", function (e) {
     var t = e.target.closest(".apcode");
     if (t && t.dataset.code && t.dataset.code !== current) {

@@ -206,6 +206,10 @@ def test_airport_board(ctx, tmp_path):
     assert sq["dep"] == "16:00" and sq["arr"] == "22:35"
     assert body["observed"]["routes"][0]["dst"] == "LHR"
     assert "SIN" not in [r["dst"] for r in body["observed"]["routes"]]
+    # arrivals: the legs that end here, in this airport's local time
+    assert [b["flight"] for b in body["arrivals"]] == ["SIA999"]
+    assert body["arrivals"][0]["org"] == "KUL"
+    assert body["arrivals"][0]["dep"] == "09:00"
     assert body["airlines"][0] == {"icao": "SIA", "flights": 30}
     # the ICAO spelling lands on the same airport
     via_icao = client.get("/v1/airports/WSSS").json()

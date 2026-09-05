@@ -416,14 +416,25 @@ SCH_AIRPORT = _obj({
     }), description="Inferred typical departures, local time, dep-sorted. "
                     "Rows are a mix of observation and published timetable "
                     "data; check each row's source."),
+    "arrivals": _arr(_obj({
+        "flight": _t("string", "Marketed number when known, else the "
+                               "callsign."),
+        "org": _t("string", "Origin, IATA.", nullable=True),
+        "dep": _t("string", "HH:MM, local at origin.", nullable=True),
+        "arr": _t("string", "HH:MM, local at this airport.", nullable=True),
+        "type": _t("string", nullable=True),
+        "flights": _t("integer", "Observation count behind the row."),
+        "source": _t("string", "observed, published, or both."),
+    }), description="Inferred typical arrivals, this airport's local "
+                    "time, arr-sorted. Same provenance rules as board."),
     "airlines": _arr(_obj({
         "icao": _t("string"), "flights": _t("integer"),
     }), description="Busiest airlines on the board, top 20."),
     "times": _t("string", const="local"),
     "window_days": _SCH_WINDOW,
     "coverage": _SCH_COVERAGE,
-}, required=["iata", "ident", "observed", "board", "airlines", "times",
-             "window_days", "coverage"])
+}, required=["iata", "ident", "observed", "board", "arrivals", "airlines",
+             "times", "window_days", "coverage"])
 
 EX_AIRPORT = {
     "iata": "SIN", "ident": "WSSS", "name": "Singapore Changi",
@@ -436,6 +447,9 @@ EX_AIRPORT = {
     "board": [{"flight": "SQ322", "dst": "LHR", "dep": "09:00",
                "arr": "15:10", "type": "A359", "flights": 12,
                "source": "observed"}],
+    "arrivals": [{"flight": "SQ317", "org": "LHR", "dep": "11:00",
+                  "arr": "06:55", "type": "A359", "flights": 11,
+                  "source": "observed"}],
     "airlines": [{"icao": "SIA", "flights": 90}],
     "times": "local", "window_days": 60, "coverage": "observed",
 }

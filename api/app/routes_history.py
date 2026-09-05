@@ -167,7 +167,8 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
     "/v1/airports/{code}", tags=["History"], summary="Airport",
     description="One airport, IATA or ICAO code: registry identity, "
                 "observed totals and busiest routes, and the inferred "
-                "departures board in the airport's LOCAL time. Circuits "
+                "departures and arrivals boards in the airport's LOCAL "
+                "time. Circuits "
                 "excluded. observed is null when the log artifact is not "
                 "loaded. 404 if unknown. Rate: 120 per 600 s (bucket "
                 "`airport`). Cache: 1 h edge.",
@@ -224,6 +225,22 @@ def airport(code: spec.AirportCode, request: Request, response: Response,
                 airlines[r.airline_icao] = (airlines.get(r.airline_icao, 0)
                                             + r.n_flights)
     board.sort(key=lambda b: (b["dep"] is None, b["dep"] or ""))
+
+    # The arrivals side of the same schedule: rows whose leg ends here,
+    # in this airport's local time (arr_min is local at the destination).
+    arrivals = []
+    if iata:
+        for r in session.execute(
+                select(RefSchedule)
+                .where(RefSchedule.dst == iata,
+                       RefSchedule.n_flights >= settings.schedule_min_flights)
+                .order_by(RefSchedule.n_flights.desc())
+                .limit(80)).scalars():
+            arrivals.append({"flight": r.flight or r.callsign, "org": r.org,
+                             "dep": _hhmm(r.dep_min), "arr": _hhmm(r.arr_min),
+                             "type": r.type_code, "flights": r.n_flights,
+                             "source": r.source})
+    arrivals.sort(key=lambda b: (b["arr"] is None, b["arr"] or ""))
     response.headers["Cache-Control"] = CACHE
     return {
         "iata": iata,
@@ -237,6 +254,7 @@ def airport(code: spec.AirportCode, request: Request, response: Response,
         "tz": reg.tz if reg else None,
         "observed": observed,
         "board": board,
+        "arrivals": arrivals,
         "airlines": [{"icao": k, "flights": v} for k, v in
                      sorted(airlines.items(), key=lambda kv: -kv[1])[:20]],
         "times": "local",
