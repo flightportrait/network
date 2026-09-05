@@ -16,7 +16,7 @@ readsb, in `/etc/default/readsb`, `NET_OPTIONS`:
 ultrafeeder, in `ULTRAFEEDER_CONFIG`:
 
 ```
-adsb,feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=YOUR-KEY
+adsb,feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=YOUR-KEY;mlat,feed.flightportrait.com,31090,uuid=YOUR-KEY
 ```
 
 dump1090-fa 6.0 or newer takes the readsb form in

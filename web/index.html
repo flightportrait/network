@@ -851,19 +851,23 @@
       <div class="softbody show" id="soft-readsb">
         <p>In <code>/etc/default/readsb</code>, add to <code>NET_OPTIONS</code>, then restart readsb:</p>
         <pre>--net-connector feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v key-v">YOUR-KEY</span></pre>
+        <p>For MLAT, run mlat-client as well:</p>
+        <pre>mlat-client --input-type dump1090 --input-connect localhost:30005 --server feed.flightportrait.com:31090 --lat <span class="v">LAT</span> --lon <span class="v">LON</span> --alt <span class="v">ALT</span> --user <span class="v">NAME</span> --uuid <span class="v key-v">YOUR-KEY</span></pre>
       </div>
       <div class="softbody" id="soft-ultrafeeder">
         <p>Add to <code>ULTRAFEEDER_CONFIG</code>, then recreate the container:</p>
-        <pre>adsb,feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v key-v">YOUR-KEY</span></pre>
+        <pre>adsb,feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v key-v">YOUR-KEY</span>;mlat,feed.flightportrait.com,31090,uuid=<span class="v key-v">YOUR-KEY</span></pre>
       </div>
       <div class="softbody" id="soft-dump1090">
         <p>dump1090-fa 6.0 or newer. In <code>/etc/default/dump1090-fa</code>, add to <code>NET_OPTIONS</code>, then restart dump1090-fa:</p>
         <pre>--net-connector feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v key-v">YOUR-KEY</span></pre>
         <p class="quiet">Older versions have no <code>--net-connector</code>.</p>
+        <p>For MLAT, run mlat-client as well:</p>
+        <pre>mlat-client --input-type dump1090 --input-connect localhost:30005 --server feed.flightportrait.com:31090 --lat <span class="v">LAT</span> --lon <span class="v">LON</span> --alt <span class="v">ALT</span> --user <span class="v">NAME</span> --uuid <span class="v key-v">YOUR-KEY</span></pre>
         <!-- founder: I have verified the flag exists from 6.0 in the dump1090-fa source, not on a live PiAware; worth one check on a real image. -->
       </div>
       <div class="softbody" id="soft-image">
-        <p>In the image's aggregator settings, add a custom one: host <code>feed.flightportrait.com</code>, port <code>30004</code>, protocol <code>beast_reduce_plus_out</code>, your key. We have asked to be added to the list.</p>
+        <p>In the image's aggregator settings, add a custom one: host <code>feed.flightportrait.com</code>, port <code>30004</code>, protocol <code>beast_reduce_plus_out</code>, your key; MLAT host the same, port <code>31090</code>. We have asked to be added to the list.</p>
         <!-- founder: "we are asking to be added" is true (adsb.im issue drafted, not yet sent); adjust once the listing lands. -->
       </div>
 
