@@ -321,17 +321,44 @@
   /* airport card: board rows + clickable codes */
   .apcode{cursor:pointer}
   .apcode:hover{color:var(--red)}
-  .brow{display:grid;grid-template-columns:96px 1fr auto;gap:12px;
-    align-items:baseline;padding:4px 0;font-size:13.5px;
-    border-bottom:1px solid rgba(34,31,26,.06)}
-  .brow .t{font-variant-numeric:tabular-nums;font-weight:600}
-  .brow .t .arr{color:var(--quiet);font-weight:400}
-  .brow .fn{font-family:'IBM Plex Mono','SFMono-Regular',Menlo,monospace;
-    font-size:12.5px;white-space:nowrap;overflow:hidden;
-    text-overflow:ellipsis}
-  .brow .fn .dst{font-family:Palatino,Georgia,serif;font-size:13.5px;
-    margin-left:8px}
-  .brow .ac{color:var(--quiet);font-size:11.5px;text-align:right}
+  /* The departures board: the grammar of a terminal screen. Time,
+     destination, flight, aircraft; sorted by the airport's clock;
+     opens at the next departure, the rows before it a scroll away. */
+  .aptdetail{width:392px}
+  .boardhead{display:flex;justify-content:space-between;align-items:baseline;
+    padding:16px 0 8px;color:var(--quiet)}
+  .boardhead .clock{font-variant-numeric:tabular-nums}
+  .board{margin:0 -20px}
+  .bcols,.brow{display:grid;grid-template-columns:42px minmax(0,1fr) 88px 56px;
+    gap:10px;align-items:center;padding:0 20px}
+  .bcols{color:var(--quiet);padding-bottom:6px;
+    border-bottom:1px solid var(--line)}
+  .bcols .r,.brow .ac{text-align:right}
+  .brows{max-height:360px;overflow-y:auto;overscroll-behavior:contain}
+  .brow{padding-top:7px;padding-bottom:7px;font-size:14px;
+    border-bottom:1px solid rgba(34,31,26,.06);cursor:pointer;
+    position:relative}
+  .brow:hover .fn{color:var(--red)}
+  .brow.past{opacity:.55}
+  .brow.next{opacity:1}
+  .brow.next::before{content:"";position:absolute;left:0;top:8px;bottom:8px;
+    width:3px;background:var(--red);border-radius:0 2px 2px 0}
+  .brow .t{font-variant-numeric:tabular-nums;font-weight:600;
+    font-size:15px;line-height:1.2}
+  .brow .t .arr{display:block;color:var(--quiet);font-weight:400;
+    font-size:11.5px;margin-top:2px}
+  .brow .to{min-width:0}
+  .brow .to .city{display:block;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;line-height:1.2}
+  .brow .to .code{display:block;color:var(--quiet);font-size:11.5px;
+    margin-top:2px;font-family:'Helvetica Neue',Arial,sans-serif;
+    letter-spacing:.06em}
+  .brow .fn{display:flex;align-items:center;gap:6px;min-width:0;
+    font-family:'IBM Plex Mono','SFMono-Regular',Menlo,monospace;
+    font-size:12.5px;white-space:nowrap}
+  .brow .fn img{width:22px;height:19px;object-fit:contain;flex:none}
+  .brow .ac{color:var(--quiet);font-size:11.5px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
   .afdetail .photo{margin:12px 0 2px;display:none}
   .afdetail .photo.show{display:block}
   .afdetail .photo img{width:100%;height:auto;border-radius:6px;
@@ -473,8 +500,6 @@
   .rb-sched .muted{color:var(--quiet)}
   .sched-row{cursor:pointer}
   .sched-row:hover .fn{color:var(--red)}
-  .brow{cursor:pointer}
-  .brow:hover .fn{color:var(--red)}
   .fldetail .figures .n{font-size:20px}
   .fldetail .frchip{cursor:pointer}
   .fldetail .frchip:hover .reg{color:var(--red)}
@@ -632,10 +657,11 @@
       border-top:1px solid var(--line);
       padding-bottom:env(safe-area-inset-bottom)}
     .tabbar a{flex:1;display:flex;flex-direction:column;align-items:center;
-      justify-content:center;gap:2px;color:var(--quiet);
-      text-decoration:none;font-size:10.5px;
-      font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:.05em}
-    .tabbar a svg{width:22px;height:22px;display:block}
+      justify-content:center;gap:3px;color:var(--quiet);
+      text-decoration:none;font-size:11px;
+      font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:.04em;
+      -webkit-tap-highlight-color:transparent}
+    .tabbar a svg{width:26px;height:26px;display:block}
     .tabbar a.here{color:var(--red)}
 
     /* THE sheet. The only bottom surface: browse panel or the active
@@ -806,13 +832,19 @@
     <div><span class="n" id="apt-dsts">&ndash;</span><span class="caps">destinations</span></div>
     <div><span class="n" id="apt-tails">&ndash;</span><span class="caps">airframes</span></div>
   </div>
-  <div class="blockhead caps" id="apt-board-head" hidden>Typical departures</div>
-  <div class="routes" id="apt-board" hidden></div>
+  <div class="boardhead" id="apt-board-head" hidden>
+    <span class="caps">Departures</span>
+    <span class="caps clock" id="apt-clock"></span>
+  </div>
+  <div class="board" id="apt-board" hidden>
+    <div class="bcols caps"><span>time</span><span>destination</span><span>flight</span><span class="r">aircraft</span></div>
+    <div class="brows" id="apt-board-rows"></div>
+  </div>
   <div class="blockhead caps" id="apt-routes-head" hidden>Busiest routes</div>
   <div class="routes" id="apt-routes" hidden></div>
-  <div class="note" id="apt-note" hidden>The inferred schedule from a
-    year of observation, in each airport's local time; not a published
-    timetable. Data ODbL.</div>
+  <div class="note" id="apt-note" hidden>A typical day, inferred from a
+    year of observation and shown in the airport's local time. Not a
+    published timetable. Data ODbL.</div>
 </div>
 
 <div class="aldetail fldetail" id="fl-detail" hidden>
@@ -993,15 +1025,15 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
 
 <nav class="tabbar" aria-label="Network modes">
   <a href="/network/" id="tb-sky" class="here">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.2 13.8 8.8 21.4 11.3 13.9 13.4 13 21.8 11.9 16.6 11 21.8 10.1 13.4 2.6 11.3 10.2 8.8Z"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 1.6c.7 0 1.3.6 1.3 1.4v6.2l9.2 5.2v2.1l-9.2-2.7v5.1l2.4 1.8v1.6L12 21.4l-3.7.9v-1.6l2.4-1.8v-5.1l-9.2 2.7v-2.1l9.2-5.2V3c0-.8.6-1.4 1.3-1.4z"/></svg>
     <span>Map</span>
   </a>
   <a href="/network/?mode=airlines" id="tb-airlines">
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="17.5" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="6.5" r="1.7" fill="currentColor" stroke="none"/><path d="M6.5 15.5C9 9.5 13.5 6.5 17 7.5"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.5 20.2v-2.6h4L11.6 6.4c.7-1.4 1.8-2.1 3.2-2.1h2.6c1 0 1.6 1 1.1 1.9l-5.4 11.4h8.4v2.6z"/></svg>
     <span>Airlines</span>
   </a>
   <a href="/network/?mode=join" id="tb-join">
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="9" r="1.6" fill="currentColor" stroke="none"/><path d="M12 11v10"/><path d="M8.6 5.6a4.8 4.8 0 0 1 6.8 0"/><path d="M5.9 2.9a8.6 8.6 0 0 1 12.2 0"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11.05 11.4h1.9V22h-1.9z"/><circle cx="12" cy="9" r="2.2" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M7.7 5.7a6 6 0 0 1 8.6 0M4.8 2.8a10.2 10.2 0 0 1 14.4 0"/></svg>
     <span>Join</span>
   </a>
 </nav>
@@ -3475,6 +3507,32 @@ window.__initJoin = function () {
   }
   var card = el("apt-detail");
   var apts = {}, runways = null, current = null, token = 0;
+  // tails and type names, the same files the rest of the page reads
+  var tails = {}, typeNames = {};
+  fetch("assets/airline-tails/manifest.json")
+    .then(function (r) { return r.ok ? r.json() : { airlines: {} }; })
+    .then(function (d) { tails = d.airlines || {}; }).catch(function () {});
+  fetch("assets/types.json").then(function (r) { return r.json(); })
+    .then(function (d) { typeNames = d; }).catch(function () {});
+  function tailFor(flight) {
+    var m = /^([A-Z]{3})\d/.exec(String(flight || ""));
+    var entry = m && tails[m[1]];
+    var rel = entry && entry["64"];
+    return rel ? "<img alt='' src='assets/airline-tails/" + esc(rel) + "'>" : "";
+  }
+  // the board says "737 MAX 8", the way a terminal screen would
+  function shortType(code) {
+    var entry = code && typeNames[code];
+    var name = entry ? entry[0] : (code || "");
+    return name.replace(/^(Boeing|Airbus|Embraer|Bombardier|ATR|De Havilland|Cessna|Gulfstream|Dassault) /, "");
+  }
+  function localClock(tz) {
+    try {
+      return new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit",
+        minute: "2-digit", hour12: false }).format(new Date());
+    } catch (e) { return null; }
+  }
+  var clockTimer = null;
   var restoreAirline = false, restoreAlliance = false;
   fetch("assets/airports.json").then(function (r) { return r.json(); })
     .then(function (d) { apts = d; }).catch(function () {});
@@ -3520,35 +3578,68 @@ window.__initJoin = function () {
         { type: "FeatureCollection", features: [] });
     }
   }
+  function cityOf(code) {
+    var a = apts[code];
+    return (a && a[0]) || code;
+  }
   function render(code, d) {
     var a = apts[code];
     var obs = d && d.observed;
     el("apt-name").textContent = (a && a[0]) || (d && d.name) || code;
-    el("apt-sub").textContent = code +
-      (obs ? " · " + obs.days_observed + " days observed" : "");
+    el("apt-sub").textContent = code + (d && d.name ? " · " + d.name : "");
     el("apt-deps").textContent = obs ? obs.departures.toLocaleString() : "–";
     el("apt-dsts").textContent = obs ? obs.destinations : "–";
     el("apt-tails").textContent = obs ? obs.tails.toLocaleString() : "–";
+
+    // the board, in the airport's own time, opening at the next departure
     var board = el("apt-board");
-    var rows = (d && d.board) || [];
+    var rows = ((d && d.board) || []).filter(function (b) {
+      return b.dst && b.dep;
+    }).sort(function (x, y) { return x.dep < y.dep ? -1 : x.dep > y.dep ? 1 : 0; });
     el("apt-board-head").hidden = board.hidden = !rows.length;
-    rows = rows.filter(function (b) { return b.dst; });
-    board.innerHTML = rows.slice(0, 40).map(function (b) {
-      return "<div class='brow' data-cs='" + esc(b.flight) +
-        "'><span class='t'>" + esc(b.dep || "—") +
-        (b.arr ? "<span class='arr'>–" + esc(b.arr) + "</span>" : "") +
-        "</span><span class='fn'>" + esc(b.flight) +
-        "<span class='dst apcode' data-code='" + esc(b.dst) + "'>" +
-        esc(b.dst) + "</span></span><span class='ac'>" +
-        esc(b.type || "") + "</span></div>";
+    clearInterval(clockTimer);
+    var now = d && d.tz ? localClock(d.tz) : null;
+    function tickClock() {
+      var t = d && d.tz ? localClock(d.tz) : null;
+      el("apt-clock").textContent = t ? t + " local" : "";
+    }
+    tickClock();
+    if (d && d.tz) clockTimer = setInterval(tickClock, 15000);
+    var nextIdx = -1;
+    if (now) {
+      rows.some(function (b, i) {
+        if (b.dep >= now) { nextIdx = i; return true; }
+        return false;
+      });
+    }
+    el("apt-board-rows").innerHTML = rows.map(function (b, i) {
+      var cls = "brow" + (nextIdx > 0 && i < nextIdx ? " past" : "") +
+        (i === nextIdx ? " next" : "");
+      return "<div class='" + cls + "' data-cs='" + esc(b.flight) + "'>" +
+        "<span class='t'>" + esc(b.dep) +
+        (b.arr ? "<span class='arr'>arr " + esc(b.arr) + "</span>" : "") +
+        "</span><span class='to apcode' data-code='" + esc(b.dst) + "'>" +
+        "<span class='city'>" + esc(cityOf(b.dst)) + "</span>" +
+        "<span class='code'>" + esc(b.dst) + "</span></span>" +
+        "<span class='fn'>" + tailFor(b.flight) + esc(b.flight) + "</span>" +
+        "<span class='ac' title='" + esc(b.type || "") + "'>" +
+        esc(shortType(b.type)) + "</span></div>";
     }).join("");
+    // rows before now sit a scroll above; the next departure leads
+    var wrap = el("apt-board-rows");
+    wrap.scrollTop = 0;
+    if (nextIdx > 0) {
+      var target = wrap.children[nextIdx];
+      if (target) wrap.scrollTop = Math.max(0, target.offsetTop - wrap.offsetTop - 4);
+    }
+
     var routes = (d && d.observed && d.observed.routes) || [];
     el("apt-routes-head").hidden = el("apt-routes").hidden = !routes.length;
     el("apt-routes").innerHTML = routes.map(function (r) {
       return "<div class='rrow'><span class='pair apcode' data-code='" +
-        esc(r.dst) + "'>" + code + "<span class='arrow'>&rarr;</span>" +
-        esc(r.dst) + "</span><span class='n'>" +
-        r.flights.toLocaleString() + "&times;</span></div>";
+        esc(r.dst) + "'>" + esc(cityOf(r.dst)) +
+        "<span class='arrow'>" + esc(r.dst) + "</span></span><span class='n'>" +
+        r.flights.toLocaleString() + " flights</span></div>";
     }).join("");
     el("apt-note").hidden = !d;
   }
@@ -3582,17 +3673,25 @@ window.__initJoin = function () {
       });
     var M = mapRef(), a = apts[code];
     if (M && a) {
-      ensureLayers(M);
       M.flyTo({ center: [a[2], a[1]], zoom: 11.5, duration: 1100 });
     }
-    loadRunways().then(function () {
-      if (mine === token && M) { ensureLayers(M); drawRunways(code); }
-    });
+    // runways need the style; a slow basemap must not break the card
+    function paint() {
+      if (mine !== token || !M) return;
+      ensureLayers(M);
+      loadRunways().then(function () {
+        if (mine === token) drawRunways(code);
+      });
+    }
+    if (M) {
+      if (M.isStyleLoaded()) paint(); else M.once("load", paint);
+    }
   };
   function close() {
     token++;
     current = null;
     card.hidden = true;
+    clearInterval(clockTimer);
     clearRunways();
     if (restoreAirline) {
       el("al-detail").hidden = false;
@@ -3744,6 +3843,7 @@ window.__initJoin = function () {
     if (row && row.dataset.cs) window.__openFlight(row.dataset.cs);
   });
   el("apt-board").addEventListener("click", function (e) {
+    if (e.target.closest(".apcode")) return;   // the destination opens its airport
     var row = e.target.closest(".brow");
     if (row && row.dataset.cs) window.__openFlight(row.dataset.cs);
   });
