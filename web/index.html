@@ -514,7 +514,24 @@
   .rb-sched .muted{color:var(--quiet)}
   .sched-row{cursor:pointer}
   .sched-row:hover .fn{color:var(--red)}
-  .fldetail .figures .n{font-size:20px}
+  .fldetail .operator{display:flex;align-items:center;gap:8px;
+    margin-bottom:6px;padding-right:22px;color:var(--quiet);font-size:14px}
+  .fldetail .operator[hidden]{display:none}
+  .fldetail .operator img{width:30px;height:26px;object-fit:contain;display:block}
+  .flroute{margin-top:14px;padding:12px 0 14px;border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line)}
+  .flroute[hidden]{display:none}
+  .flroute .cities{display:flex;align-items:baseline;gap:10px;font-size:19px;
+    line-height:1.2}
+  .flroute .cities .city{white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;min-width:0}
+  .flroute .cities .arr{color:var(--quiet);flex:none}
+  .flroute .codes{color:var(--quiet);margin-top:4px}
+  .flroute .codes .apcode{cursor:pointer}
+  .flroute .codes .apcode:hover{color:var(--red)}
+  .flroute .codes .sep{margin:0 6px}
+  .flroute .when{margin-top:8px;font-size:14px}
+  .flroute .when .q{color:var(--quiet)}
   .fldetail .frchip{cursor:pointer}
   .fldetail .frchip:hover .reg{color:var(--red)}
   .fleet{display:flex;flex-direction:column;gap:5px}
@@ -864,18 +881,19 @@
 
 <div class="aldetail fldetail" id="fl-detail" hidden>
   <button class="cardclose" id="fl-close" aria-label="Close flight">&times;</button>
+  <div class="operator" id="fl-operator" hidden><img id="fl-operator-tail" alt=""><span id="fl-operator-name"></span></div>
   <div class="nm" id="fl-name"></div>
   <div class="sub" id="fl-sub"></div>
-  <div class="figures">
-    <div><span class="n" id="fl-flights">&ndash;</span><span class="caps">flights observed</span></div>
-    <div><span class="n" id="fl-tails">&ndash;</span><span class="caps">tails</span></div>
-    <div><span class="n" id="fl-last">&ndash;</span><span class="caps">last flown</span></div>
+  <div class="flroute" id="fl-route" hidden>
+    <div class="cities"><span class="city" id="fl-org-city"></span><span class="arr">&rarr;</span><span class="city" id="fl-dst-city"></span></div>
+    <div class="codes caps"><span class="apcode" id="fl-org"></span><span class="sep">&middot;</span><span class="apcode" id="fl-dst"></span></div>
+    <div class="when" id="fl-when"></div>
   </div>
-  <div class="blockhead caps" id="fl-legs-head" hidden>Typical service</div>
+  <div class="blockhead caps" id="fl-legs-head" hidden>Also flies</div>
   <div class="routes" id="fl-legs" hidden></div>
   <div class="blockhead caps" id="fl-tails-head" hidden>Flown by</div>
   <div class="rb-framelist" id="fl-frames"></div>
-  <div class="blockhead caps" id="fl-recent-head" hidden>Recent operations</div>
+  <div class="blockhead caps" id="fl-recent-head" hidden>Recent flights</div>
   <div class="routes" id="fl-recent" hidden></div>
 </div>
 
@@ -2189,6 +2207,18 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
         "' alt='' src='assets/airline-tails/" + esc(rel) + "'>"
       : "<img class='pic' alt='' src='assets/icons/" + iconFor(a) + ".png'>";
   }
+  // names and marks the other cards borrow
+  window.__airlineName = function (icao) {
+    return (airlineNames && airlineNames[icao]) || null;
+  };
+  window.__tailURL = function (icao) {
+    var entry = icao && tails[icao];
+    return entry && entry["64"] ? "assets/airline-tails/" + entry["64"] : null;
+  };
+  window.__typeName = function (code) {
+    var entry = code && typeNames[code];
+    return (entry && entry[0]) || code || "";
+  };
   // the sky's own framing, for the airline overlay to hand back to
   window.__skyFitted = function () { return state.fitted; };
   window.__skyRefit = function () {
@@ -3684,6 +3714,9 @@ window.__initJoin = function () {
     }
     return coords;
   }
+  window.__gcArc = arc;
+  window.__aptCoord = function (code) { return apts[code] || null; };
+  window.__cityOf = function (code) { return cityOf(code); };
   function ensureArcs(M) {
     if (M.getSource("apt-arcs")) return;
     M.addSource("apt-arcs", { type: "geojson",
@@ -3930,24 +3963,87 @@ window.__initJoin = function () {
   }
   var card = el("fl-detail");
   var token = 0;
+  var savedCam = null;
+  function mapRef() { return window.__fpMap; }
+  // the flight's legs on the sky: the main leg in ink, the rest faint
+  function ensureArcs(M) {
+    if (M.getSource("fl-arcs")) return;
+    M.addSource("fl-arcs", { type: "geojson",
+      data: { type: "FeatureCollection", features: [] } });
+    var before = M.getLayer("planes") ? "planes" : undefined;
+    M.addLayer({ id: "fl-arcs", type: "line", source: "fl-arcs",
+      layout: { "line-cap": "round" },
+      paint: { "line-color": "#221F1A", "line-width": ["get", "w"],
+               "line-opacity": ["get", "op"] } }, before);
+  }
+  function drawLegs(legs, mine) {
+    var M = mapRef();
+    if (!M || !window.__gcArc || !window.__aptCoord) return;
+    function go() {
+      if (mine !== token) return;
+      ensureArcs(M);
+      var feats = [], lons = [], lats = [];
+      legs.forEach(function (l, i) {
+        var A = window.__aptCoord(l.org), B = window.__aptCoord(l.dst);
+        if (!A || !B) return;
+        var coords = window.__gcArc(A, B);
+        feats.push({ type: "Feature",
+          properties: { w: i < 2 ? 2.2 : 1, op: i < 2 ? 0.75 : 0.25 },
+          geometry: { type: "LineString", coordinates: coords } });
+        if (i < 2) coords.forEach(function (c) { lons.push(c[0]); lats.push(c[1]); });
+      });
+      M.getSource("fl-arcs").setData({ type: "FeatureCollection", features: feats });
+      if (lons.length) {
+        M.fitBounds([[Math.min.apply(null, lons), Math.min.apply(null, lats)],
+                     [Math.max.apply(null, lons), Math.max.apply(null, lats)]],
+          { padding: innerWidth > 760
+              ? { top: 110, bottom: 110, left: 390, right: 70 }
+              : { top: 90, bottom: Math.round(innerHeight * 0.5), left: 40, right: 40 },
+            maxZoom: 7, duration: 900 });
+      }
+    }
+    if (M.isStyleLoaded()) go(); else M.once("load", go);
+  }
+  function clearLegs() {
+    var M = mapRef();
+    if (M && M.getSource && M.getSource("fl-arcs")) {
+      M.getSource("fl-arcs").setData({ type: "FeatureCollection", features: [] });
+    }
+  }
+  // whoever hides the card (an airport, an airline, an aircraft taking
+  // the stage) also clears its legs; only our own close returns the camera
+  new MutationObserver(function () {
+    if (card.hidden) { clearLegs(); token++; savedCam = null; }
+  }).observe(card, { attributes: true, attributeFilter: ["hidden"] });
+
   window.__openFlight = function (cs) {
     cs = String(cs || "").trim().toUpperCase();
     if (!cs) return;
     var mine = ++token;
     document.title = cs + " · FlightPortrait network";
+    var M = mapRef();
+    if (savedCam == null && M && card.hidden) {
+      savedCam = { center: M.getCenter(), zoom: M.getZoom() };
+    }
     // one card at a time
     if (!el("routecard").hidden) el("rc-close").click();
+    if (window.__closeAirline) window.__closeAirline(false);
     el("al-detail").hidden = true;
     el("ag-detail").hidden = true;
     if (!el("af-detail").hidden) el("af-close").click();
-    if (!el("apt-detail").hidden) el("apt-close").click();
+    if (window.__closeAirport) window.__closeAirport(true);
     if (el("detail").classList.contains("show")) el("d-close").click();
     card.hidden = false;
     el("fl-name").textContent = cs;
     el("fl-sub").textContent = "";
-    ["fl-flights", "fl-tails", "fl-last"].forEach(function (id) {
-      el(id).textContent = "–";
-    });
+    el("fl-route").hidden = true;
+    var m = /^([A-Z]{3})\d/.exec(cs);
+    var opName = m && window.__airlineName ? window.__airlineName(m[1]) : null;
+    var opTail = m && window.__tailURL ? window.__tailURL(m[1]) : null;
+    el("fl-operator").hidden = !(opName || opTail);
+    el("fl-operator-name").textContent = opName || (m ? m[1] : "");
+    el("fl-operator-tail").hidden = !opTail;
+    if (opTail) el("fl-operator-tail").src = opTail;
     ["fl-legs", "fl-recent"].forEach(function (id) {
       el(id).hidden = el(id + "-head").hidden = true;
     });
@@ -3962,55 +4058,104 @@ window.__initJoin = function () {
             "no observations in the archive window";
           return;
         }
-        render(d);
+        render(d, mine);
       }).catch(function () {
         if (mine !== token) return;
         el("fl-sub").textContent = "the network is not answering";
       });
   };
-  function render(d) {
+  function city(code) { return window.__cityOf ? window.__cityOf(code) : code; }
+  function typeName(code) { return window.__typeName ? window.__typeName(code) : code; }
+  function shortDate(iso) {
+    var d = new Date(iso + "T00:00:00Z");
+    if (isNaN(d)) return iso;
+    return d.getUTCDate() + " " +
+      ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()];
+  }
+  // how often, in words: from days flown over the window observed
+  function cadence(leg, windowDays) {
+    if (!leg || !windowDays || !leg.days) return "";
+    var perWeek = leg.days / (windowDays / 7);
+    if (perWeek >= 6.5) return "daily";
+    if (perWeek >= 1) return "about " + Math.round(perWeek) + " times a week";
+    var perMonth = leg.days / (windowDays / 30);
+    if (perMonth >= 1) return "about " + Math.round(perMonth) + " times a month";
+    return "occasional";
+  }
+  function render(d, mine) {
     // a flight can be route-only (log artifact dark or quiet)
     d.legs = d.legs || []; d.aircraft = d.aircraft || [];
     d.recent = d.recent || [];
     var top = d.legs[0];
-    el("fl-sub").textContent = top
-      ? top.org + " → " + top.dst + (top.type ? " · " + top.type : "")
-      : (d.route ? d.route.join(" → ") : "");
-    var total = d.legs.reduce(function (n, l) {
-      return n + l.flights;
-    }, 0);
-    el("fl-flights").textContent = total.toLocaleString();
-    el("fl-tails").textContent = d.aircraft.length;
-    el("fl-last").textContent = (top && top.last) || "–";
-    el("fl-legs").innerHTML = d.legs.map(function (l) {
+    var route = top ? [top.org, top.dst] : (d.route || null);
+    el("fl-sub").textContent = top && top.type
+      ? typeName(top.type) : "";
+    if (route && route.length >= 2) {
+      el("fl-org-city").textContent = city(route[0]);
+      el("fl-dst-city").textContent = city(route[route.length - 1]);
+      el("fl-org").textContent = route[0];
+      el("fl-org").dataset.code = route[0];
+      el("fl-dst").textContent = route[route.length - 1];
+      el("fl-dst").dataset.code = route[route.length - 1];
+      var when = "";
+      if (top && top.dep) {
+        when += "<b>" + esc(top.dep) + "</b>" +
+          (top.arr ? " &rarr; <b>" + esc(top.arr) + "</b>" : "") +
+          " <span class='q'>local</span>";
+      }
+      var how = cadence(top, d.window_days);
+      if (how) when += (when ? " <span class='q'>&middot;</span> " : "") + esc(how);
+      if (top && top.last) {
+        when += (when ? " <span class='q'>&middot; last " : "<span class='q'>last ") +
+          esc(shortDate(top.last)) + "</span>";
+      }
+      el("fl-when").innerHTML = when;
+      el("fl-route").hidden = false;
+    }
+    // the other legs this number flies, only the ones that recur
+    var floor = top ? Math.max(3, top.flights * 0.05) : 0;
+    var others = d.legs.slice(1).filter(function (l) {
+      return l.flights >= floor;
+    }).slice(0, 5);
+    el("fl-legs").innerHTML = others.map(function (l) {
       return "<div class='rrow'><span class='pair'>" +
-        "<span class='apcode' data-code='" + esc(l.org) + "'>" +
-        esc(l.org) + "</span><span class='arrow'>&rarr;</span>" +
-        "<span class='apcode' data-code='" + esc(l.dst) + "'>" +
-        esc(l.dst) + "</span></span><span class='n'>" +
-        (l.dep ? esc(l.dep) + (l.arr ? "–" + esc(l.arr) : "") + " · " : "") +
-        l.flights + "&times;</span></div>";
+        "<span class='apcode' data-code='" + esc(l.org) + "' title='" +
+        esc(city(l.org)) + "'>" + esc(l.org) + "</span><span class='arrow'>&rarr;</span>" +
+        "<span class='apcode' data-code='" + esc(l.dst) + "' title='" +
+        esc(city(l.dst)) + "'>" + esc(l.dst) + "</span></span><span class='n'>" +
+        (l.dep ? esc(l.dep) + " · " : "") + esc(cadence(l, d.window_days) || l.flights + "×") +
+        "</span></div>";
     }).join("");
-    el("fl-legs").hidden = el("fl-legs-head").hidden = !d.legs.length;
-    el("fl-frames").innerHTML = d.aircraft.map(function (a) {
+    el("fl-legs").hidden = el("fl-legs-head").hidden = !others.length;
+    el("fl-frames").innerHTML = d.aircraft.slice(0, 6).map(function (a) {
       return "<span class='frchip' data-hex='" + esc(a.hex) + "'>" +
         "<span class='reg'>" + esc(a.reg || a.hex) + "</span>" +
         (a.type ? "<span class='ty'>" + esc(a.type) + "</span>" : "") +
-        "<span class='fl'>" + a.flights + "&times;</span></span>";
+        "</span>";
     }).join("");
     el("fl-tails-head").hidden = !d.aircraft.length;
-    el("fl-recent").innerHTML = d.recent.map(function (r) {
+    el("fl-recent").innerHTML = d.recent.slice(0, 6).map(function (r) {
       var t = dur(r.dep_ts, r.arr_ts);
       return "<div class='rrow' style='cursor:default'><span class='pair'>" +
-        esc(r.date) + "</span><span class='n'>" + esc(r.org) +
+        esc(shortDate(r.date)) + "</span><span class='n'>" + esc(r.org) +
         " &rarr; " + esc(r.dst) + (t ? " · " + t : "") + "</span></div>";
     }).join("");
     el("fl-recent").hidden = el("fl-recent-head").hidden =
       !d.recent.length;
+    // the main leg and its return in ink, the rest faint, camera on it
+    var draw = d.legs.length ? d.legs : (route && route.length >= 2
+      ? [{ org: route[0], dst: route[route.length - 1] }] : []);
+    drawLegs(draw, mine);
   }
   el("fl-close").addEventListener("click", function () {
     token++;
     card.hidden = true;
+    clearLegs();
+    var M = mapRef();
+    if (savedCam && M) {
+      M.easeTo({ center: savedCam.center, zoom: savedCam.zoom, duration: 900 });
+    }
+    savedCam = null;
   });
   card.addEventListener("click", function (e) {
     var chip = e.target.closest(".frchip");
