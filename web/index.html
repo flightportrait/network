@@ -133,11 +133,6 @@
   .dot{display:inline-block;width:7px;height:7px;border-radius:50%;
     background:#3D7A50;margin-right:7px;vertical-align:1px}
   .dot.down{background:var(--red)}
-  .skymix{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:16px}
-  .skymix .mixitem{display:inline-flex;align-items:center;gap:6px;
-    font-size:14px;color:var(--quiet);font-variant-numeric:tabular-nums}
-  .skymix .mixitem img{width:24px;height:24px;display:block;
-    transform:rotate(45deg);opacity:.85}
 
   /* Selected aircraft: a floating card on the map's left, FR24-style —
      the map stays the stage, the card sits on it. */
@@ -986,7 +981,6 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
   <div class="head">
     <div class="headline"><span class="n" id="count-aircraft">&ndash;</span><span class="unit">aircraft overhead</span></div>
     <div class="subline caps"><span class="dot" id="statusdot"></span><span id="statusline">connecting</span><span class="sep">&middot;</span><span id="count-stations">&ndash;</span>&nbsp;<span id="count-stations-unit">stations</span><span class="sep">&middot;</span><span id="updated"></span></div>
-    <div class="skymix" id="skymix" hidden></div>
   </div>
   <div class="col-scroll">
     <div class="widget listblock">
@@ -1869,7 +1863,6 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       el("count-aircraft").textContent = state.aircraft.length;
       pushPositions();
       renderList();
-      renderWidgets();
       if (window.__rosterSky) window.__rosterSky();
       if (state.selected) { renderDetail(); updateTrail(); }
       else if (map && map.getSource("aircraft") && location.hash.length > 1 &&
@@ -2043,7 +2036,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
       (d.airlines || []).forEach(function (a) {
         airlineNames[a.icao] = a.name;
       });
-      if (state.aircraft.length) renderWidgets();
+      if (state.aircraft.length) renderList();   // names for the tail titles
     }).catch(function () {});
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"'\/]/g, function (c) {
@@ -2063,7 +2056,7 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
   var tails = {};
   fetch("assets/airline-tails/manifest.json")
     .then(function (r) { return r.ok ? r.json() : { airlines: {} }; })
-    .then(function (d) { tails = d.airlines || {}; renderWidgets(); renderList(); })
+    .then(function (d) { tails = d.airlines || {}; renderList(); })
     .catch(function () {});
   function operatorOf(a) {
     var m = /^([A-Z]{3})\d/.exec(String(a.flight || "").trim());
@@ -2096,33 +2089,6 @@ Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays min
     });
     return ops;
   };
-  function renderWidgets() {
-    var flying = state.aircraft.filter(function (a) {
-      return a.lat != null && a.alt_baro !== "ground";
-    });
-
-    // the sky as a row of type icons with counts
-    var MIX = [
-      { kinds: { narrow: 1 }, icon: "narrow", one: "airliner", many: "airliners" },
-      { kinds: { wide: 1, wide4: 1 }, icon: "wide", one: "heavy", many: "heavies" },
-      { kinds: { bizjet: 1 }, icon: "bizjet", one: "bizjet", many: "bizjets" },
-      { kinds: { prop: 1 }, icon: "prop", one: "prop", many: "props" },
-      { kinds: { ga: 1 }, icon: "ga", one: "light aircraft", many: "light aircraft" },
-      { kinds: { heli: 1 }, icon: "heli", one: "helicopter", many: "helicopters" }
-    ];
-    var mix = "";
-    MIX.forEach(function (g) {
-      var n = flying.filter(function (a) { return g.kinds[iconFor(a)]; }).length;
-      if (!n) return;
-      var word = n === 1 ? g.one : g.many;
-      mix += "<span class='mixitem' title='" + n + " " + esc(word) + "'>" +
-        "<img alt='" + esc(word) + "' src='assets/icons/" + g.icon + ".png'>" +
-        n + "</span>";
-    });
-    el("skymix").innerHTML = mix;
-    el("skymix").hidden = !mix;
-  }
-
   function tickUpdated() {
     if (!state.generatedAt) { el("updated").textContent = ""; return; }
     var age = Math.max(0, Math.round(Date.now() / 1000 - state.generatedAt));
@@ -4367,8 +4333,9 @@ window.__initJoin = function () {
     // sheet chrome above the content: the handle
     var chrome = 30;
     var natural = Math.min(content.scrollHeight + chrome + 26, full);
-    var mid = Math.max(230, natural);
-    if (mid >= full - 60) return [peek, full];   // tall content: 2 stops
+    // the middle stop never passes half the screen: a card opens with
+    // the map still in view, and a drag takes it the rest of the way
+    var mid = Math.min(Math.max(230, natural), Math.round(innerHeight * 0.5));
     return [peek, mid, full];
   }
   function setSheet(px, animate) {
