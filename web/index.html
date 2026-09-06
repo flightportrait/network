@@ -249,12 +249,12 @@
   /* Join: a panel over the LIVE sky — the map keeps playing behind it,
      and the moment the antenna connects, the proof is right there. */
   /* A soft scrim keeps the live sky visible but yields the focus. */
-  .joinscrim{position:absolute;inset:0 var(--col-w) 0 0;z-index:3;
-    background:rgba(245,241,230,.45);display:none}
+  .joinscrim{position:absolute;inset:0;z-index:40;
+    background:rgba(34,31,26,.5);display:none}
   body.mode-join .joinscrim{display:block}
-  .joinpanel{position:absolute;top:84px;bottom:26px;z-index:4;
-    left:calc((100% - var(--col-w)) / 2);transform:translateX(-50%);
-    width:560px;max-width:calc(100% - var(--col-w) - 36px);
+  .joinpanel{position:absolute;top:84px;bottom:26px;z-index:41;
+    left:50%;transform:translateX(-50%);
+    width:700px;max-width:calc(100% - 36px);
     background:var(--paper);border:1px solid var(--line);border-radius:8px;
     padding:26px 30px;box-shadow:0 10px 40px rgba(34,31,26,.28);
     overflow-y:auto;overscroll-behavior:contain;display:none;
@@ -267,7 +267,14 @@
     margin:32px 0 8px}
   .joinpanel p{margin-bottom:12px}
   .joinpanel .sub{font-size:15.5px;color:var(--quiet)}
-  .joinpanel pre{background:var(--ink);color:rgba(245,241,230,.9);
+  .joinpanel code{font:0.86em/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:var(--card);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+  .prewrap{position:relative}
+  .prewrap .copy{position:absolute;top:10px;right:10px;padding:4px 11px;font-size:13px;
+    background:var(--paper);color:var(--ink);border:1px solid rgba(245,241,230,.35)}
+  .prewrap .copy:hover{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+  .prewrap .copy.done{background:var(--ink);color:var(--paper);border-color:var(--paper)}
+  .joinpanel pre{background:var(--ink);color:rgba(245,241,230,.9);white-space:pre;overflow-x:auto;padding-top:44px;
     border-radius:6px;padding:14px 18px;overflow-x:auto;margin:12px 0;
     font:12.5px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   .joinpanel pre .v{color:#E5B24A}
@@ -300,6 +307,34 @@
   .joinpanel .note{background:var(--card);border:1px solid var(--line);
     border-radius:6px;padding:14px 18px;font-size:14.5px;
     color:var(--quiet);margin:22px 0 0}
+  /* The one question, two doors. A door is a button that looks like a
+     card; the chosen one stays marked. */
+  .doors{display:flex;gap:12px;margin:18px 0 6px;flex-wrap:wrap}
+  .door{flex:1 1 200px;background:var(--card);border:1px solid var(--line);
+    border-radius:6px;padding:14px 16px;cursor:pointer;text-align:left;
+    font:inherit;color:var(--ink);line-height:1.4}
+  .door:hover{border-color:var(--ink)}
+  .door.here{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+  .door small{display:block;color:var(--quiet);font-size:13.5px;margin-top:4px}
+  .path{display:none}
+  .path.show{display:block}
+  .keyfield{font:13.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:var(--paper);border:1px solid var(--line);border-radius:6px;
+    padding:8px 11px;flex:1 1 260px;min-width:0;color:var(--ink)}
+  .keyfield.bad{border-color:var(--red)}
+  .softs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+  .soft{background:var(--paper);border:1px solid var(--line);border-radius:6px;
+    padding:6px 12px;cursor:pointer;font:14px Palatino,Georgia,serif;color:var(--ink)}
+  .soft.here{background:var(--ink);color:var(--paper)}
+  .softbody{display:none}
+  .softbody.show{display:block}
+  .joinpanel .quiet{color:var(--quiet);font-size:14.5px}
+  .joinpanel ul{padding-left:22px}
+  .joinpanel ul li{margin-bottom:6px}
+  /* Join owns the stage: the airline card, a picked route and the
+     layer pill step aside until the panel closes. */
+  body.mode-join .aldetail,body.mode-join .routebar,
+  body.mode-join.al-on .viewpill{display:none}
 
   /* Selected airline: floating card, same grammar as the aircraft card,
      bottom-left where it sits on open ocean instead of on a hub. */
@@ -938,71 +973,111 @@
 <div class="joinscrim"></div>
 <div class="joinpanel" id="joinpanel">
 <button class="cardclose" id="join-close" aria-label="Close">&times;</button>
-    <h1>Join the network.</h1>
-    <p class="sub" id="why">The aircraft on this map were heard by receivers run by the people who feed the network. A receiver is a Raspberry Pi with a small antenna; once set up, it shares what it hears automatically. Running one adds coverage where you live.</p>
+    <h1>Feed the network.</h1>
+    <p class="sub">Planes send out their position by radio, all the time, and anyone with a US$30 USB dongle can pick it up from about 200 km away. This map is a few of us doing that and pooling what we hear.</p>
+    <p class="sub">You get to see what actually flies over your house. Three receivers hearing the same plane can also work out where it is when it does not say, so every receiver added makes the map more complete for everyone.</p>
 
-    <div class="idcard">
-      <span class="caps">Your station identity</span>
-      <div class="idrow">
-        <span class="uuid" id="uuid"></span>
-        <button class="copy" id="copy">Copy</button>
-      </div>
-      <p class="hint">There is no signup: this UUID is your station's identity. It is already in the feeder line and the brief below, and this page uses it to spot your station when it connects. A new UUID is a new station.</p>
+    <h2 style="margin-top:22px">Do you already have a receiver?</h2>
+    <div class="doors" role="tablist">
+      <button class="door" id="door-no" role="tab" aria-controls="path-no">No, I am starting from nothing.</button>
+      <button class="door" id="door-yes" role="tab" aria-controls="path-yes">Yes, it feeds other networks.</button>
     </div>
+    <!-- founder: the two door labels are the sentences most people will read; please pass over them. -->
 
-    <h2>Already have a receiver.</h2>
-    <p>Add this line to your feeder configuration, next to the networks you already feed:</p>
-    <pre>adsb,feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v" id="uuid-line">YOUR-UUID</span></pre>
+    <!-- ================= No: the Station ================= -->
+    <div class="path" id="path-no" role="tabpanel">
+      <h2>What to buy.</h2>
+      <p>About US$100.</p>
+      <ul>
+        <li>A <a href="https://www.raspberrypi.com/products/" target="_blank" rel="noopener">Raspberry Pi</a> 4 or newer, with its power supply.</li>
+        <li>An <a href="https://www.rtl-sdr.com/buy-rtl-sdr-dvb-t-dongles/" target="_blank" rel="noopener">RTL-SDR Blog V3</a> dongle.</li>
+        <!-- founder: link policy. adsb.lol's docs link Amazon listings; this links the maker's own buy page. Your call. -->
+        <li>A 1090 MHz antenna. The one sold with the dongle is enough to start.</li>
+        <li>A 32 GB high-endurance microSD card.</li>
+      </ul>
+      <!-- founder: prices and models are as of September 2026; the shopping list is the line most likely to date. -->
 
-    <h2>Build your own receiver.</h2>
-    <p>You will need a Raspberry Pi (any model from 2 to 5) with a power supply and a microSD card, plus an RTL-SDR USB dongle with an antenna, about US$40. The receiver tracks aircraft within 200 to 400 km, depending on the antenna's view of the sky.</p>
-    <p>To set it up, copy the brief below and paste it into Claude Code, Codex, or any AI assistant that can use your computer, then answer its questions. It does everything that can be done from your machine and walks you through the rest. Or follow the steps by hand.</p>
-    <div class="idcard">
-      <div class="idrow">
-        <button class="copy" id="copy-brief">Copy the brief</button>
-        <span class="caps" style="color:var(--quiet)">your UUID is already in it</span>
-      </div>
-      <details style="margin-top:12px">
-      <summary style="cursor:pointer;color:var(--quiet);font-size:14px">Read what it says</summary>
-      <pre id="brief" style="margin:14px 0 0;white-space:pre-wrap">Mission: take me from wherever I am now to a working ADS-B receiver that feeds the FlightPortrait network. Do everything that can be done from this machine yourself, and guide me in plain words through anything physical. I may not know any of the underlying concepts. Do not assume I do, and do not make me learn them unless I ask.
-
-My station identity (UUID): <span class="v" id="uuid-brief">YOUR-UUID</span>
-Use it wherever a station identity is needed. Never replace it: to the network, a new UUID is a different station.
-
-Find out where I am starting from, and adapt:
-- I have no hardware yet: tell me exactly what to buy and roughly what it costs. The reference kit: a Raspberry Pi 4 with power supply and microSD card (official resellers by country: raspberrypi.com/products/raspberry-pi-4-model-b) or any Raspberry Pi 2 through 5 I already own, plus the RTL-SDR Blog V4 dongle with dipole antenna kit (about US$40 from rtl-sdr.com/store) or an equivalent ADS-B kit. Then stop; I will bring this brief back when it arrives.
-- I have the hardware and you are on my everyday computer: download the adsb.im feeder image for my board and flash the microSD card from here, then walk me through assembly (antenna needs a view of the sky, a window helps), first boot, joining the device's own setup hotspot from my phone, and entering the network connection in its custom aggregator settings: host feed.flightportrait.com, port 30004, protocol beast_reduce_plus_out, my UUID.
-- This machine is itself the receiver (Linux, dongle attached): set it up directly with the sdr-enthusiasts ultrafeeder container and the same connection settings. Ask me for the antenna's true latitude, longitude and altitude; multilateration depends on honest values.
-
-Also offer to feed the open community networks (adsb.lol, adsb.fi, airplanes.live) alongside. That is the norm and FlightPortrait encourages it. Keep a small file of every identity and setting you create for me, and tell me where you put it.
-
-Rules: outbound connections only, never expose anything to the internet. Prefer official images and documented settings over cleverness.
-
-Done means: https://data.flightportrait.com/v1/stations/MY-UUID answers with my station online. Poll it, show me the result, and tell me in plain words what my antenna is hearing.
-
-Terms I am agreeing to: flightportrait.com/network/terms.html (my data stays mine; the aggregate is published as open data, ODbL 1.0).</pre>
-      </details>
-    </div>
-
-    <details style="margin-top:34px">
-      <summary style="cursor:pointer;font-size:20px">The steps by hand.</summary>
-      <ol style="margin-top:14px">
-        <li>Buy a <a href="https://www.raspberrypi.com/products/raspberry-pi-4-model-b/">Raspberry Pi 4</a> (any memory size, new or used, with power supply and a microSD card; the link lists official resellers by country) and the <a href="https://www.rtl-sdr.com/product/rtl-sdr-blog-v4-r828d-rtl2832u-1ppm-tcxo-sma-software-defined-radio-with-dipole-antenna/">RTL-SDR Blog V4 dongle with antenna kit</a> (about US$40, ships worldwide). Any Raspberry Pi 2 through 5 you already own works too.</li>
-        <li>Flash the <a href="https://adsb.im/home">adsb.im feeder image</a> onto the microSD card with Raspberry Pi Imager. It is a free, open image made for exactly this.</li>
-        <li>Plug antenna into dongle, dongle into Pi, Pi into power, near a window. Reception depends on how much sky the antenna can see.</li>
-        <li>On first boot the Pi starts its own WiFi hotspot. Join it from your phone and it walks you through connecting to your home network.</li>
-        <li>On its setup page, under custom aggregators, enter host feed.flightportrait.com, port 30004, and your UUID from above.</li>
+      <h2>Three steps.</h2>
+      <ol>
+        <li>Flash <a href="https://www.raspberrypi.com/software/" target="_blank" rel="noopener">Raspberry Pi OS Lite</a> with the official imager. Set a username, your Wi-Fi and SSH in its settings.</li>
+        <li>Log in and run one line:
+          <pre>curl -fsSL https://flightportrait.com/station/install.sh | sh</pre>
+          <!-- founder: placeholder URL; the installer is published with the Station release. The line downloads and runs the installer, which prints what it does before each step. -->
+        </li>
+        <li>Open the address it prints on your phone. Name the station, pin the antenna on the map, pick the networks to feed.</li>
       </ol>
-    </details>
+      <p>That address is then your station's page.</p>
 
-    <div class="listen" style="margin-top:34px">
+      <div class="idcard">
+        <span class="caps">Your station key</span>
+        <p class="hint" style="margin:0 0 10px">Setup ends with a key. Paste it here to watch your station appear.</p>
+        <div class="idrow">
+          <input class="keyfield" id="key-no" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="paste the key from the setup" aria-label="Station key">
+          <button class="copy" id="watch-no">Watch</button>
+        </div>
+        <p class="hint">Have a key? Use it. A new key is a new station.</p>
+      </div>
+    </div>
+
+    <!-- ================= Yes: add a line ================= -->
+    <div class="path" id="path-yes" role="tabpanel">
+      <div class="idcard">
+        <span class="caps">Your station key</span>
+        <div class="idrow">
+          <span class="uuid" id="uuid"></span>
+          <button class="copy" id="copy">Copy</button>
+        </div>
+        <p class="hint">It is already in the lines below. Keep it.</p>
+        <div class="idrow" style="margin-top:10px">
+          <input class="keyfield" id="key-yes" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="or paste a key you already have" aria-label="Existing station key">
+          <button class="copy" id="use-yes">Use it</button>
+        </div>
+        <p class="hint">Have a key? Use it.</p>
+      </div>
+
+      <h2>Add this to what you run.</h2>
+      <div class="softs" role="tablist">
+        <button class="soft here" data-soft="readsb" role="tab">readsb</button>
+        <button class="soft" data-soft="ultrafeeder" role="tab">ultrafeeder</button>
+        <button class="soft" data-soft="dump1090" role="tab">dump1090-fa / PiAware</button>
+        <button class="soft" data-soft="image" role="tab">adsb.im and other images</button>
+      </div>
+
+      <div class="softbody show" id="soft-readsb">
+        <p>In <code>/etc/default/readsb</code>, add to <code>NET_OPTIONS</code>, then restart readsb:</p>
+        <pre>--net-connector feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v key-v">YOUR-KEY</span></pre>
+        <p>For MLAT, run mlat-client as well:</p>
+        <pre>mlat-client --input-type dump1090 --input-connect localhost:30005 --server feed.flightportrait.com:31090 --lat <span class="v">LAT</span> --lon <span class="v">LON</span> --alt <span class="v">ALT</span> --user <span class="v">NAME</span> --uuid <span class="v key-v">YOUR-KEY</span></pre>
+      </div>
+      <div class="softbody" id="soft-ultrafeeder">
+        <p>Add to <code>ULTRAFEEDER_CONFIG</code>, then recreate the container:</p>
+        <pre>adsb,feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v key-v">YOUR-KEY</span>;mlat,feed.flightportrait.com,31090,uuid=<span class="v key-v">YOUR-KEY</span></pre>
+      </div>
+      <div class="softbody" id="soft-dump1090">
+        <p>dump1090-fa 6.0 or newer. In <code>/etc/default/dump1090-fa</code>, add to <code>NET_OPTIONS</code>, then restart dump1090-fa:</p>
+        <pre>--net-connector feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v key-v">YOUR-KEY</span></pre>
+        <p class="quiet">Older versions have no <code>--net-connector</code>.</p>
+        <p>For MLAT, run mlat-client as well:</p>
+        <pre>mlat-client --input-type dump1090 --input-connect localhost:30005 --server feed.flightportrait.com:31090 --lat <span class="v">LAT</span> --lon <span class="v">LON</span> --alt <span class="v">ALT</span> --user <span class="v">NAME</span> --uuid <span class="v key-v">YOUR-KEY</span></pre>
+        <!-- founder: I have verified the flag exists from 6.0 in the dump1090-fa source, not on a live PiAware; worth one check on a real image. -->
+      </div>
+      <div class="softbody" id="soft-image">
+        <p>In the image's aggregator settings, add a custom one: host <code>feed.flightportrait.com</code>, port <code>30004</code>, protocol <code>beast_reduce_plus_out</code>, your key; MLAT host the same, port <code>31090</code>. We have asked to be added to the list.</p>
+        <!-- founder: "we are asking to be added" is true (adsb.im issue drafted, not yet sent); adjust once the listing lands. -->
+      </div>
+
+      <p class="quiet" style="margin-top:14px">Want the Station instead? A dongle serves one program. The installer imports your feeds and keys and asks before stopping anything: <code>install.sh --replace</code>. <a href="#" id="to-station">The Station path.</a></p>
+    </div>
+
+    <div class="listen" id="listen" style="margin-top:34px;display:none">
       <div class="state">
         <span class="pulse waiting" id="pulse"></span>
         <span class="caps" id="listen-line">waiting for your station</span>
       </div>
       <div class="stats" id="listen-stats"></div>
     </div>
-  <p class="sub" style="margin-top:22px">Data &copy; FlightPortrait network feeders, ODbL 1.0. &middot; <a href="/network/terms.html" target="_blank" rel="noopener">Feeder terms</a></p>
+
+    <p class="sub" style="margin-top:22px">Stations are rounded to about 11 km. We store a hash of your key, no IPs. The aggregate is open data, ODbL 1.0. &middot; <a href="/network/terms.html" target="_blank" rel="noopener">Feeder terms</a> &middot; <a href="https://github.com/flightportrait/network/blob/main/docs/privacy.md" target="_blank" rel="noopener">What we store</a></p>
 </div>
 
 <aside class="col" id="col">
@@ -3530,51 +3605,121 @@ window.__initJoin = function () {
   // Talks to the instance we operate. For local hacking, set
   // window.FP_API before this script.
   var API = window.FP_API || "https://data.flightportrait.com";
+  function el(id) { return document.getElementById(id); }
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  // One identity per device, minted client-side. localStorage can be
-  // unavailable (private windows); fall back to a session-only UUID.
-  var uuid;
+  // The key being watched. On the "yes" door it is minted here, once
+  // per device, as before; on the "no" door the Station makes it and
+  // the person pastes it. A pasted key always wins.
+  var minted;
   try {
-    uuid = localStorage.getItem("fp-station-uuid");
-    if (!uuid) {
-      uuid = crypto.randomUUID();
-      localStorage.setItem("fp-station-uuid", uuid);
+    minted = localStorage.getItem("fp-station-uuid");
+    if (!minted) {
+      minted = crypto.randomUUID();
+      localStorage.setItem("fp-station-uuid", minted);
     }
   } catch (e) {
-    uuid = (crypto.randomUUID ? crypto.randomUUID() : "YOUR-UUID");
+    minted = (crypto.randomUUID ? crypto.randomUUID() : "YOUR-KEY");
   }
-  document.getElementById("uuid").textContent = uuid;
-  document.getElementById("uuid-line").textContent = uuid;
-  document.getElementById("uuid-brief").textContent = uuid;
+  var key = null; // what the watcher polls; null until a door is chosen
 
-  var briefBtn = document.getElementById("copy-brief");
-  briefBtn.addEventListener("click", function () {
-    var text = document.getElementById("brief").textContent
-      .replace(/MY-UUID/g, uuid);
-    (navigator.clipboard ? navigator.clipboard.writeText(text)
-                         : Promise.reject()).then(function () {
-      briefBtn.textContent = "Copied";
-      setTimeout(function () {
-        briefBtn.textContent = "Copy the brief";
-      }, 1600);
-    }).catch(function () {});
+  function fillLines(k) {
+    el("uuid").textContent = k;
+    var vs = document.getElementsByClassName("key-v");
+    for (var n = 0; n < vs.length; n++) vs[n].textContent = k;
+  }
+  fillLines(minted);
+
+  // ---- doors
+  function choose(which, push) {
+    var no = which === "no";
+    el("door-no").classList.toggle("here", no);
+    el("door-yes").classList.toggle("here", !no);
+    el("path-no").classList.toggle("show", no);
+    el("path-yes").classList.toggle("show", !no);
+    el("door-no").setAttribute("aria-selected", no);
+    el("door-yes").setAttribute("aria-selected", !no);
+    if (no) {
+      // watch only once a key is pasted
+      key = null;
+      el("listen").style.display = "none";
+    } else {
+      key = minted;
+      el("listen").style.display = "";
+      check();
+    }
+    try { localStorage.setItem("fp-join-door", which); } catch (e) {}
+    if (push && history.replaceState) {
+      history.replaceState(null, "", "/network/?mode=join&door=" + which);
+    }
+  }
+  el("door-no").addEventListener("click", function () { choose("no", true); });
+  el("door-yes").addEventListener("click", function () { choose("yes", true); });
+  el("to-station").addEventListener("click", function (ev) {
+    ev.preventDefault(); choose("no", true);
+    el("path-no").scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
-  var copyBtn = document.getElementById("copy");
+  // ---- keys
+  function takeKey(input) {
+    var v = input.value.trim().toLowerCase();
+    if (!UUID_RE.test(v)) { input.classList.add("bad"); return null; }
+    input.classList.remove("bad");
+    return v;
+  }
+  el("watch-no").addEventListener("click", function () {
+    var v = takeKey(el("key-no"));
+    if (!v) return;
+    key = v;
+    el("listen").style.display = "";
+    check();
+  });
+  el("key-no").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter") el("watch-no").click();
+  });
+  el("use-yes").addEventListener("click", function () {
+    var v = takeKey(el("key-yes"));
+    if (!v) return;
+    minted = v; key = v; fillLines(v);
+    try { localStorage.setItem("fp-station-uuid", v); } catch (e) {}
+    check();
+  });
+  el("key-yes").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter") el("use-yes").click();
+  });
+  var copyBtn = el("copy");
   copyBtn.addEventListener("click", function () {
-    (navigator.clipboard ? navigator.clipboard.writeText(uuid)
+    (navigator.clipboard ? navigator.clipboard.writeText(minted)
                          : Promise.reject()).then(function () {
       copyBtn.textContent = "Copied";
       setTimeout(function () { copyBtn.textContent = "Copy"; }, 1600);
     }).catch(function () {});
   });
 
-  var pulse = document.getElementById("pulse");
-  var line = document.getElementById("listen-line");
-  var stats = document.getElementById("listen-stats");
+  // ---- per-software sections
+  var softs = document.getElementsByClassName("soft");
+  function showSoft(name) {
+    for (var n = 0; n < softs.length; n++) {
+      softs[n].classList.toggle("here", softs[n].getAttribute("data-soft") === name);
+    }
+    ["readsb", "ultrafeeder", "dump1090", "image"].forEach(function (k) {
+      el("soft-" + k).classList.toggle("show", k === name);
+    });
+  }
+  for (var n = 0; n < softs.length; n++) {
+    softs[n].addEventListener("click", function (ev) {
+      showSoft(ev.currentTarget.getAttribute("data-soft"));
+    });
+  }
 
+  // ---- the watch: unchanged contract, GET /v1/stations/{key}
+  var pulse = el("pulse");
+  var line = el("listen-line");
+  var stats = el("listen-stats");
   function check() {
-    fetch(API + "/v1/stations/" + uuid).then(function (r) {
+    if (!key) return;
+    var k = key;
+    fetch(API + "/v1/stations/" + k).then(function (r) {
       if (r.status === 404) {
         pulse.className = "pulse waiting";
         line.textContent = "waiting for your station";
@@ -3587,7 +3732,7 @@ window.__initJoin = function () {
       if (!r.ok) throw new Error(r.status);
       return r.json();
     }).then(function (d) {
-      if (!d) return;
+      if (!d || k !== key) return;
       pulse.className = "pulse online";
       line.textContent = "station " + d.id + (d.online
         ? " is online" : " was heard, currently offline");
@@ -3609,10 +3754,18 @@ window.__initJoin = function () {
       line.textContent = "network not answering";
     });
   }
-  check();
   // 30 s stays well inside the self-view budget (60 per 600 s), even
   // with the setup page open in two tabs
   setInterval(check, 30000);
+
+  // Open on the door the URL or the last visit asked for; otherwise
+  // leave the question standing.
+  var door = null;
+  try {
+    door = new URLSearchParams(location.search).get("door") ||
+      localStorage.getItem("fp-join-door");
+  } catch (e) {}
+  if (door === "no" || door === "yes") choose(door, false);
 };
 
 // ---- airport view ---------------------------------------------------
@@ -4858,5 +5011,27 @@ window.__initJoin = function () {
   })();
 })();
 </script>
+
+  <script>
+  // Copy buttons on every command block in the join panel, with feedback.
+  (function () {
+    function copyText(text, btn) {
+      var done = function () { btn.textContent = "Copied"; btn.classList.add("done");
+        setTimeout(function () { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1500); };
+      if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done, done); }
+      else { var r = document.createRange(); r.selectNodeContents(btn.parentNode.querySelector("pre"));
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+        try { document.execCommand("copy"); } catch (e) {} sel.removeAllRanges(); done(); }
+    }
+    document.querySelectorAll(".joinpanel pre").forEach(function (pre) {
+      if (pre.parentNode.classList.contains("prewrap")) return;
+      var wrap = document.createElement("div"); wrap.className = "prewrap";
+      pre.parentNode.insertBefore(wrap, pre); wrap.appendChild(pre);
+      var btn = document.createElement("button"); btn.type = "button"; btn.className = "copy"; btn.textContent = "Copy";
+      btn.addEventListener("click", function () { copyText(pre.textContent, btn); });
+      wrap.appendChild(btn);
+    });
+  })();
+  </script>
 </body>
 </html>
