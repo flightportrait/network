@@ -776,7 +776,8 @@
     body.mode-join #sheet-cards .fldetail,
     body.mode-join #sheet-cards .afdetail{display:none}
     body.mode-join #sheet-cards .joinpanel{display:block}
-    .joinscrim{display:none}
+    /* the sheet IS the join surface; no scrim over it */
+    body.mode-join .joinscrim{display:none}
     .mapnote{top:74px}
     .intro{left:14px;right:14px;top:74px;width:auto;max-width:none}
     /* The layer pill floats just below the header, compact. */
@@ -1857,6 +1858,8 @@
   function select(hex) {
     if (window.__closeAirline) window.__closeAirline(false);
     if (window.__closeAirport) window.__closeAirport(true);
+    if (!el("fl-detail").hidden) el("fl-close").click();
+    if (!el("af-detail").hidden) el("af-close").click();
     state.selected = hex;
     if (history.replaceState) {
       history.replaceState(null, "",
@@ -3201,6 +3204,8 @@ window.__initAirlines = function () {
     el("ag-detail").hidden = false;
     if (el("detail").classList.contains("show")) el("d-close").click();
     if (window.__closeAirport) window.__closeAirport(true);
+    if (!el("fl-detail").hidden) el("fl-close").click();
+    if (!el("af-detail").hidden) el("af-close").click();
     takeCamera();
     el("ag-name").textContent = summary.name;
     el("ag-asof").textContent = "Official roster checked " +
@@ -3361,9 +3366,11 @@ window.__initAirlines = function () {
       history.replaceState(null, "", airlinesURL(icao));
     }
     renderRoster(el("al-search").value);
-    // one card on the stage: the aircraft card and the airport yield
+    // one card on the stage: aircraft, airport, flight, airframe yield
     if (el("detail").classList.contains("show")) el("d-close").click();
     if (window.__closeAirport) window.__closeAirport(true);
+    if (!el("fl-detail").hidden) el("fl-close").click();
+    if (!el("af-detail").hidden) el("af-close").click();
     takeCamera();
     // instant response from what the roster already knows; the rest
     // fills in when the fetch lands
@@ -4810,8 +4817,21 @@ window.__initJoin = function () {
     if (document.body.classList.contains("mode-join")) return "join";
     return "sky";
   }
+  // On the phone a tab means "show me this list": every open card
+  // steps aside (cameras handed back by their own close paths). On
+  // desktop cards float on the stage and stay until closed.
+  function dismissCards() {
+    [["af-detail", "af-close"], ["fl-detail", "fl-close"],
+     ["apt-detail", "apt-close"], ["routecard", "rc-close"],
+     ["al-detail", "al-close"], ["ag-detail", "ag-close"]].forEach(function (t) {
+      if (!el(t[0]).hidden) el(t[1]).click();
+    });
+    el("ft-detail").hidden = true;
+    if (el("detail").classList.contains("show")) el("d-close").click();
+  }
   function setPageMode(mode, push) {
     var airlines = mode === "airlines", join = mode === "join";
+    if (isMobile() && mode !== currentMode()) dismissCards();
     document.body.classList.toggle("mode-airlines", airlines);
     document.body.classList.toggle("mode-join", join);
     [["nav-sky", "tb-sky", !airlines && !join],
@@ -4860,15 +4880,8 @@ window.__initJoin = function () {
     el(t[0]).addEventListener("click", function (e) {
       e.preventDefault();
       if (currentMode() === t[1] && isMobile()) {
-        // re-tap: back to this mode's list — dismiss its cards, open
-        if (t[1] === "airlines") {
-          if (!el("routecard").hidden) el("rc-close").click();
-          el("al-detail").hidden = true;
-          el("ag-detail").hidden = true;
-        }
-        if (t[1] === "sky" && el("detail").classList.contains("show")) {
-          el("d-close").click();
-        }
+        // re-tap: back to this mode's list, open
+        dismissCards();
         var pts = detents();
         setSheet(pts[pts.length - 1], true);
         return;
