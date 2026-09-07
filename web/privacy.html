@@ -59,28 +59,28 @@
 
   <a class="back" href="/network/" id="back">Back to the map</a>
   <h1>Feeder privacy.</h1>
-  <p class="meta">Draft, September 2026. What the network stores about a station and a visitor, and what it does not. The network is operated by YODE PTE LTD, Singapore; the <a href="/privacy.html">FlightPortrait privacy policy</a> covers the frame, the app and the shop.</p>
+  <p class="meta">Draft, September 2026. What the network keeps about a station and a visitor. The network is operated by YODE PTE LTD, Singapore. The frame, the app and the shop have their own <a href="/privacy.html">privacy policy</a>.</p>
 
   <h2>1. What a station sends.</h2>
-  <p>Aircraft messages, which are public broadcasts and not personal data, and the station key you chose. The key is the only identity the network has for a station; there is no account, name, or email.</p>
+  <p>Aircraft messages and the station key you chose. Aircraft messages are public broadcasts, not personal data. The key is the network's only identity for a station. No account, no name, no email.</p>
 
-  <h2>2. What we store.</h2>
-  <p>A one-way hash of the station key, never the key itself. The area the station hears, computed from received traffic and rounded to about 11 km. First and last heard dates, online status, and connection statistics such as message rate. That is the whole record.</p>
+  <h2>2. What we keep.</h2>
+  <p>A one-way hash of the key, never the key. The area the station hears, computed from its traffic and rounded to about 11 km. First and last heard, online or not, message rate.</p>
 
-  <h2>3. What we do not store.</h2>
-  <p>Your IP address holds the connection open and is discarded when it closes; it is not written anywhere. We never ask for, hold, or publish an address or exact coordinates. MLAT needs your antenna position to work; it is used in the calculation and is not published.</p>
+  <h2>3. What we do not keep.</h2>
+  <p>Your IP address holds the connection open and is discarded when it closes. We never ask for or publish an address or exact coordinates. MLAT uses your antenna position in its calculation, only while the station is connected, and never publishes it.</p>
 
   <h2>4. What is public.</h2>
-  <p>The roster shows a generated identifier, the rounded area, the dates and the online status. The aggregate of every station's data is published as open data under ODbL 1.0, as the <a href="/network/terms">feeder terms</a> say.</p>
+  <p>The roster: a generated identifier, the rounded area, the dates, online or not. The aggregate of every station's data is open data under ODbL 1.0, as the <a href="/network/terms">feeder terms</a> say.</p>
 
   <h2>5. Visitors to the map.</h2>
-  <p>The map is static files talking to our API. We keep limited technical data such as IP address and browser type for security and rate limiting, and nothing for analytics or advertising. Aircraft photographs load in your browser from planespotters.net and map tiles from OpenFreemap, under their own terms.</p>
+  <p>The map is static files talking to our API. We hold IP address and browser type briefly for security and rate limiting, and nothing for analytics or advertising. Aircraft photographs load from planespotters.net and map tiles from OpenFreemap, in your browser, under their terms.</p>
 
   <h2>6. The Station software.</h2>
-  <p>The setup page of our own feeder software runs in your browser on your network and, on your behalf, asks OpenFreemap for map tiles, Nominatim when you type an address, Open-Meteo for the ground elevation at the pin, and ipwho.is for a first rough map position. Nothing is stored there and nothing reaches us from that page.</p>
+  <p>Its setup page runs in your browser on your own network. It asks OpenFreemap for tiles, Nominatim when you type an address, Open-Meteo for the ground elevation at the pin, and ipwho.is for a rough first position. None of that reaches us.</p>
 
   <h2>7. Deletion and questions.</h2>
-  <p>To delete a station's registry history, email hello@flightportrait.com with the station key. Data already published under ODbL remains under its license. Our Data Protection Officer is reachable at privacy@flightportrait.com.</p>
+  <p>Email hello@flightportrait.com with the station key to delete a station's history. Data already published under ODbL stays under its license. Data protection questions go to privacy@flightportrait.com.</p>
 
   <footer>Questions: hello@flightportrait.com</footer>
   <p><a class="back" href="/network/" id="back-foot">Back to the map</a></p>
