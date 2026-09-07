@@ -476,7 +476,9 @@
     white-space:nowrap}
   .rrow .ac{color:var(--quiet);font-size:11px;margin-right:7px;
     font-family:'IBM Plex Mono','SFMono-Regular',Menlo,monospace}
-  .hubline{margin-top:6px;font-size:13.5px;color:var(--quiet)}
+  .hubline{margin-top:8px;font-size:13.5px;color:var(--quiet);
+    display:flex;align-items:center;gap:7px}
+  .hubline img{width:15px;height:15px;opacity:.75}
   .hubline b{color:var(--ink);font-weight:600}
   .rrow.sel{color:var(--ink)}
   .rrow.sel .pair{font-weight:600}
@@ -893,8 +895,8 @@
     <div><span class="n" id="d-countries">&ndash;</span><span class="caps">countries</span></div>
     <div><span class="n" id="d-dests">&ndash;</span><span class="caps">destinations</span></div>
   </div>
-  <div class="blockhead caps">
-    <span id="d-viewlabel">Countries observed</span>
+  <div class="blockhead caps" id="d-viewhead" hidden>
+    <span>Observed network</span>
   </div>
   <div class="routes" id="d-routelist" hidden></div>
   <div class="blockhead caps" id="d-fleethead" hidden>
@@ -902,7 +904,6 @@
     <span id="d-frames" style="letter-spacing:0"></span>
   </div>
   <div class="fleet" id="d-fleet"></div>
-  <div class="note" id="d-note"></div>
 </div>
 
 <div class="aldetail" id="ag-detail" hidden>
@@ -1593,17 +1594,29 @@
                  "circle-stroke-width": 1.5 } }, "routeline");
       // hand the dots off to the tower glyph once markers are big
       // enough for it to read (zoom >= APT_TOWER_Z)
+      // (zoom >= APT_TOWER_Z). The glyph sits inside a paper bubble so
+      // it reads as a marker on the map rather than a loose drawing.
       var APT_TOWER_Z = 7;
       if (map.hasImage("airport-tower")) {
         map.setLayerZoomRange("sky-apts", 1.5, APT_TOWER_Z);
+        map.addLayer({ id: "sky-apt-bubbles", type: "circle",
+          source: "sky-apts", minzoom: APT_TOWER_Z, filter: aptFilter(1),
+          paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"],
+                     APT_TOWER_Z, 10, 11, 14],
+                   "circle-color": "#F5F1E6",
+                   "circle-opacity": aptRamp(1, 0),
+                   "circle-stroke-color": "rgba(34,31,26,.8)",
+                   "circle-stroke-opacity": aptRamp(1, 0),
+                   "circle-stroke-width": 1.5 } }, "routeline");
         map.addLayer({ id: "sky-apt-towers", type: "symbol",
           source: "sky-apts", minzoom: APT_TOWER_Z, filter: aptFilter(1),
           layout: {
             "icon-image": "airport-tower",
-            "icon-anchor": "bottom",
+            "icon-anchor": "center",
             "icon-size": ["interpolate", ["linear"], ["zoom"],
-              APT_TOWER_Z, 0.5, 11, 0.8],
-            "icon-allow-overlap": true
+              APT_TOWER_Z, 0.34, 11, 0.5],
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true
           },
           paint: { "icon-opacity": aptRamp(1, 0) } }, "routeline");
       }
@@ -1615,7 +1628,8 @@
             "text-font": ["Noto Sans Regular"],
             "text-size": 10.5,
             "text-letter-spacing": 0.08,
-            "text-offset": [0, 0.9],
+            "text-radial-offset": ["interpolate", ["linear"], ["zoom"],
+              6.2, 0.9, APT_TOWER_Z, 1.35, 11, 1.75],
             "text-anchor": "top",
             "text-optional": true
           },
@@ -1651,7 +1665,7 @@
           window.__openAirport(e.features[0].properties.code);
         }
       }
-      ["sky-apts", "sky-apt-towers"].forEach(function (id) {
+      ["sky-apts", "sky-apt-bubbles", "sky-apt-towers"].forEach(function (id) {
         if (!map.getLayer(id)) return;
         map.on("mousemove", id, aptTip);
         map.on("mouseleave", id, aptTipHide);
@@ -2526,7 +2540,8 @@ window.__initAirlines = function () {
                     "plane-labels"];
   // the airport beacons follow the sky but also yield to the airframe
   // timeline, which draws only its own routes and fields
-  var SKY_APT_LAYERS = ["sky-apts", "sky-apt-towers", "sky-apt-labels"];
+  var SKY_APT_LAYERS = ["sky-apts", "sky-apt-bubbles", "sky-apt-towers",
+                        "sky-apt-labels"];
   var shadedIsos = [];
   var hoverArc = null;
   // Work that needs the overlay layers waits here until the basemap is
@@ -3149,15 +3164,6 @@ window.__initAirlines = function () {
     });
   }
 
-  var COVERAGE = "What the network's sources heard, not the airline's " +
-    "full timetable: receiver coverage is thin over oceans and parts " +
-    "of Africa and Asia, and those gaps show here as absences. " +
-    "Open observation, published ODbL.";
-  var COUNTRY_NOTE = "Shading deepens with observed routes, so the hub " +
-    "reads darkest. " + COVERAGE;
-  var ROUTE_NOTE = "Each arc is a leg the network watched this airline " +
-    "fly; thicker and darker means seen more often. " + COVERAGE;
-
   function applyView() {
     var routes = state.view === "routes";
     if (!routes) clearCountryFilter();
@@ -3173,11 +3179,9 @@ window.__initAirlines = function () {
         (routes && on) ? "none" : "visible");
     });
     el("d-routelist").hidden = !routes;
-    el("d-viewlabel").textContent =
-      routes ? "Observed network" : "Countries observed";
+    el("d-viewhead").hidden = !routes;
     el("v-countries").classList.toggle("on", !routes);
     el("v-routes").classList.toggle("on", routes);
-    el("d-note").textContent = routes ? ROUTE_NOTE : COUNTRY_NOTE;
     if (!routes) clearLeg();          // no route pick outside the routes view
     if (!state.current || !layersReady) return;
     if (routes) clearCountries();
@@ -3480,8 +3484,11 @@ window.__initAirlines = function () {
 
       var hub = state.current.hub, hubEl = el("d-hub");
       if (hub && d.routes.airports[hub]) {
-        hubEl.innerHTML = "Hub &middot; <b>" + hub + "</b> " +
-          (d.routes.airports[hub].name || "");
+        var city = (aptTable[hub] && aptTable[hub][0]) ||
+          d.routes.airports[hub].name || "";
+        hubEl.innerHTML = '<img src="assets/icons/airport.png" alt="">' +
+          "<span><b>" + hub + "</b>" +
+          (city ? " (" + city + ")" : "") + "</span>";
         hubEl.hidden = false;
       } else { hubEl.hidden = true; }
 
@@ -3525,6 +3532,9 @@ window.__initAirlines = function () {
   }
 
   // ---- boot ----------------------------------------------------------
+  var aptTable = {};                       // code -> [city, lat, lon, …]
+  fetch("assets/airports.json").then(function (r) { return r.json(); })
+    .then(function (d) { aptTable = d; }).catch(function () {});
   Promise.all([
     fetch("assets/countries.json").then(function (r) { return r.json(); }),
     fetch(API + "/v1/airlines").then(function (r) { return r.json(); }),
