@@ -583,8 +583,23 @@
     color:var(--quiet)}
   .frow{cursor:pointer}
   .frow:hover .tn{color:var(--red)}
-  .ftgrid .frchip{cursor:pointer}
+  .ftgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .ftgrid .frchip{cursor:pointer;display:block;position:relative;overflow:hidden;
+    padding:8px 10px 7px;border-radius:6px;background:var(--card)}
   .ftgrid .frchip:hover .reg{color:var(--red)}
+  .ftgrid .frchip .reg{display:block;font-size:14px}
+  .ftgrid .frchip .st{display:block;color:var(--quiet);font-size:11.5px;
+    margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    font-family:'Helvetica Neue',Arial,sans-serif}
+  .ftgrid .frchip .st b{font-weight:400;color:var(--ink)}
+  .ftgrid .frchip.live{border-color:var(--red)}
+  .ftgrid .frchip.live .reg::before{content:"";display:inline-block;width:7px;height:7px;
+    border-radius:50%;background:var(--red);margin-right:6px;vertical-align:1px}
+  .ftgrid .frchip.quiet .reg{color:var(--quiet)}
+  .ftgrid .frchip .sil{position:absolute;right:-6px;bottom:-8px;width:52px;height:52px;
+    opacity:.09;pointer-events:none}
+  .ftgrid .legend{grid-column:1 / -1;color:var(--quiet);font-size:11.5px;
+    font-family:'Helvetica Neue',Arial,sans-serif;padding:2px 0 0}
   .ftgrid .muted{color:var(--quiet);font-size:13px}
   .aldetail .note{margin-top:12px;padding-top:10px;
     border-top:1px solid var(--line);color:var(--quiet);font-size:12.5px;
@@ -3607,21 +3622,64 @@ window.__initAirlines = function () {
     el("ft-frames").innerHTML = "<span class='muted'>…</span>";
     el("al-detail").hidden = true;
     el("ft-detail").hidden = false;
-    fetch(API + "/v1/airlines/" + state.selected + "/fleet/" +
-          encodeURIComponent(type))
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) {
-        if (mine !== ftToken) return;
-        var af = (d && d.airframes) || [];
-        el("ft-frames").innerHTML = af.length ? af.map(function (a) {
-          return "<span class='frchip' data-hex='" + a.hex + "'>" +
-            "<span class='reg'>" + (a.reg || a.hex) + "</span></span>";
-        }).join("") : "<span class='muted'>No tails resolved.</span>";
-      }).catch(function () {
-        if (mine !== ftToken) return;
-        el("ft-frames").innerHTML =
-          "<span class='muted'>The network is not answering.</span>";
+    var sil = null;
+    function ago(iso) {
+      if (!iso) return null;
+      var d = Math.round((Date.now() - Date.parse(iso + "T12:00:00Z")) / 86400000);
+      return d <= 0 ? "today" : d === 1 ? "yesterday" : d + " d ago";
+    }
+    Promise.all([
+      fetch(API + "/v1/airlines/" + state.selected + "/fleet/" + encodeURIComponent(type))
+        .then(function (r) { return r.ok ? r.json() : null; }),
+      fetch(API + "/v1/aircraft").then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; }),
+      fetch("assets/types.json").then(function (r) { return r.json(); })
+        .catch(function () { return {}; })
+    ]).then(function (both) {
+      if (mine !== ftToken) return;
+      var d = both[0], sky = both[1], types = both[2] || {};
+      var cat = types[type] && types[type][1];
+      sil = cat ? "assets/icons/" + cat + ".png" : null;
+      var af = (d && d.airframes) || [];
+      var live = {};
+      ((sky && sky.aircraft) || []).forEach(function (a) { live[a.hex] = a; });
+      // airborne first, then by when they were last heard, the quiet last
+      af.forEach(function (a) {
+        a.days = a.last_date ? Math.round((Date.now() - Date.parse(a.last_date + "T12:00:00Z")) / 86400000) : 9999;
       });
+      af.sort(function (x, y) {
+        var lx = live[x.hex] ? 1 : 0, ly = live[y.hex] ? 1 : 0;
+        if (lx !== ly) return ly - lx;
+        return x.days - y.days;
+      });
+      var nLive = af.filter(function (a) { return live[a.hex]; }).length;
+      var nQuiet = af.filter(function (a) { return !live[a.hex] && a.days > 14; }).length;
+      el("ft-frames").innerHTML = (af.length ? af.map(function (a) {
+        var l = live[a.hex], cls = "frchip", st;
+        if (l) {
+          cls += " live";
+          st = "in the air" + ((l.flight || "").trim() ? " · <b>" + esc((l.flight || "").trim()) + "</b>" : "");
+        } else if (a.days > 14) {
+          cls += " quiet";
+          st = a.last_date ? "quiet " + a.days + " d" + (a.where ? " · last at <b>" + esc(a.where) + "</b>" : "")
+                           : "not heard in " + (d.window_days || 400) + " d";
+        } else if (a.where) {
+          st = "at <b>" + esc(a.where) + "</b> · " + ago(a.last_date);
+        } else {
+          st = (a.last_org ? "left <b>" + esc(a.last_org) + "</b> · " : "") + ago(a.last_date);
+        }
+        return "<span class='" + cls + "' data-hex='" + a.hex + "'>" +
+          (sil ? "<img class='sil' alt='' src='" + sil + "'>" : "") +
+          "<span class='reg'>" + esc(a.reg || a.hex) + "</span>" +
+          "<span class='st'>" + st + "</span></span>";
+      }).join("") : "<span class='muted'>No tails resolved.</span>") +
+      (af.length ? "<span class='legend'>" + nLive + " in the air · " +
+        (af.length - nLive - nQuiet) + " active · " + nQuiet + " quiet. Where: the last airport it was seen landing at.</span>" : "");
+    }).catch(function () {
+      if (mine !== ftToken) return;
+      el("ft-frames").innerHTML =
+        "<span class='muted'>The network is not answering.</span>";
+    });
   }
   el("d-fleet").addEventListener("click", function (e) {
     var row = e.target.closest(".frow");

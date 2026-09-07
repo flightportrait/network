@@ -306,3 +306,17 @@ def test_flight_tail_count_excludes_circuits(ctx, tmp_path):
     tail = body["aircraft"][0]
     assert tail["hex"] == "aa1111"
     assert tail["flights"] == 2          # not 4
+
+
+def test_airframe_summary_where_it_sits(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    db = tmp_path / "legs.db"
+    _build(str(db), LEGS)
+    book = LegBook(str(db))
+    app.state.legs = book
+    s = book.airframe_summary("76CD06")
+    assert s["legs"] == 3 and s["last_date"] == "2026-08-27"
+    # the last leg landed at LHR with its arrival observed: that is where it sits
+    assert s["last_org"] == "SIN" and s["last_dst"] == "LHR" and s["where"] == "LHR"
+    assert s["top_route"][2] == 1 and s["top_route"][0] in ("SIN", "LHR")
+    assert book.airframe_summary("000000") is None

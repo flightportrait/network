@@ -166,6 +166,37 @@ class LegBook:
                         "dep_ts": r[3], "arr_ts": r[4]} for r in recent],
         }
 
+    def airframe_summary(self, hex_id: str) -> dict | None:
+        """Where an airframe is and what it does: its last observed leg,
+        how many legs in the window, and the route it flies most. Three
+        index lookups; the fleet tiles draw from this."""
+        hex_id = hex_id.strip().lower()
+        with self._lock:
+            self._connect()
+            if self._conn is None:
+                return None
+            q = self._conn.execute
+            n = q("SELECT COUNT(*), MAX(date) FROM legs WHERE hex = ?",
+                  (hex_id,)).fetchone()
+            if not n or not n[0]:
+                return None
+            last = q("SELECT date, org, dst, dep_ts, arr_ts FROM legs"
+                     " WHERE hex = ? ORDER BY date DESC, dep_ts DESC LIMIT 1",
+                     (hex_id,)).fetchone()
+            top = q("SELECT org, dst, COUNT(*) FROM legs WHERE hex = ?"
+                    " AND org IS NOT NULL AND dst IS NOT NULL AND org <> dst"
+                    " GROUP BY org, dst ORDER BY 3 DESC LIMIT 1",
+                    (hex_id,)).fetchone()
+        return {
+            "legs": n[0], "last_date": last[0],
+            "last_org": last[1], "last_dst": last[2],
+            "last_dep_ts": last[3], "last_arr_ts": last[4],
+            # where it most likely sits: the destination of a leg whose
+            # arrival was observed; a leg seen only departing says less
+            "where": last[2] if last[4] else None,
+            "top_route": [top[0], top[1], top[2]] if top else None,
+        }
+
     def callsigns(self, prefix: str, limit: int = 6) -> list[dict]:
         """Flight numbers starting with `prefix`, busiest first, over the
         same valid-leg predicate as flight(). For the search box."""

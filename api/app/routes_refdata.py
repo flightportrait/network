@@ -575,9 +575,23 @@ def airline_fleet_type(icao: spec.AirlineICAO, designator: spec.TypeCode,
     name = session.execute(
         select(RefType.name)
         .where(RefType.designator == designator)).scalar_one_or_none()
+    # what each airframe has been doing, from the legs artifact
+    book = request.app.state.legs
+    out = []
+    for h, r in frames:
+        item = {"hex": h, "reg": r, "legs": 0, "last_date": None,
+                "last_org": None, "last_dst": None, "where": None,
+                "top_route": None}
+        summary = book.airframe_summary(h) if book.available() else None
+        if summary:
+            item.update({k: summary[k] for k in
+                         ("legs", "last_date", "last_org", "last_dst",
+                          "where", "top_route")})
+        out.append(item)
     response.headers["Cache-Control"] = CACHE
     return {"icao": row.icao, "type": designator, "type_name": name,
-            "airframes": [{"hex": h, "reg": r} for h, r in frames]}
+            "window_days": book.window_days() if book.available() else None,
+            "airframes": out}
 
 
 @router.get(

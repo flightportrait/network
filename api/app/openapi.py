@@ -619,7 +619,11 @@ EX_FLEET = {
 
 EX_FLEET_TYPE = {
     "icao": "SIA", "type": "A359", "type_name": "Airbus A350-900",
-    "airframes": [{"hex": "76cd01", "reg": "9V-SHA"}],
+    "window_days": 400,
+    "airframes": [{"hex": "76cd01", "reg": "9V-SHA", "legs": 212,
+                   "last_date": "2026-08-27", "last_org": "SIN",
+                   "last_dst": "LHR", "where": "LHR",
+                   "top_route": ["SIN", "LHR", 41]}],
 }
 
 EX_ALLIANCES = {"alliances": [{
