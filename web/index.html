@@ -653,8 +653,10 @@
      desktop, where the column foot carries the same links. */
   .tabbar{display:none}
   .sheet-handle{display:none}
-  .searchbox.hdr{position:relative;pointer-events:auto;flex:0 1 240px;
-    min-width:150px;margin:2px auto 0}
+  /* Sits just left of the nav, its text on the nav's line. */
+  .searchbox.hdr{position:relative;pointer-events:auto;flex:0 1 220px;
+    min-width:150px;margin:-4px 26px 0 auto}
+  .topnav{flex-shrink:0}
   .searchbox.hdr input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
     padding:6px 11px;border:1px solid rgba(34,31,26,.22);border-radius:999px;
     background:rgba(245,241,230,.6);color:var(--ink);outline:none}
