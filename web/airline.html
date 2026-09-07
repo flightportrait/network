@@ -78,8 +78,12 @@
     white-space:nowrap}
   table.legs td{padding:8px 12px 8px 0;vertical-align:top;
     border-bottom:1px solid rgba(34,31,26,.08);white-space:nowrap}
-  table.legs th.num,table.legs td.num{text-align:right;padding-right:0}
+  table.legs th.num,table.legs td.num{text-align:right}
+  table.legs th.num+th,table.legs td.num+td{padding-left:18px}
   table.legs th:last-child,table.legs td:last-child{padding-right:0}
+  /* fleet: the count and its registrations link hug the right edge */
+  table#fleet th.num,table#fleet td.num,
+  table#fleet th:last-child,table#fleet td:last-child{width:1%;white-space:nowrap}
   table.legs td.date{color:var(--quiet)}
   table.legs td.flight a{color:var(--ink);text-decoration:none}
   table.legs td.flight a:hover{color:var(--red)}
@@ -122,6 +126,7 @@
   .regs{white-space:normal;font-size:14px;line-height:1.9}
   .regs a{margin-right:10px}
   .foot{padding:0 0 60px}
+  .note.foot{padding:32px 0 60px}
   .more{color:var(--red);text-decoration:none;font-size:15px;cursor:pointer;background:none;border:none;font-family:inherit;padding:0}
 </style>
 </head>
