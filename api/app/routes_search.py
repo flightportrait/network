@@ -217,9 +217,12 @@ def _route(session, q):
 
 
 def _traffic(model):
-    """Scheduled departures from an airport: the rank a person means by
-    "the London airport". A correlated count over the (org, dst) index."""
-    return (select(func.count()).select_from(RefSchedule)
+    """Observed departures from an airport: the rank a person means by
+    "the London airport". Flights, not schedule rows: a business-jet
+    field has many one-flight callsigns. A correlated sum over the
+    (org, dst) index."""
+    return (select(func.coalesce(func.sum(RefSchedule.n_flights), 0))
+            .select_from(RefSchedule)
             .where(RefSchedule.org == func.coalesce(model.iata, model.ident))
             .scalar_subquery())
 
@@ -241,11 +244,15 @@ def _airports(session, q):
         .limit(PER_KIND)).all()
     if not rows and session.bind.dialect.name == "postgresql" and len(q) >= 4:
         # a near miss: Chnagi, Heathro
-        sim = func.greatest(func.similarity(func.upper(RefAirport.name), q),
-                            func.similarity(func.upper(RefAirport.municipality), q))
+        # word_similarity: the query against the closest word of the
+        # name, so "Chnagi" scores against "Changi", not the whole
+        # "Singapore Changi Airport"
+        sim = func.greatest(
+            func.word_similarity(q, func.upper(RefAirport.name)),
+            func.word_similarity(q, func.upper(RefAirport.municipality)))
         rows = session.execute(
             select(RefAirport, sim * 0 + NEAR, traffic)
-            .where(sim > 0.35)
+            .where(sim > 0.25)
             .where(RefAirport.kind.in_(("large_airport", "medium_airport")))
             .order_by(sim.desc(), traffic.desc())
             .limit(PER_KIND)).all()
@@ -273,10 +280,10 @@ def _airlines(session, q):
                   RefAirline.name)
         .limit(PER_KIND)).all()
     if not rows and session.bind.dialect.name == "postgresql" and len(q) >= 4:
-        sim = func.similarity(func.upper(RefAirline.name), q)
+        sim = func.word_similarity(q, func.upper(RefAirline.name))
         rows = session.execute(
             select(RefAirline, sim * 0 + NEAR)
-            .where(sim > 0.35).order_by(sim.desc()).limit(PER_KIND)).all()
+            .where(sim > 0.25).order_by(sim.desc()).limit(PER_KIND)).all()
     return [{"kind": "airline", "id": a.icao, "label": a.name,
              "detail": " · ".join(b for b in (a.icao, a.iata) if b),
              "score": score + (2 if a.iata else 0)}

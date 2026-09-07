@@ -653,8 +653,8 @@
      desktop, where the column foot carries the same links. */
   .tabbar{display:none}
   .sheet-handle{display:none}
-  .searchbox.hdr{position:relative;pointer-events:auto;flex:0 1 300px;
-    min-width:180px;margin-left:auto}
+  .searchbox.hdr{position:relative;pointer-events:auto;flex:0 1 340px;
+    min-width:180px;margin:0 auto}
   .searchbox.hdr input{width:100%;font:15px 'Helvetica Neue',Arial,sans-serif;
     padding:8px 12px;border:1px solid var(--line);border-radius:6px;
     background:var(--paper);color:var(--ink);outline:none}
@@ -721,8 +721,9 @@
     @media(prefers-reduced-motion:reduce){
       .menu,.menuscrim{transition:none}
     }
-    /* Links gather at the bottom, where the thumb is. */
-    .menu{justify-content:flex-end}
+    /* Links at the top; the social row and the credit sit at the bottom. */
+    .menu{justify-content:flex-start}
+    .menu .social{margin-top:auto}
     .menu a{color:var(--ink);text-decoration:none;font-size:19px;
       padding:10px 0;border-bottom:1px solid var(--line)}
     .menu .social{display:flex;gap:18px;padding:18px 0 0}
@@ -812,13 +813,13 @@
 
 <header class="topbar">
   <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span class="net">network</span></a>
+  <div class="searchbox hdr"><input id="q" type="search" placeholder="Registration, flight, airport, airline" autocomplete="off" spellcheck="false" aria-label="Search the archive"><div class="s-list" id="q-list" hidden></div></div>
   <nav class="topnav" aria-label="Network">
     <a href="/network/" id="nav-sky" class="here">Live map</a>
     <a href="/network/?mode=airlines" id="nav-airlines">Airlines</a>
     <a href="/network/?mode=join" id="nav-join">Join</a>
     <a href="/network/search.html">Search</a>
   </nav>
-  <div class="searchbox hdr"><input id="q" type="search" placeholder="Registration, flight, airport, airline" autocomplete="off" spellcheck="false" aria-label="Search the archive"><div class="s-list" id="q-list" hidden></div></div>
   <button class="burger" id="burger" type="button" aria-label="Menu"
           aria-expanded="false" aria-controls="menu">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
