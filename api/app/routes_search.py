@@ -12,7 +12,8 @@ from . import openapi as spec
 from . import ratelimit
 from .db import get_session
 from .errors import ApiError
-from .refdata_models import RefAirframe, RefAirline, RefAirport, RefType
+from .refdata_models import (RefAirframe, RefAirline, RefAirport,
+                             RefSchedule, RefType)
 
 router = APIRouter(tags=["Reference"])
 
@@ -86,9 +87,11 @@ def _aircraft(session, q):
 
 
 def _flights(session, request, q):
-    book = request.app.state.legs
-    if not book.available():
-        return []
+    """Flight numbers from the inferred schedule (one row per number and
+    leg, with its count), so a bare airline prefix costs an index walk
+    and not an aggregation over every leg the airline ever flew. The
+    legs artifact fills in only for a specific number the schedule has
+    not kept (a one-off) once the query carries a digit."""
     prefix = q.replace(" ", "")
     prefixes = [prefix]
     # An IATA flight number (SQ322) is also its ICAO callsign (SIA322).
@@ -100,14 +103,35 @@ def _flights(session, request, q):
             prefixes.append(icao + prefix[2:])
     out, seen = [], set()
     for p in prefixes:
-        for r in book.callsigns(p, PER_KIND):
-            if r["callsign"] in seen:
+        rows = session.execute(
+            select(RefSchedule.callsign, func.sum(RefSchedule.n_flights),
+                   func.min(RefSchedule.org), func.min(RefSchedule.dst),
+                   func.count())
+            .where(RefSchedule.callsign.like(p + "%"))
+            .group_by(RefSchedule.callsign)
+            .order_by(func.sum(RefSchedule.n_flights).desc(),
+                      RefSchedule.callsign)
+            .limit(PER_KIND)).all()
+        for callsign, n, org, dst, legs in rows:
+            if callsign in seen:
                 continue
-            seen.add(r["callsign"])
-            out.append({"kind": "flight", "id": r["callsign"],
-                        "label": r["callsign"],
-                        "detail": (str(r["flights"]) + " flights, last "
-                                   + r["last"]) if r["last"] else None})
+            seen.add(callsign)
+            route = (org + " \u2192 " + dst) if legs == 1 else \
+                    (str(legs) + " legs")
+            out.append({"kind": "flight", "id": callsign, "label": callsign,
+                        "detail": route + " · " + str(n) + " flights"})
+    book = request.app.state.legs
+    if len(out) < PER_KIND and any(c.isdigit() for c in prefix) \
+            and book.available():
+        for p in prefixes:
+            for r in book.callsigns(p, PER_KIND):
+                if r["callsign"] in seen:
+                    continue
+                seen.add(r["callsign"])
+                out.append({"kind": "flight", "id": r["callsign"],
+                            "label": r["callsign"],
+                            "detail": (str(r["flights"]) + " flights, last "
+                                       + r["last"]) if r["last"] else None})
     return out[:PER_KIND]
 
 

@@ -1,14 +1,26 @@
 """/v1/search: one box over airframes, flights, airports, airlines."""
 from app.legs_db import LegBook
-from app.refdata_models import RefAirline, RefAirport
+from app.refdata_models import RefAirline, RefAirport, RefSchedule
 
 from test_legs import LEGS, _build
 from test_refdata import _seed_all
 
 
+SCHEDULE = [
+    ("SIA322", "SIN", "LHR", 46), ("SIA317", "LHR", "SIN", 40),
+    ("SIA21", "SIN", "EWR", 30), ("SIA22", "EWR", "SIN", 30),
+    ("SIA211", "SIN", "SYD", 12),
+]
+
+
 def _ready(ctx, tmp_path):
     client, app, sm, settings, readsb = ctx
     _seed_all(sm, tmp_path)
+    session = sm()
+    for cs, org, dst, n in SCHEDULE:
+        session.add(RefSchedule(callsign=cs, org=org, dst=dst,
+                                airline_icao="SIA", n_flights=n))
+    session.commit(); session.close()
     db = tmp_path / "legs.db"
     _build(str(db), LEGS)
     app.state.legs = LegBook(str(db))
@@ -44,10 +56,16 @@ def test_flight_numbers_icao_and_iata(ctx, tmp_path):
     client, _ = _ready(ctx, tmp_path)
     body = client.get("/v1/search", params={"q": "SQ3"}).json()
     flights = [r for r in body["results"] if r["kind"] == "flight"]
-    assert [f["id"] for f in flights] == ["SQ317", "SQ322"]
-    assert flights[0]["detail"] == "1 flights, last 2026-08-26"
-    # a flight page link is the callsign itself
-    assert client.get("/v1/flights/" + flights[0]["id"]).status_code == 200
+    # the schedule answers first, busiest number first, with its route;
+    # the legs artifact adds the one-offs it knows (SQ-prefixed rows)
+    assert [f["id"] for f in flights] == ["SIA322", "SIA317", "SQ317", "SQ322"]
+    assert flights[0]["detail"] == "SIN \u2192 LHR · 46 flights"
+    assert flights[2]["detail"] == "1 flights, last 2026-08-26"
+    # a bare airline prefix never touches the legs artifact
+    body = client.get("/v1/search", params={"q": "SIA"}).json()
+    flights = [r["id"] for r in body["results"] if r["kind"] == "flight"]
+    assert flights == ["SIA322", "SIA317", "SIA21", "SIA22", "SIA211"]
+    assert client.get("/v1/flights/SQ317").status_code == 200
 
 
 def test_airports_by_code_name_and_city(ctx, tmp_path):
@@ -80,9 +98,14 @@ def test_short_and_empty_queries(ctx, tmp_path):
 def test_search_without_legs_artifact_still_answers(ctx, tmp_path):
     client, app, sm, settings, readsb = ctx
     _seed_all(sm, tmp_path)
+    session = sm()
+    session.add(RefSchedule(callsign="SIA322", org="SIN", dst="LHR",
+                            airline_icao="SIA", n_flights=46))
+    session.commit(); session.close()
     app.state.legs = LegBook(str(tmp_path / "missing.db"))
+    # the schedule still answers; only the one-off fallback is dark
     body = client.get("/v1/search", params={"q": "SQ322"}).json()
-    assert [r["kind"] for r in body["results"]] == []
+    assert [r["id"] for r in body["results"]] == ["SIA322"]
     assert client.get("/v1/search", params={"q": "9V-SHA"}).json()["results"]
 
 
