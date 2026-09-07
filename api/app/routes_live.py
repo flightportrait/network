@@ -58,11 +58,15 @@ def now(request: Request, response: Response):
                       <= settings.station_presence_stale_s)
     known = state.presence_available and fresh_presence
     response.headers["Cache-Control"] = CACHE_LIVE
+    legs = getattr(state, "legs", None)
     return {
         "aircraft_count": snapshot.aircraft_count,
         "aircraft_with_pos": snapshot.with_pos_count,
         "station_count": len(state.presence) if known else None,
         "generated_at": snapshot.generated_at,
+        # the history's edge: the newest day in the legs artifact, null
+        # while the archive is dark
+        "archive_through": legs.archive_through() if legs else None,
     }
 
 

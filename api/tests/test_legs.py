@@ -320,3 +320,12 @@ def test_airframe_summary_where_it_sits(ctx, tmp_path):
     assert s["last_org"] == "SIN" and s["last_dst"] == "LHR" and s["where"] == "LHR"
     assert s["top_route"][2] == 1 and s["top_route"][0] in ("SIN", "LHR")
     assert book.airframe_summary("000000") is None
+
+
+def test_now_reports_archive_through(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    assert client.get("/v1/now").json()["archive_through"] is None
+    db = tmp_path / "legs.db"
+    _build(str(db), LEGS)
+    app.state.legs = LegBook(str(db))
+    assert client.get("/v1/now").json()["archive_through"] == "2026-08-27"

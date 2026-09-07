@@ -158,6 +158,9 @@ SCH_NOW = _obj({
                                    "for that case.", nullable=True),
     "generated_at": _t("number", "Snapshot time, unix seconds UTC. Never "
                                  "older than 60 s (503 instead)."),
+    "archive_through": _t("string", "Newest day in the flight-history "
+                                    "archive, ISO date. Null while the "
+                                    "archive is unavailable.", nullable=True),
 }, required=["aircraft_count", "aircraft_with_pos", "station_count",
              "generated_at"])
 
@@ -166,6 +169,7 @@ EX_NOW = {
     "aircraft_with_pos": 5,
     "station_count": 1,
     "generated_at": 1787924061.0,
+    "archive_through": "2026-09-06",
 }
 
 SCH_AIRCRAFT_ITEM = _obj({

@@ -49,10 +49,23 @@ class LegBook:
             conn.execute("SELECT 1 FROM legs LIMIT 1")
         except sqlite3.Error:
             return                      # keep whatever worked last
+        # the newest observed day, once per load: the number the status
+        # page and /v1/now report as "archive through"
+        try:
+            row = conn.execute("SELECT MAX(date) FROM legs").fetchone()
+            self._archive_through = row[0] if row else None
+        except sqlite3.Error:
+            self._archive_through = None
         if self._conn is not None:
             self._conn.close()
         self._conn = conn
         self._loaded_mtime = mtime
+
+    def archive_through(self) -> str | None:
+        """ISO date of the newest leg in the artifact, None when dark."""
+        with self._lock:
+            self._connect()
+            return getattr(self, "_archive_through", None) if self._conn else None
 
     def available(self) -> bool:
         """Whether the artifact is loaded. Routes use this to tell
