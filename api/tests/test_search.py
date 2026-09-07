@@ -20,6 +20,9 @@ def _ready(ctx, tmp_path):
     for cs, org, dst, n in SCHEDULE:
         session.add(RefSchedule(callsign=cs, org=org, dst=dst,
                                 airline_icao="SIA", n_flights=n))
+    session.add(RefAirport(ident="EGLL", name="London Heathrow Airport",
+                           kind="large_airport", iso_country="GB",
+                           municipality="London", iata="LHR"))
     session.commit(); session.close()
     db = tmp_path / "legs.db"
     _build(str(db), LEGS)
@@ -112,7 +115,7 @@ def test_search_without_legs_artifact_still_answers(ctx, tmp_path):
 def test_search_bucket_and_cache(ctx, tmp_path):
     client, settings = _ready(ctx, tmp_path)
     resp = client.get("/v1/search", params={"q": "SIN"})
-    assert resp.headers["Cache-Control"] == "public, s-maxage=600"
+    assert resp.headers["Cache-Control"] == "public, s-maxage=43200"
     settings.search_rate_limit = 1
     assert client.get("/v1/search", params={"q": "SIN"}).status_code == 429
     assert client.get("/v1/now").status_code == 200
@@ -127,6 +130,10 @@ def test_words_put_places_first_and_skip_the_tail_scan(ctx, tmp_path):
     # a code-shaped query answers aircraft and flights first
     body = client.get("/v1/search", params={"q": "SQ32"}).json()
     assert body["results"][0]["kind"] == "flight"
+    # one ranked list: an exact code outranks every prefix
+    body = client.get("/v1/search", params={"q": "SIN"}).json()
+    assert body["results"][0]["id"] == "SIN"
+    assert body["results"][0]["score"] > body["results"][-1]["score"]
 
 
 def test_rows_without_a_code_never_outrank_the_real_one(ctx, tmp_path):
@@ -143,3 +150,39 @@ def test_rows_without_a_code_never_outrank_the_real_one(ctx, tmp_path):
     airports = [r["id"] for r in body["results"] if r["kind"] == "airport"]
     airlines = [r["id"] for r in body["results"] if r["kind"] == "airline"]
     assert airports[0] == "SIN" and airlines[0] == "SIA"
+
+
+def test_route_between_two_places(ctx, tmp_path):
+    client, _ = _ready(ctx, tmp_path)
+    for q in ("SIN LHR", "Singapore London", "WSSS LHR"):
+        body = client.get("/v1/search", params={"q": q}).json()
+        hits = [r for r in body["results"] if r["kind"] == "flight"]
+        assert hits and hits[0]["id"] == "SIA322", q
+        assert hits[0]["detail"] == "SIN \u2192 LHR · 46 flights"
+    # the other way round is the other flight number
+    body = client.get("/v1/search", params={"q": "LHR SIN"}).json()
+    assert body["results"][0]["id"] == "SIA317"
+
+
+def test_fleet_by_operator_and_type(ctx, tmp_path):
+    client, _ = _ready(ctx, tmp_path)
+    for q in ("Singapore A350", "SQ A359", "A350 SIA"):
+        body = client.get("/v1/search", params={"q": q}).json()
+        regs = [r["label"] for r in body["results"] if r["kind"] == "aircraft"]
+        assert regs == ["9V-SHA", "9V-SHB"], q
+
+
+def test_busiest_airport_wins_the_city(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    _seed_all(sm, tmp_path)
+    session = sm()
+    session.add(RefAirport(ident="WSAC", name="Changi Air Base (East)",
+                           kind="large_airport", iso_country="SG",
+                           municipality="Singapore", iata="QPG"))
+    for cs, org, dst, n in SCHEDULE:
+        session.add(RefSchedule(callsign=cs, org=org, dst=dst,
+                                airline_icao="SIA", n_flights=n))
+    session.commit(); session.close()
+    body = client.get("/v1/search", params={"q": "Singapore"}).json()
+    airports = [r["id"] for r in body["results"] if r["kind"] == "airport"]
+    assert airports[0] == "SIN"

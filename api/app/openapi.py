@@ -554,16 +554,19 @@ SCH_SEARCH = _obj({
         "detail": _t("string", "A second line: type and operator, route "
                                "count, city and country, IATA.",
                      nullable=True),
-    }, required=["kind", "id", "label", "detail"])),
+        "score": _t("number", "Rank: 100 an exact code, 60 a prefix, 40 a "
+                              "word start, 20 a near miss, plus a little "
+                              "for traffic. The list is sorted by it."),
+    }, required=["kind", "id", "label", "detail", "score"])),
 }, required=["q", "results"])
 
 EX_SEARCH = {
     "q": "9V-SH",
     "results": [
         {"kind": "aircraft", "id": "76cd01", "label": "9V-SHA",
-         "detail": "Airbus A350-900 · Singapore Airlines"},
+         "detail": "Airbus A350-900 · Singapore Airlines", "score": 60},
         {"kind": "aircraft", "id": "76cd02", "label": "9V-SHB",
-         "detail": "Airbus A350-900 · Singapore Airlines"},
+         "detail": "Airbus A350-900 · Singapore Airlines", "score": 60},
     ],
 }
 
