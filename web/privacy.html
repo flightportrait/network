@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FlightPortrait network privacy</title>
+<title>FlightPortrait network privacy policy</title>
 <meta name="theme-color" content="#F5F1E6">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
@@ -38,6 +38,8 @@
   h1{font-size:34px;line-height:1.1;font-weight:400;margin:24px 0 8px}
   h2{font-size:19px;font-weight:400;margin:30px 0 8px}
   p{margin-bottom:12px}
+  ul{margin:0 0 12px 22px}
+  li{margin-bottom:4px}
   a{color:var(--ink)}
   .meta{color:var(--quiet);font-size:14px;margin-bottom:8px}
   footer{padding:40px 0;color:var(--quiet);font-size:14px}
@@ -57,30 +59,50 @@
 </header>
 <div class="wrap">
 
-  <a class="back" href="/network/" id="back">Back to the map</a>
-  <h1>Feeder privacy.</h1>
-  <p class="meta">Draft, September 2026. What the network keeps about a station and a visitor. The network is operated by YODE PTE LTD, Singapore. The frame, the app and the shop have their own <a href="/privacy.html">privacy policy</a>.</p>
+  <a class="ba  <h1>Privacy policy.</h1>
+  <p class="meta">Draft, September 2026. This policy covers the FlightPortrait network: the map and API at flightportrait.com/network, and the stations that feed it. It is operated by YODE PTE LTD, Singapore. The FlightPortrait frame, app and shop are covered by a <a href="/privacy.html">separate policy</a>.</p>
 
-  <h2>1. What a station sends.</h2>
-  <p>Aircraft messages and the station key you chose. Aircraft messages are public broadcasts, not personal data. The key is the network's only identity for a station. No account, no name, no email.</p>
+  <h2>What we collect when you feed</h2>
+  <ul>
+    <li>The aircraft messages your receiver sends. These are public radio broadcasts, not personal data.</li>
+    <li>Your station key, stored as a one-way hash. We do not store the key itself.</li>
+    <li>Your station's approximate location, calculated from the aircraft it hears and rounded to about 11 km.</li>
+    <li>Connection statistics: when the station was first and last seen, whether it is online, and its message rate.</li>
+    <li>Your antenna position, if you use MLAT. It is held in memory only while your station is connected.</li>
+  </ul>
+  <p>We do not store your IP address. It is used to keep the connection open and discarded when the connection closes. We do not ask for your name, email, or address. There are no accounts.</p>
 
-  <h2>2. What we keep.</h2>
-  <p>A one-way hash of the key, never the key. The area the station hears, computed from its traffic and rounded to about 11 km. First and last heard, online or not, message rate.</p>
+  <h2>What we collect when you visit the map</h2>
+  <ul>
+    <li>Your IP address and browser type, kept briefly for security and rate limiting.</li>
+  </ul>
+  <p>We do not use analytics or advertising trackers. Aircraft photos are loaded from planespotters.net and map tiles from OpenFreemap directly by your browser, under their own privacy policies.</p>
 
-  <h2>3. What we do not keep.</h2>
-  <p>Your IP address holds the connection open and is discarded when it closes. We never ask for or publish an address or exact coordinates. MLAT uses your antenna position in its calculation, only while the station is connected, and never publishes it.</p>
+  <h2>How we use it</h2>
+  <ul>
+    <li>To combine your data with other stations' and show it on the map and in the API.</li>
+    <li>To calculate aircraft positions with MLAT.</li>
+    <li>To show your station on the coverage roster.</li>
+    <li>To keep the service running and secure.</li>
+  </ul>
 
-  <h2>4. What is public.</h2>
-  <p>The roster: a generated identifier, the rounded area, the dates, online or not. The aggregate of every station's data is open data under ODbL 1.0, as the <a href="/network/terms">feeder terms</a> say.</p>
+  <h2>What is public</h2>
+  <ul>
+    <li>Your station's generated identifier, approximate location, first and last seen dates, and online status.</li>
+    <li>The combined aircraft data from all stations, published as open data under the ODbL 1.0 licence.</li>
+  </ul>
+  <p>Your exact antenna position is never made public.</p>
 
-  <h2>5. Visitors to the map.</h2>
-  <p>The map is static files talking to our API. We hold IP address and browser type briefly for security and rate limiting, and nothing for analytics or advertising. Aircraft photographs load from planespotters.net and map tiles from OpenFreemap, in your browser, under their terms.</p>
+  <h2>The Station setup page</h2>
+  <p>If you use our Station software, its setup page runs in your browser on your own network. It requests map tiles from OpenFreemap, address search from Nominatim, ground elevation from Open-Meteo, and a rough starting position from ipwho.is. None of this data is sent to us.</p>
 
-  <h2>6. The Station software.</h2>
-  <p>Its setup page runs in your browser on your own network. It asks OpenFreemap for tiles, Nominatim when you type an address, Open-Meteo for the ground elevation at the pin, and ipwho.is for a rough first position. None of that reaches us.</p>
+  <h2>Deleting your data</h2>
+  <p>Email hello@flightportrait.com with your station key and we will delete your station's history. Aircraft data already published under ODbL cannot be recalled.</p>
 
-  <h2>7. Deletion and questions.</h2>
-  <p>Email hello@flightportrait.com with the station key to delete a station's history. Data already published under ODbL stays under its license. Data protection questions go to privacy@flightportrait.com.</p>
+  <h2>Contact</h2>
+  <p>Questions about this policy: privacy@flightportrait.com.</p>
+
+n questions go to privacy@flightportrait.com.</p>
 
   <footer>Questions: hello@flightportrait.com</footer>
   <p><a class="back" href="/network/" id="back-foot">Back to the map</a></p>
