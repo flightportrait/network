@@ -4729,6 +4729,11 @@ window.__initJoin = function () {
     }).slice(0, 20).reverse();
     var M = mapRef();
     if (!usable.length || !M) return;
+    if (!M.isStyleLoaded()) {          // same wait as the other panels
+      var tok = af.token;
+      M.once("load", function () { if (af.token === tok) build(hex, d); });
+      return;
+    }
     ensureLayers(M);
     var start = 0;
     af.paths = usable.map(function (l) {
