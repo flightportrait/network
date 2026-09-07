@@ -3629,7 +3629,9 @@ window.__initAirlines = function () {
       return d <= 0 ? "today" : d === 1 ? "yesterday" : d + " d ago";
     }
     Promise.all([
-      fetch(API + "/v1/airlines/" + state.selected + "/fleet/" + encodeURIComponent(type))
+      // v=2: the payload gained the airframe summaries; a new key skips
+      // the hour-long edge copy of the old shape
+      fetch(API + "/v1/airlines/" + state.selected + "/fleet/" + encodeURIComponent(type) + "?v=2")
         .then(function (r) { return r.ok ? r.json() : null; }),
       fetch(API + "/v1/aircraft").then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; }),
