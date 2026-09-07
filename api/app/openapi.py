@@ -544,6 +544,29 @@ EX_AIRLINES = {"airlines": [EX_AIRLINE | {"n_countries": 32}]}
 
 SCH_AIRLINES = _obj({"airlines": _arr(SCH_AIRLINE)}, required=["airlines"])
 
+SCH_SEARCH = _obj({
+    "q": _t("string", "The query as searched, trimmed and uppercased."),
+    "results": _arr(_obj({
+        "kind": _t("string", "aircraft, flight, airport or airline."),
+        "id": _t("string", "What to open: hex, callsign, airport code "
+                           "or airline ICAO."),
+        "label": _t("string", "The line to show."),
+        "detail": _t("string", "A second line: type and operator, route "
+                               "count, city and country, IATA.",
+                     nullable=True),
+    }, required=["kind", "id", "label", "detail"])),
+}, required=["q", "results"])
+
+EX_SEARCH = {
+    "q": "9V-SH",
+    "results": [
+        {"kind": "aircraft", "id": "76cd01", "label": "9V-SHA",
+         "detail": "Airbus A350-900 · Singapore Airlines"},
+        {"kind": "aircraft", "id": "76cd02", "label": "9V-SHB",
+         "detail": "Airbus A350-900 · Singapore Airlines"},
+    ],
+}
+
 SCH_TYPE = _obj({
     "designator": _t("string"),
     "name": _t("string"),

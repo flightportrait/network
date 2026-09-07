@@ -148,6 +148,7 @@ OPENAPI_PATHS = {
     "/v1/alliances/{slug}",
     "/v1/alliances/{slug}/routes",
     "/v1/types/{designator}",
+    "/v1/search",
 }
 
 

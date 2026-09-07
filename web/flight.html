@@ -8,7 +8,7 @@
      stated as gaps. No schedules, no inference, no "maintenance":
      observation only. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Airframe. FlightPortrait network</title>
+<title>Flight · FlightPortrait network</title>
 <meta name="theme-color" content="#F5F1E6">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
@@ -72,8 +72,7 @@
   table.legs th.num,table.legs td.num{text-align:right;padding-right:0}
   table.legs th:last-child,table.legs td:last-child{padding-right:0}
   table.legs td.date{color:var(--quiet)}
-  table.legs td.flight a{color:var(--ink);text-decoration:none}
-  table.legs td.flight a:hover{color:var(--red)}
+  table.legs td.flight{color:var(--quiet)}
   table.legs tr.first td{border-top:1px solid rgba(34,31,26,.18)}
   table.legs tr.gap td{color:var(--quiet);font-style:italic;
     padding:10px 0}
@@ -85,6 +84,15 @@
     color:var(--red);text-decoration:none;white-space:nowrap}
   a.textlink::after{content:"\2192"}
   a.textlink:hover{text-decoration:underline}
+  .routeline{font-size:22px;margin-top:14px;line-height:1.4}
+  .routeline .arrow{color:var(--quiet);margin:0 10px}
+  .routeline .city{color:var(--quiet);font-size:16px;margin-left:6px}
+  .tail{width:40px;height:40px;vertical-align:middle;margin-right:10px;border-radius:6px}
+  section.block{padding:32px 0 0}
+  section.block h2{font-size:19px;font-weight:400;margin-bottom:10px}
+  table.legs a{color:var(--ink);text-decoration:none}
+  table.legs a:hover{color:var(--red)}
+  .foot{padding:0 0 60px}
   .searchbox{position:relative;flex:0 1 300px;min-width:160px}
   .searchbox input{width:100%;font:15px 'Helvetica Neue',Arial,sans-serif;
     padding:8px 12px;border:1px solid var(--line);border-radius:6px;
@@ -122,31 +130,29 @@
   <div class="wrap">
     <div class="top">
       <div class="head">
-        <h1 id="reg">&nbsp;</h1>
+        <h1 id="callsign">&nbsp;</h1>
         <div class="sub" id="ident"></div>
-        <div class="livelink" id="livelink"><a class="textlink" id="livehref" href="/network/">On the map now</a></div>
+        <div class="routeline" id="routeline"></div>
+        <div class="livelink" id="livelink"><a class="textlink" id="livehref" href="/network/">In the air now</a></div>
       </div>
       <div class="stats" id="stats" style="display:none">
-        <div class="stat"><span class="n" id="s-legs"></span><span class="caps">flights observed</span></div>
-        <div class="stat"><span class="n" id="s-airports"></span><span class="caps">airports</span></div>
-        <div class="stat"><span class="n" id="s-pair"></span><span class="caps">most flown</span></div>
-        <div class="stat"><span class="n" id="s-days"></span><span class="caps">days observed</span></div>
-        <div class="stat"><span class="n" id="s-first"></span><span class="caps">first seen</span></div>
+        <div class="stat"><span class="n" id="s-flights"></span><span class="caps">flights observed</span></div>
+        <div class="stat"><span class="n" id="s-days"></span><span class="caps">days flown</span></div>
+        <div class="stat"><span class="n" id="s-cadence"></span><span class="caps">how often</span></div>
+        <div class="stat"><span class="n" id="s-aircraft"></span><span class="caps">aircraft used</span></div>
+        <div class="stat"><span class="n" id="s-last"></span><span class="caps">last seen</span></div>
       </div>
-      <div class="photo" id="photo"></div>
     </div>
-    <div class="log" id="log"></div>
+    <div id="body"></div>
   </div>
 </main>
 
 <script>
 (function () {
   "use strict";
-  // Talks to the instance we operate. For local hacking, set
-  // window.FP_API before this script.
   var API = window.FP_API || "https://data.flightportrait.com";
-  var hex = (new URLSearchParams(location.search).get("hex") ||
-             location.hash.slice(1) || "").toLowerCase();
+  var callsign = (new URLSearchParams(location.search).get("callsign") ||
+                  location.hash.slice(1) || "").toUpperCase().trim();
 
   function el(id) { return document.getElementById(id); }
   function esc(s) {
@@ -154,29 +160,28 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "/": "&#47;" }[c];
     });
   }
-  function httpsOnly(u) {
-    u = String(u == null ? "" : u);
-    return /^https:\/\//i.test(u) ? u : "";
-  }
 
-  if (!/^[0-9a-f]{6}$/.test(hex)) {
-    el("reg").textContent = "Airframe";
-    el("log").innerHTML = "<div class='empty'>No aircraft given. " +
+  if (!/^[A-Z0-9]{3,8}$/.test(callsign)) {
+    el("callsign").textContent = "Flight";
+    el("body").innerHTML = "<div class='empty'>No flight given. " +
       "Open an aircraft from <a href='/network/'>the live map</a> and " +
-      "follow its history link.</div>";
+      "follow its flight number.</div>";
     return;
   }
+  el("callsign").textContent = callsign;
 
-  var typeNames = {}, apts = {};
-  var typesReady = Promise.all([
+  var typeNames = {}, apts = {}, tails = {};
+  var ready = Promise.all([
     fetch("assets/types.json").then(function (r) { return r.json(); })
       .then(function (d) { typeNames = d; }).catch(function () {}),
     fetch("assets/airports.json").then(function (r) { return r.json(); })
-      .then(function (d) { apts = d; }).catch(function () {})
+      .then(function (d) { apts = d; }).catch(function () {}),
+    fetch("assets/airline-tails/manifest.json").then(function (r) { return r.json(); })
+      .then(function (d) { tails = d; }).catch(function () {})
   ]);
   function cityOf(code) { var a = apts[code]; return a ? a[0] : ""; }
   function tzOf(code) { var a = apts[code]; return a && a[5] ? a[5] : null; }
-  // HH:MM in the airport's own zone, with its offset; UTC when unknown
+  function typeName(code) { var e = code && typeNames[code]; return e ? e[0] : (code || ""); }
   function localTime(ts, code) {
     if (!ts) return "";
     var tz = tzOf(code), d = new Date(ts * 1000), parts;
@@ -200,119 +205,123 @@
     var c = cityOf(code);
     return esc(code) + (c ? "<span class='city'>" + esc(c) + "</span>" : "");
   }
-
-  // photo, credited (visitor's browser fetches, tar1090-style)
-  fetch("https://api.planespotters.net/pub/photos/hex/" + hex)
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      var p = (d.photos || [])[0];
-      if (!p) return;
-      el("photo").innerHTML = "<a href='" + esc(httpsOnly(p.link)) +
-        "' target='_blank' rel='noopener'><img src='" +
-        esc(httpsOnly(p.thumbnail_large.src)) + "' alt=''></a>" +
-        "<div class='credit'>&copy; " + esc(p.photographer) +
-        " &middot; <a href='" + esc(httpsOnly(p.link)) +
-        "' target='_blank' rel='noopener'>planespotters.net</a></div>";
-      el("photo").className = "photo show";
-    }).catch(function () {});
-
-  // is it in the network's sky right now?
-  fetch(API + "/v1/aircraft").then(function (r) { return r.json(); })
-    .then(function (d) {
-      if ((d.aircraft || []).some(function (a) { return a.hex === hex; })) {
-        el("livehref").href = "/network/#" + hex;
-        el("livelink").className = "livelink show";
-      }
-    }).catch(function () {});
-
   function dur(a, b) {
     if (!a || !b || b <= a) return "";
     var m = Math.round((b - a) / 60);
     return Math.floor(m / 60) + "h" + ("0" + (m % 60)).slice(-2);
   }
+  function cadence(days, windowDays) {
+    if (!days || !windowDays) return "";
+    var perWeek = days / (windowDays / 7);
+    if (perWeek >= 6.5) return "daily";
+    if (perWeek >= 1) return Math.round(perWeek) + "× a week";
+    var perMonth = days / (windowDays / 30);
+    if (perMonth >= 1) return Math.round(perMonth) + "× a month";
+    return "rarely";
+  }
 
-  fetch(API + "/v1/airframes/" + hex).then(function (r) {
+  // airline from the callsign prefix
+  var prefix = /^([A-Z]{3})\d/.exec(callsign);
+  if (prefix) {
+    fetch(API + "/v1/airlines/" + prefix[1]).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (a) {
+        if (!a) return;
+        ready.then(function () {
+          var entry = tails[prefix[1]], rel = entry && entry["64"];
+          el("ident").innerHTML = (rel ? "<img class='tail' alt='' src='assets/airline-tails/" + esc(rel) + "'>" : "") +
+            esc(a.name) + (a.iata ? " · " + esc(a.iata) + callsign.slice(3) : "");
+        });
+      }).catch(function () {});
+  }
+
+  // in the air now?
+  fetch(API + "/v1/aircraft").then(function (r) { return r.json(); })
+    .then(function (d) {
+      var a = (d.aircraft || []).filter(function (x) { return (x.flight || "").trim() === callsign; })[0];
+      if (a) {
+        el("livehref").href = "/network/#" + a.hex;
+        el("livelink").className = "livelink show";
+      }
+    }).catch(function () {});
+
+  fetch(API + "/v1/flights/" + encodeURIComponent(callsign)).then(function (r) {
     if (!r.ok) throw new Error(r.status);
     return r.json();
-  }).then(function (d) {
-    typesReady.then(function () { render(d); });
-  }).catch(function () {
-    el("reg").textContent = hex.toUpperCase();
-    el("log").innerHTML = "<div class='empty'>No flight log for this " +
-      "aircraft in the archive window. The log grows nightly.</div>";
-  });
+  }).then(function (d) { ready.then(function () { render(d); }); })
+    .catch(function () {
+      el("body").innerHTML = "<div class='empty'>No log for this flight " +
+        "number in the archive window. The log grows nightly.</div>";
+    });
 
   function render(d) {
-    el("reg").textContent = d.reg || d.hex.toUpperCase();
-    var entry = d.type && typeNames[d.type];
-    var operator = d.operator || (d.airline && d.airline.name);
-    var bits = [(entry && entry[0]) || d.type_name || d.type,
-                d.hex.toUpperCase(), operator];
-    el("ident").textContent = bits.filter(Boolean).join(" · ");
-    d.legs = d.legs || [];
-    if (!d.legs.length) {
-      el("log").innerHTML = "<div class='empty'>No flight log for this " +
-        "aircraft in the archive window. The log grows nightly.</div>";
+    var legs = d.legs || [], recent = d.recent || [], fleet = d.aircraft || [];
+    var route = d.route || [];
+    if (route.length) {
+      el("routeline").innerHTML = route.map(function (c) {
+        return esc(c) + (cityOf(c) ? "<span class='city'>" + esc(cityOf(c)) + "</span>" : "");
+      }).join("<span class='arrow'>\u2192</span>");
+    }
+    if (!legs.length && !recent.length) {
+      el("body").innerHTML = "<div class='empty'>No log for this flight " +
+        "number in the archive window. The log grows nightly.</div>";
       return;
     }
-
-    // stats
-    var airports = {}, pairs = {};
-    d.legs.forEach(function (l) {
-      airports[l.org] = airports[l.dst] = 1;
-      var key = [l.org, l.dst].sort().join("–");
-      pairs[key] = (pairs[key] || 0) + 1;
+    var flights = 0, days = 0, last = "";
+    legs.forEach(function (l) {
+      flights += l.flights || 0; days = Math.max(days, l.days || 0);
+      if (l.last > last) last = l.last;
     });
-    var topPair = Object.keys(pairs).sort(function (a, b) {
-      return pairs[b] - pairs[a];
-    })[0] || "–";
-    el("s-legs").textContent = d.legs.length;
-    el("s-airports").textContent = Object.keys(airports).length;
-    el("s-pair").textContent = topPair;
-    var days = {};
-    d.legs.forEach(function (l) { days[l.date] = 1; });
-    el("s-days").textContent = Object.keys(days).length;
-    var firstDate = d.legs[d.legs.length - 1].date;
-    el("s-first").textContent = firstDate;
+    el("s-flights").textContent = flights;
+    el("s-days").textContent = days;
+    el("s-cadence").textContent = cadence(days, d.window_days) || "–";
+    el("s-aircraft").textContent = fleet.length;
+    el("s-last").textContent = last || "–";
     el("stats").style.display = "";
 
-    // the log: one row per flight, the date once per day, gaps said out loud
-    var log = el("log");
-    var html = "<h2>Flight log</h2><div class='tablewrap'><table class='legs'>" +
-      "<thead><tr><th>Date</th><th>Flight</th><th>From</th><th>To</th>" +
-      "<th>Departed</th><th>Arrived</th><th class='num'>Duration</th>" +
-      "<th class='num'>Max altitude</th></tr></thead><tbody>";
-    var lastDate = null;
-    d.legs.forEach(function (l) {
-      var first = l.date !== lastDate;
-      if (first && lastDate) {
-        var gapDays = Math.round(
-          (Date.parse(lastDate) - Date.parse(l.date)) / 86400000) - 1;
-        if (gapDays >= 3) {
-          html += "<tr class='gap'><td colspan='8'>quiet for " + gapDays +
-                  " days</td></tr>";
-        }
-      }
-      var from = place(l.org);
-      var to = l.org === l.dst ? "<span class='city'>circuit</span>" : place(l.dst);
-      html += "<tr" + (first ? " class='first'" : "") + ">" +
-        "<td class='date'>" + (first ? esc(l.date) : "") + "</td>" +
-        "<td class='flight'>" + (l.callsign ? "<a href='flight.html?callsign=" + esc(l.callsign) + "'>" + esc(l.callsign) + "</a>" : "") + "</td>" +
-        "<td>" + from + "</td><td>" + to + "</td>" +
-        "<td>" + localTime(l.dep_ts, l.org) + "</td>" +
-        "<td>" + (l.arr_ts ? localTime(l.arr_ts, l.dst) : "") + "</td>" +
-        "<td class='num'>" + dur(l.dep_ts, l.arr_ts) + "</td>" +
-        "<td class='num'>" +
-        (l.max_alt ? Number(l.max_alt).toLocaleString() + " ft" : "") +
-        "</td></tr>";
-      lastDate = l.date;
+    var html = "";
+    // the route, leg by leg, with typical local times
+    html += "<section class='block'><h2>Route</h2><div class='tablewrap'><table class='legs'>" +
+      "<thead><tr><th>From</th><th>To</th><th>Typical departure</th><th>Typical arrival</th>" +
+      "<th>Aircraft</th><th class='num'>Flights</th><th class='num'>Days</th><th>Last</th></tr></thead><tbody>";
+    legs.forEach(function (l) {
+      html += "<tr><td>" + place(l.org) + "</td><td>" + place(l.dst) + "</td>" +
+        "<td>" + (l.dep ? esc(l.dep) + "<span class='tz'>local</span>" : "") + "</td>" +
+        "<td>" + (l.arr ? esc(l.arr) + "<span class='tz'>local</span>" : "") + "</td>" +
+        "<td>" + esc(typeName(l.type)) + "</td>" +
+        "<td class='num'>" + (l.flights || "") + "</td><td class='num'>" + (l.days || "") + "</td>" +
+        "<td>" + esc(l.last || "") + "</td></tr>";
     });
-    html += "</tbody></table></div>";
-    html += "<div class='note'>Times are local to each airport. Observed flights from openly " +
-      "licensed trace archives, last " + (d.window_days || 60) +
-      " days; a quiet day means the archives did not see it, nothing " +
-      "more. Data ODbL.</div>";
-    log.innerHTML = html;
+    html += "</tbody></table></div></section>";
+
+    // recent flights, each in its airports' local time
+    if (recent.length) {
+      html += "<section class='block'><h2>Recent flights</h2><div class='tablewrap'><table class='legs'>" +
+        "<thead><tr><th>Date</th><th>From</th><th>To</th><th>Departed</th><th>Arrived</th>" +
+        "<th class='num'>Duration</th></tr></thead><tbody>";
+      recent.forEach(function (l) {
+        html += "<tr><td class='date'>" + esc(l.date) + "</td>" +
+          "<td>" + place(l.org) + "</td><td>" + place(l.dst) + "</td>" +
+          "<td>" + localTime(l.dep_ts, l.org) + "</td>" +
+          "<td>" + (l.arr_ts ? localTime(l.arr_ts, l.dst) : "") + "</td>" +
+          "<td class='num'>" + dur(l.dep_ts, l.arr_ts) + "</td></tr>";
+      });
+      html += "</tbody></table></div></section>";
+    }
+
+    // the aircraft that flew it
+    if (fleet.length) {
+      html += "<section class='block'><h2>Aircraft on this flight</h2><div class='tablewrap'><table class='legs'>" +
+        "<thead><tr><th>Registration</th><th>Type</th><th class='num'>Flights</th></tr></thead><tbody>";
+      fleet.forEach(function (a) {
+        html += "<tr><td><a href='plane.html?hex=" + esc(a.hex) + "'>" + esc(a.reg || a.hex.toUpperCase()) + "</a></td>" +
+          "<td>" + esc(typeName(a.type)) + "</td><td class='num'>" + (a.flights || "") + "</td></tr>";
+      });
+      html += "</tbody></table></div></section>";
+    }
+    html += "<div class='note foot'>Times are local to each airport. Observed flights from openly " +
+      "licensed trace archives, last " + (d.window_days || 60) + " days; a quiet day means the " +
+      "archives did not see it, nothing more. Data ODbL.</div>";
+    el("body").innerHTML = html;
   }
 })();
 </script>

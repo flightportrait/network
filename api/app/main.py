@@ -23,6 +23,7 @@ from .readsb import ReadsbClient
 from .routes_history import router as history_router
 from .routes_live import router as live_router
 from .routes_refdata import router as refdata_router
+from .routes_search import router as search_router
 from .routes_stations import router as stations_router
 from .routes_db import RouteBook
 from .settings import Settings
@@ -129,6 +130,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     app.include_router(history_router)
     app.include_router(stations_router)
     app.include_router(refdata_router)
+    app.include_router(search_router)
 
     @app.get("/healthz", tags=["Meta"], summary="Health",
              description="Liveness. Does not check the aggregator; a sick "

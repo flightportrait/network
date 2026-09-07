@@ -115,6 +115,9 @@ class Settings:
     # box than the live sky.
     refdata_rate_limit: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_REFDATA_RATE_LIMIT", 300))
+    # The search box types as it goes: a keystroke per request.
+    search_rate_limit: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_SEARCH_RATE_LIMIT", 600))
     # A flight number earns a timetable row only when observed this many
     # times within the schedule derive's recent window: filters one-off
     # charters while a weekly service still qualifies.

@@ -166,6 +166,26 @@ class LegBook:
                         "dep_ts": r[3], "arr_ts": r[4]} for r in recent],
         }
 
+    def callsigns(self, prefix: str, limit: int = 6) -> list[dict]:
+        """Flight numbers starting with `prefix`, busiest first, over the
+        same valid-leg predicate as flight(). For the search box."""
+        prefix = prefix.strip().upper()
+        if not prefix:
+            return []
+        with self._lock:
+            self._connect()
+            if self._conn is None:
+                return []
+            rows = self._conn.execute(
+                "SELECT callsign, COUNT(*), MAX(date)"
+                " FROM legs WHERE callsign LIKE ? AND org IS NOT NULL"
+                " AND dst IS NOT NULL AND org <> dst"
+                " GROUP BY callsign ORDER BY 2 DESC, 1 LIMIT ?",
+                (prefix.replace("%", "").replace("_", "") + "%", limit)
+            ).fetchall()
+        return [{"callsign": r[0], "flights": r[1], "last": r[2]}
+                for r in rows]
+
     def meta(self) -> dict:
         with self._lock:
             self._connect()

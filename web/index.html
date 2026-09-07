@@ -824,7 +824,7 @@
   <div class="top"><span class="cs" id="d-cs"></span></div>
   <div class="sub" id="d-sub"></div>
   <div class="alert" id="d-alert" hidden></div>
-  <div style="margin-top:6px"><a id="d-history" class="hist" href="#">Airframe history</a></div>
+  <div style="margin-top:6px"><a id="d-history" class="hist" href="#">Airframe history</a><a id="d-flightlog" class="hist" href="#" hidden style="margin-left:14px">Flight log</a></div>
   <div class="photo" id="d-photo"></div>
   <div class="route" id="d-route"></div>
   <div class="grid" id="d-grid"></div>
@@ -1932,6 +1932,9 @@
     el("d-alert").textContent = alert;
     el("d-history").href = "plane.html?hex=" + a.hex;
     el("d-history").dataset.hex = a.hex;
+    var cs = (a.flight || "").trim();
+    el("d-flightlog").hidden = !/^[A-Z]{3}\d/.test(cs);
+    el("d-flightlog").href = "flight.html?callsign=" + encodeURIComponent(cs);
     loadPhoto(a.hex);
     loadRoute((a.flight || "").trim());
     var alt = a.alt_baro === "ground" ? "on the ground"
