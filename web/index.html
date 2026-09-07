@@ -1058,7 +1058,8 @@
         <pre>mlat-client --input-type dump1090 --input-connect localhost:30005 --server feed.flightportrait.com:31090 --lat <span class="v">LAT</span> --lon <span class="v">LON</span> --alt <span class="v">ALT</span> --user <span class="v">NAME</span> --uuid <span class="v key-v">YOUR-KEY</span></pre>
       </div>
       <div class="softbody" id="soft-image">
-        <p>In the image's aggregator settings, add a custom one: host <code>feed.flightportrait.com</code>, port <code>30004</code>, protocol <code>beast_reduce_plus_out</code>, your key; MLAT host the same, port <code>31090</code>. FlightPortrait is not on the image's own list yet.</p>
+        <p>FlightPortrait is not on the image's own list yet. Until it is: Expert page, "Ultrafeeder extra args", paste this line and apply:</p>
+        <pre>adsb,feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v key-v">YOUR-KEY</span>;mlat,feed.flightportrait.com,31090,uuid=<span class="v key-v">YOUR-KEY</span></pre>
       </div>
 
       <p class="quiet" style="margin-top:14px">Want the Station instead? A dongle serves one program. The installer imports your feeds and keys and asks before stopping anything: <code>install.sh --replace</code>. <a href="#" id="to-station">The Station path.</a></p>
