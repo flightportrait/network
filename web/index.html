@@ -653,11 +653,13 @@
      desktop, where the column foot carries the same links. */
   .tabbar{display:none}
   .sheet-handle{display:none}
-  .searchbox.hdr{position:relative;pointer-events:auto;flex:0 1 340px;
-    min-width:180px;margin:0 auto}
-  .searchbox.hdr input{width:100%;font:15px 'Helvetica Neue',Arial,sans-serif;
-    padding:8px 12px;border:1px solid var(--line);border-radius:6px;
-    background:var(--paper);color:var(--ink);outline:none}
+  .searchbox.hdr{position:relative;pointer-events:auto;flex:0 1 240px;
+    min-width:150px;margin:2px auto 0}
+  .searchbox.hdr input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
+    padding:6px 11px;border:1px solid rgba(34,31,26,.22);border-radius:999px;
+    background:rgba(245,241,230,.6);color:var(--ink);outline:none}
+  .searchbox.hdr input::placeholder{color:var(--quiet)}
+  .searchbox.hdr input:focus{background:var(--paper);border-color:var(--ink)}
   .searchbox.hdr input:focus{border-color:var(--ink)}
   .s-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;
     background:var(--paper);border:1px solid var(--line);border-radius:6px;
@@ -813,12 +815,11 @@
 
 <header class="topbar">
   <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span class="net">network</span></a>
-  <div class="searchbox hdr"><input id="q" type="search" placeholder="Registration, flight, airport, airline" autocomplete="off" spellcheck="false" aria-label="Search the archive"><div class="s-list" id="q-list" hidden></div></div>
+  <div class="searchbox hdr"><input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false" aria-label="Search the archive"><div class="s-list" id="q-list" hidden></div></div>
   <nav class="topnav" aria-label="Network">
     <a href="/network/" id="nav-sky" class="here">Live map</a>
     <a href="/network/?mode=airlines" id="nav-airlines">Airlines</a>
     <a href="/network/?mode=join" id="nav-join">Join</a>
-    <a href="/network/search.html">Search</a>
   </nav>
   <button class="burger" id="burger" type="button" aria-label="Menu"
           aria-expanded="false" aria-controls="menu">

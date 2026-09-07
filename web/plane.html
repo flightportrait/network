@@ -85,10 +85,11 @@
     color:var(--red);text-decoration:none;white-space:nowrap}
   a.textlink::after{content:"\2192"}
   a.textlink:hover{text-decoration:underline}
-  .searchbox{position:relative;flex:0 1 300px;min-width:160px}
-  .searchbox input{width:100%;font:15px 'Helvetica Neue',Arial,sans-serif;
-    padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+  .searchbox{position:relative;flex:0 1 240px;min-width:150px}
+  .searchbox input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
+    padding:6px 11px;border:1px solid rgba(34,31,26,.22);border-radius:999px;
     background:var(--card);color:var(--ink);outline:none}
+  .searchbox input::placeholder{color:var(--quiet)}
   .searchbox input:focus{border-color:var(--ink)}
   .s-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;
     background:var(--card);border:1px solid var(--line);border-radius:6px;
@@ -107,12 +108,11 @@
 <header class="topbar">
   <div class="wrap">
     <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span style="color:var(--quiet)">network</span></a>
-    <div class="searchbox"><input id="q" type="search" placeholder="Registration, flight, airport, airline" autocomplete="off" spellcheck="false"><div class="s-list" id="q-list" hidden></div></div>
+    <div class="searchbox"><input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false"><div class="s-list" id="q-list" hidden></div></div>
     <nav class="topnav" aria-label="Network">
       <a href="/network/">Live map</a>
       <a href="/network/?mode=airlines">Airlines</a>
       <a href="/network/?mode=join">Join</a>
-      <a href="/network/search.html">Search</a>
       <a href="https://docs.flightportrait.com">Docs</a>
     </nav>
   </div>
@@ -246,9 +246,10 @@
     el("reg").textContent = d.reg || d.hex.toUpperCase();
     var entry = d.type && typeNames[d.type];
     var operator = d.operator || (d.airline && d.airline.name);
-    var bits = [(entry && entry[0]) || d.type_name || d.type,
-                d.hex.toUpperCase(), operator];
-    el("ident").textContent = bits.filter(Boolean).join(" · ");
+    var bits = [(entry && entry[0]) || d.type_name || d.type, d.hex.toUpperCase()];
+    var icao = d.operator_icao || (d.airline && d.airline.icao);
+    el("ident").innerHTML = bits.filter(Boolean).map(esc).join(" · ") +
+      (operator ? " · " + (icao ? "<a href='airline.html?icao=" + esc(icao) + "' style='color:inherit;text-decoration:none'>" + esc(operator) + "</a>" : esc(operator)) : "");
     d.legs = d.legs || [];
     if (!d.legs.length) {
       el("log").innerHTML = "<div class='empty'>No flight log for this " +

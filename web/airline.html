@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- One airframe's observed life: identity and the flight log in one
+     /v1/airframes/{hex} call, photo from planespotters (credited).
+     The legs are what the open trace archives actually show, gaps
+     stated as gaps. No schedules, no inference, no "maintenance":
+     observation only. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airline · FlightPortrait network</title>
+<meta name="theme-color" content="#F5F1E6">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
+    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
+    --card:#FAF7EE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);overflow-x:hidden;
+    font:17px/1.6 Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
+    -webkit-font-smoothing:antialiased}
+  .caps{font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:12px;letter-spacing:.1em}
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px}
+  .topbar{position:sticky;top:0;z-index:5;background:var(--paper)}
+  .topbar .wrap{max-width:1000px;display:flex;align-items:center;
+    justify-content:space-between;height:64px;gap:18px}
+  .wordmark{display:flex;align-items:center;gap:10px;text-decoration:none;
+    color:var(--ink);font-size:17px}
+  .wordmark img{width:24px;height:24px;display:block;border-radius:5px}
+  .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
+  .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
+    white-space:nowrap}
+  .topnav a:hover{color:var(--red)}
+  main a{color:var(--ink)}
+
+  .top{display:grid;grid-template-columns:1fr;gap:24px 48px;
+    padding:36px 0 0;align-items:start}
+  @media (min-width:760px){
+    .top{grid-template-columns:minmax(0,1fr) 340px}
+    .top .photo{grid-column:2;grid-row:1 / span 2;margin:6px 0 0}
+  }
+  .head{grid-column:1}
+  h1{font-size:44px;line-height:1.1;font-weight:400}
+  .sub{font-size:18px;color:var(--quiet);margin-top:4px}
+  .photo{margin:8px 0 0;display:none}
+  .photo.show{display:block}
+  .photo img{width:100%;height:auto;border-radius:6px;display:block;
+    border:1px solid var(--line)}
+  .credit{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;
+    letter-spacing:.04em;color:var(--quiet);margin-top:5px}
+  .credit a{color:var(--quiet)}
+
+  .stats{grid-column:1;display:flex;gap:28px 36px;flex-wrap:wrap;padding:8px 0 0}
+  table.legs .city{display:block;font-size:13px;color:var(--quiet);line-height:1.3}
+  table.legs .tz{font-size:12px;color:var(--quiet);margin-left:5px}
+  .stat .n{font-size:28px;line-height:1;display:block}
+  .stat .caps{color:var(--quiet);display:block;margin-top:6px}
+
+  .log{padding:32px 0 60px}
+  .log h2{font-size:19px;font-weight:400;margin-bottom:10px}
+  .tablewrap{overflow-x:auto}
+  table.legs{width:100%;border-collapse:collapse;
+    font-variant-numeric:tabular-nums;font-size:16px}
+  table.legs th{text-align:left;font-weight:400;color:var(--quiet);
+    padding:8px 12px 8px 0;border-bottom:1px solid var(--ink);
+    white-space:nowrap}
+  table.legs td{padding:8px 12px 8px 0;vertical-align:top;
+    border-bottom:1px solid rgba(34,31,26,.08);white-space:nowrap}
+  table.legs th.num,table.legs td.num{text-align:right;padding-right:0}
+  table.legs th:last-child,table.legs td:last-child{padding-right:0}
+  table.legs td.date{color:var(--quiet)}
+  table.legs td.flight a{color:var(--ink);text-decoration:none}
+  table.legs td.flight a:hover{color:var(--red)}
+  table.legs tr.first td{border-top:1px solid rgba(34,31,26,.18)}
+  table.legs tr.gap td{color:var(--quiet);font-style:italic;
+    padding:10px 0}
+  .empty{padding:40px 0;color:var(--quiet)}
+  .note{color:var(--quiet);font-size:14px;padding:16px 0 0}
+  .livelink{padding:14px 0 0;display:none}
+  .livelink.show{display:block}
+  a.textlink{display:inline-flex;align-items:center;gap:9px;
+    color:var(--red);text-decoration:none;white-space:nowrap}
+  a.textlink::after{content:"\2192"}
+  a.textlink:hover{text-decoration:underline}
+  .searchbox{position:relative;flex:0 1 240px;min-width:150px}
+  .searchbox input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
+    padding:6px 11px;border:1px solid rgba(34,31,26,.22);border-radius:999px;
+    background:var(--card);color:var(--ink);outline:none}
+  .searchbox input::placeholder{color:var(--quiet)}
+  .searchbox input:focus{border-color:var(--ink)}
+  .s-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;
+    background:var(--card);border:1px solid var(--line);border-radius:6px;
+    box-shadow:0 8px 24px rgba(34,31,26,.12);max-height:60vh;overflow:auto;
+    min-width:280px}
+  .s-kind{padding:10px 12px 4px;color:var(--quiet)}
+  .s-row{display:block;padding:7px 12px;text-decoration:none;color:var(--ink)}
+  .s-row:hover,.s-row.active{background:rgba(34,31,26,.06)}
+  .s-label{display:block;font-size:16px}
+  .s-detail{display:block;font-size:13px;color:var(--quiet)}
+  .s-empty{padding:14px 12px;color:var(--quiet);font-size:15px}
+  .tail{width:44px;height:44px;vertical-align:middle;margin-right:12px;border-radius:7px}
+  .accent{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:middle;margin-right:6px}
+  section.block{padding:32px 0 0}
+  section.block h2{font-size:19px;font-weight:400;margin-bottom:10px}
+  table.legs a{color:var(--ink);text-decoration:none}
+  table.legs a:hover{color:var(--red)}
+  table.legs td.types{white-space:normal;color:var(--quiet);font-size:14px}
+  .regs{white-space:normal;font-size:14px;line-height:1.9}
+  .regs a{margin-right:10px}
+  .foot{padding:0 0 60px}
+  .more{color:var(--red);text-decoration:none;font-size:15px;cursor:pointer;background:none;border:none;font-family:inherit;padding:0}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span style="color:var(--quiet)">network</span></a>
+    <div class="searchbox"><input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false"><div class="s-list" id="q-list" hidden></div></div>
+    <nav class="topnav" aria-label="Network">
+      <a href="/network/">Live map</a>
+      <a href="/network/?mode=airlines">Airlines</a>
+      <a href="/network/?mode=join">Join</a>
+      <a href="https://docs.flightportrait.com">Docs</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="top">
+      <div class="head">
+        <h1 id="name">&nbsp;</h1>
+        <div class="sub" id="ident"></div>
+        <div class="livelink show"><a class="textlink" id="maphref" href="/network/?mode=airlines">On the map</a></div>
+      </div>
+      <div class="stats" id="stats" style="display:none">
+        <div class="stat"><span class="n" id="s-routes"></span><span class="caps">routes</span></div>
+        <div class="stat"><span class="n" id="s-countries"></span><span class="caps">countries</span></div>
+        <div class="stat"><span class="n" id="s-fleet"></span><span class="caps">aircraft seen</span></div>
+        <div class="stat"><span class="n" id="s-flights"></span><span class="caps">flights observed</span></div>
+        <div class="stat"><span class="n" id="s-hub"></span><span class="caps">busiest airport</span></div>
+      </div>
+    </div>
+    <div id="body"></div>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var API = window.FP_API || "https://data.flightportrait.com";
+  var icao = (new URLSearchParams(location.search).get("icao") ||
+              location.hash.slice(1) || "").toUpperCase().trim();
+  function el(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s).replace(/[&<>"'\/]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "/": "&#47;" }[c];
+    });
+  }
+  if (!/^[A-Z0-9]{3}$/.test(icao)) {
+    el("name").textContent = "Airline";
+    el("body").innerHTML = "<div class='empty'>No airline given. Pick one from " +
+      "<a href='/network/?mode=airlines'>the airlines view</a> or the search box.</div>";
+    return;
+  }
+  var apts = {}, tails = {};
+  var ready = Promise.all([
+    fetch("assets/airports.json").then(function (r) { return r.json(); })
+      .then(function (d) { apts = d; }).catch(function () {}),
+    fetch("assets/airline-tails/manifest.json").then(function (r) { return r.json(); })
+      .then(function (d) { tails = d; }).catch(function () {})
+  ]);
+  function cityOf(code) { var a = apts[code]; return a ? a[0] : ""; }
+  function place(code) {
+    var c = cityOf(code);
+    return "<a href='/network/?airport=" + esc(code) + "'>" + esc(code) + "</a>" +
+      (c ? "<span class='city'>" + esc(c) + "</span>" : "");
+  }
+  var countryName = (function () {
+    try { var dn = new Intl.DisplayNames(["en"], { type: "region" });
+          return function (cc) { try { return dn.of(cc) || cc; } catch (e) { return cc; } }; }
+    catch (e) { return function (cc) { return cc; }; }
+  })();
+  function cadence(perWeek) {
+    if (!perWeek) return "";
+    if (perWeek >= 6.5) return Math.round(perWeek / 7) > 1 ? Math.round(perWeek / 7) + "× daily" : "daily";
+    if (perWeek >= 0.9) return Math.round(perWeek) + "× a week";
+    return "occasional";
+  }
+  function dur(min) {
+    if (!min) return "";
+    return Math.floor(min / 60) + "h" + ("0" + Math.round(min % 60)).slice(-2);
+  }
+
+  var get = function (path) {
+    return fetch(API + path).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  };
+  Promise.all([get("/v1/airlines/" + icao), ready]).then(function (both) {
+    var a = both[0];
+    document.title = a.name + " · FlightPortrait network";
+    var entry = tails[icao], rel = entry && entry["64"];
+    var swatch = (a.palette && a.palette[0]) ? "<span class='accent' style='background:" + esc(a.palette[0]) + "'></span>" : "";
+    el("name").innerHTML = (rel ? "<img class='tail' alt='' src='assets/airline-tails/" + esc(rel) + "'>" : "") + esc(a.name);
+    var bits = [a.icao, a.iata].filter(Boolean).join(" · ");
+    var alliances = (a.alliances || []).map(function (x) { return x.name || x; });
+    el("ident").innerHTML = swatch + esc(bits) + (alliances.length ? " · " + esc(alliances.join(", ")) : "");
+    el("maphref").href = "/network/?a=" + encodeURIComponent(icao);
+    el("s-routes").textContent = a.n_routes != null ? a.n_routes : "–";
+    el("s-countries").textContent = a.n_countries != null ? a.n_countries : "–";
+    el("stats").style.display = "";
+    return Promise.all([
+      get("/v1/airlines/" + icao + "/fleet").catch(function () { return null; }),
+      get("/v1/airlines/" + icao + "/routes").catch(function () { return null; }),
+      get("/v1/airlines/" + icao + "/countries").catch(function () { return null; })
+    ]);
+  }).then(function (parts) {
+    var fleet = parts[0], routes = parts[1], countries = parts[2];
+    var html = "";
+    if (fleet) el("s-fleet").textContent = fleet.n_airframes;
+    var legs = (routes && routes.legs) || [];
+    if (legs.length) {
+      var total = 0, byAirport = {};
+      legs.forEach(function (l) { total += l.n || 0; byAirport[l.org] = (byAirport[l.org] || 0) + (l.n || 0); });
+      el("s-flights").textContent = total.toLocaleString();
+      var hub = Object.keys(byAirport).sort(function (x, y) { return byAirport[y] - byAirport[x]; })[0];
+      el("s-hub").textContent = hub || "–";
+    }
+    // fleet by type, each expandable to its registrations
+    if (fleet && fleet.fleet && fleet.fleet.length) {
+      html += "<section class='block'><h2>Fleet</h2><div class='tablewrap'><table class='legs' id='fleet'>" +
+        "<thead><tr><th>Type</th><th class='num'>Aircraft</th><th></th></tr></thead><tbody>";
+      fleet.fleet.forEach(function (t) {
+        html += "<tr data-type='" + esc(t.type) + "'><td>" + esc(t.type_name || t.type) +
+          "<span class='city'>" + esc(t.type) + "</span></td>" +
+          "<td class='num'>" + t.count + "</td>" +
+          "<td><button class='more' data-type='" + esc(t.type) + "'>registrations</button></td></tr>";
+      });
+      if (fleet.unknown_type) html += "<tr><td class='date'>type unknown</td><td class='num'>" + fleet.unknown_type + "</td><td></td></tr>";
+      html += "</tbody></table></div></section>";
+    }
+    // routes, busiest first
+    if (legs.length) {
+      legs.sort(function (x, y) { return (y.n || 0) - (x.n || 0); });
+      html += "<section class='block'><h2>Routes</h2><div class='tablewrap'><table class='legs'>" +
+        "<thead><tr><th>From</th><th>To</th><th>How often</th><th class='num'>Flights</th>" +
+        "<th class='num'>Typical time</th><th>Aircraft</th></tr></thead><tbody id='routes'>";
+      legs.forEach(function (l, i) {
+        html += "<tr" + (i >= 25 ? " class='hidden' hidden" : "") + "><td>" + place(l.org) + "</td><td>" + place(l.dst) + "</td>" +
+          "<td>" + esc(cadence(l.per_week)) + "</td>" +
+          "<td class='num'>" + (l.n || 0).toLocaleString() + "</td>" +
+          "<td class='num'>" + dur(l.avg_min) + "</td>" +
+          "<td class='types'>" + esc((l.aircraft || []).slice(0, 3).map(function (t) { return t.name || t.type; }).join(", ")) + "</td></tr>";
+      });
+      html += "</tbody></table></div>" +
+        (legs.length > 25 ? "<p style='margin-top:10px'><button class='more' id='more-routes'>All " + legs.length + " routes</button></p>" : "") +
+        "</section>";
+    }
+    // countries
+    if (countries && countries.countries && countries.countries.length) {
+      html += "<section class='block'><h2>Countries served</h2><div class='tablewrap'><table class='legs'>" +
+        "<thead><tr><th>Country</th><th class='num'>Routes</th></tr></thead><tbody>";
+      countries.countries.forEach(function (c) {
+        html += "<tr><td>" + esc(countryName(c.iso_country)) + "<span class='city'>" + esc(c.iso_country) + "</span></td>" +
+          "<td class='num'>" + c.n_routes + "</td></tr>";
+      });
+      html += "</tbody></table></div></section>";
+    }
+    if (!html) html = "<div class='empty'>Nothing observed for this airline yet. The log grows nightly.</div>";
+    html += "<div class='note foot'>Observed flights from openly licensed trace archives and the network's receivers; " +
+      "a route the archives did not see is not listed. Data ODbL.</div>";
+    el("body").innerHTML = html;
+
+    var more = el("more-routes");
+    if (more) more.addEventListener("click", function () {
+      document.querySelectorAll("#routes tr[hidden]").forEach(function (tr) { tr.hidden = false; });
+      more.parentNode.hidden = true;
+    });
+    document.querySelectorAll("button.more[data-type]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var type = b.dataset.type, row = b.closest("tr");
+        if (row.nextSibling && row.nextSibling.classList && row.nextSibling.classList.contains("regs-row")) {
+          row.nextSibling.remove(); return;
+        }
+        get("/v1/airlines/" + icao + "/fleet/" + encodeURIComponent(type)).then(function (d) {
+          var tr = document.createElement("tr"); tr.className = "regs-row";
+          tr.innerHTML = "<td colspan='3' class='regs'>" + (d.airframes || []).map(function (f) {
+            return "<a href='plane.html?hex=" + esc(f.hex) + "'>" + esc(f.reg || f.hex.toUpperCase()) + "</a>";
+          }).join("") + "</td>";
+          row.parentNode.insertBefore(tr, row.nextSibling);
+        }).catch(function () {});
+      });
+    });
+  }).catch(function () {
+    el("name").textContent = icao;
+    el("body").innerHTML = "<div class='empty'>No airline by that code in the reference tables.</div>";
+  });
+})();
+</script>
+<script src="assets/search.js"></script>
+<script>fpSearch(document.getElementById("q"), document.getElementById("q-list"));</script>
+</body>
+</html>

@@ -93,10 +93,11 @@
   table.legs a{color:var(--ink);text-decoration:none}
   table.legs a:hover{color:var(--red)}
   .foot{padding:0 0 60px}
-  .searchbox{position:relative;flex:0 1 300px;min-width:160px}
-  .searchbox input{width:100%;font:15px 'Helvetica Neue',Arial,sans-serif;
-    padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+  .searchbox{position:relative;flex:0 1 240px;min-width:150px}
+  .searchbox input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
+    padding:6px 11px;border:1px solid rgba(34,31,26,.22);border-radius:999px;
     background:var(--card);color:var(--ink);outline:none}
+  .searchbox input::placeholder{color:var(--quiet)}
   .searchbox input:focus{border-color:var(--ink)}
   .s-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;
     background:var(--card);border:1px solid var(--line);border-radius:6px;
@@ -115,12 +116,11 @@
 <header class="topbar">
   <div class="wrap">
     <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span style="color:var(--quiet)">network</span></a>
-    <div class="searchbox"><input id="q" type="search" placeholder="Registration, flight, airport, airline" autocomplete="off" spellcheck="false"><div class="s-list" id="q-list" hidden></div></div>
+    <div class="searchbox"><input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false"><div class="s-list" id="q-list" hidden></div></div>
     <nav class="topnav" aria-label="Network">
       <a href="/network/">Live map</a>
       <a href="/network/?mode=airlines">Airlines</a>
       <a href="/network/?mode=join">Join</a>
-      <a href="/network/search.html">Search</a>
       <a href="https://docs.flightportrait.com">Docs</a>
     </nav>
   </div>
@@ -229,7 +229,8 @@
         ready.then(function () {
           var entry = tails[prefix[1]], rel = entry && entry["64"];
           el("ident").innerHTML = (rel ? "<img class='tail' alt='' src='assets/airline-tails/" + esc(rel) + "'>" : "") +
-            esc(a.name) + (a.iata ? " · " + esc(a.iata) + callsign.slice(3) : "");
+            "<a href='airline.html?icao=" + esc(prefix[1]) + "' style='color:inherit;text-decoration:none'>" + esc(a.name) + "</a>" +
+            (a.iata ? " · " + esc(a.iata) + callsign.slice(3) : "");
         });
       }).catch(function () {});
   }
