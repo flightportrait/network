@@ -4002,12 +4002,11 @@ window.__initJoin = function () {
       var cls = "brow" + (nextIdx > 0 && i < nextIdx ? " past" : "") +
         (i === nextIdx ? " next" : "");
       var place = dep ? b.dst : b.org;
-      // departures carry the arrival time as a second line; arrivals
-      // show one time only, the one a person waiting cares about
-      var big = dep ? b.dep : b.arr, small = dep ? b.arr : null;
+      // one time per row: departure on the departures board, arrival
+      // on the arrivals board, the way a terminal screen does it
+      var big = dep ? b.dep : b.arr;
       return "<div class='" + cls + "' data-cs='" + esc(b.flight) + "'>" +
         "<span class='t'>" + esc(big) +
-        (small ? "<span class='arr'>arr " + esc(small) + "</span>" : "") +
         "</span><span class='to apcode' data-code='" + esc(place) + "'>" +
         "<span class='city'>" + esc(cityOf(place)) + "</span>" +
         "<span class='code'>" + esc(place) + "</span></span>" +
