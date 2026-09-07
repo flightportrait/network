@@ -92,3 +92,14 @@ def test_search_bucket_and_cache(ctx, tmp_path):
     settings.search_rate_limit = 1
     assert client.get("/v1/search", params={"q": "SIN"}).status_code == 429
     assert client.get("/v1/now").status_code == 200
+
+
+def test_words_put_places_first_and_skip_the_tail_scan(ctx, tmp_path):
+    client, _ = _ready(ctx, tmp_path)
+    body = client.get("/v1/search", params={"q": "Singapore"}).json()
+    kinds = [r["kind"] for r in body["results"]]
+    assert kinds[0] == "airport" and "airline" in kinds
+    assert "aircraft" not in kinds and "flight" not in kinds
+    # a code-shaped query answers aircraft and flights first
+    body = client.get("/v1/search", params={"q": "SQ32"}).json()
+    assert body["results"][0]["kind"] == "flight"

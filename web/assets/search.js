@@ -14,11 +14,15 @@
     if (r.kind === "flight") return "flight.html?callsign=" + encodeURIComponent(r.id);
     if (r.kind === "airport") return "/network/?airport=" + encodeURIComponent(r.id);
     if (r.kind === "airline") return "/network/?a=" + encodeURIComponent(r.id);
+    if (r.kind === "live") return "/network/#" + encodeURIComponent(r.id);
     return "#";
   }
-  var KIND = { aircraft: "Aircraft", flight: "Flight", airport: "Airport", airline: "Airline" };
+  var KIND = { live: "In the air now", aircraft: "Aircraft", flight: "Flight", airport: "Airport", airline: "Airline" };
 
-  window.fpSearch = function (input, list) {
+  // opts.local(q) -> results shown first, instantly (the map's live sky);
+  // opts.pick(result) -> true when it handled the choice itself.
+  window.fpSearch = function (input, list, opts) {
+    opts = opts || {};
     var timer = null, last = "", active = -1, items = [];
     function close() { list.hidden = true; list.innerHTML = ""; items = []; active = -1; }
     function render(results) {
@@ -41,10 +45,12 @@
       if (q === last) return;
       last = q;
       if (q.length < 2) { close(); return; }
+      var local = opts.local ? opts.local(q) : [];
+      if (local.length) render(local);
       fetch(API + "/v1/search?q=" + encodeURIComponent(q))
         .then(function (r) { return r.ok ? r.json() : { results: [] }; })
-        .then(function (d) { if (input.value.trim() === q) render(d.results || []); })
-        .catch(function () { close(); });
+        .then(function (d) { if (input.value.trim() === q) render(local.concat(d.results || [])); })
+        .catch(function () { if (!local.length) close(); });
     }
     function mark() {
       var rows = list.querySelectorAll(".s-row");
@@ -58,10 +64,16 @@
       else if (e.key === "ArrowUp") { active = Math.max(active - 1, 0); mark(); e.preventDefault(); }
       else if (e.key === "Enter") {
         var r = items[active >= 0 ? active : 0];
-        if (r) { location.href = hrefFor(r); e.preventDefault(); }
+        if (r) { e.preventDefault(); if (!(opts.pick && opts.pick(r))) location.href = hrefFor(r); }
       } else if (e.key === "Escape") { close(); input.blur(); }
     });
     input.addEventListener("focus", function () { if (items.length) list.hidden = false; });
+    list.addEventListener("click", function (e) {
+      var row = e.target.closest(".s-row");
+      if (!row) return;
+      var r = items[Number(row.dataset.i)];
+      if (r && opts.pick && opts.pick(r)) e.preventDefault();
+    });
     document.addEventListener("click", function (e) {
       if (!list.contains(e.target) && e.target !== input) list.hidden = true;
     });

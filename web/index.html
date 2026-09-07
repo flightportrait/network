@@ -653,6 +653,23 @@
      desktop, where the column foot carries the same links. */
   .tabbar{display:none}
   .sheet-handle{display:none}
+  .searchbox.hdr{position:relative;pointer-events:auto;flex:0 1 300px;
+    min-width:180px;margin-left:auto}
+  .searchbox.hdr input{width:100%;font:15px 'Helvetica Neue',Arial,sans-serif;
+    padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+    background:var(--paper);color:var(--ink);outline:none}
+  .searchbox.hdr input:focus{border-color:var(--ink)}
+  .s-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;
+    background:var(--paper);border:1px solid var(--line);border-radius:6px;
+    box-shadow:0 8px 24px rgba(34,31,26,.12);max-height:60vh;overflow:auto;
+    min-width:280px;text-align:left}
+  .s-kind{padding:10px 12px 4px;color:var(--quiet)}
+  .s-row{display:block;padding:7px 12px;text-decoration:none;color:var(--ink)}
+  .s-row:hover,.s-row.active{background:rgba(34,31,26,.06)}
+  .s-label{display:block;font-size:16px}
+  .s-detail{display:block;font-size:13px;color:var(--quiet)}
+  .s-empty{padding:14px 12px;color:var(--quiet);font-size:15px}
+  @media(max-width:760px){.searchbox.hdr{display:none}}
   .burger{display:none}
   .menu{display:none}
   .menuscrim{display:none}
@@ -801,6 +818,7 @@
     <a href="/network/?mode=join" id="nav-join">Join</a>
     <a href="/network/search.html">Search</a>
   </nav>
+  <div class="searchbox hdr"><input id="q" type="search" placeholder="Registration, flight, airport, airline" autocomplete="off" spellcheck="false" aria-label="Search the archive"><div class="s-list" id="q-list" hidden></div></div>
   <button class="burger" id="burger" type="button" aria-label="Menu"
           aria-expanded="false" aria-controls="menu">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
@@ -1165,6 +1183,7 @@
 </nav>
 
 <script src="vendor/maplibre-gl.js"></script>
+<script src="assets/search.js"></script>
 <script>
 (function () {
   "use strict";
@@ -2137,6 +2156,24 @@
     return state.aircraft.filter(function (a) { return matchesQuery(a, q); });
   }
   el("search").addEventListener("input", renderList);
+  if (window.fpSearch && el("q")) {
+    fpSearch(el("q"), el("q-list"), {
+      local: function (q) {
+        var lq = q.toLowerCase();
+        return state.aircraft.filter(function (a) { return matchesQuery(a, lq); })
+          .slice(0, 5).map(function (a) {
+            return { kind: "live", id: a.hex,
+                     label: (a.flight || "").trim() || (a.r || a.hex.toUpperCase()),
+                     detail: [a.r, shortType(a.t)].filter(Boolean).join(" · ") };
+          });
+      },
+      pick: function (r) {
+        if (r.kind !== "live") return false;
+        el("q").value = ""; el("q-list").hidden = true;
+        select(r.id); return true;
+      }
+    });
+  }
   el("search").addEventListener("keydown", function (e) {
     if (e.key !== "Enter") return;
     var hits = filteredAircraft();
@@ -3959,11 +3996,12 @@ window.__initJoin = function () {
       var cls = "brow" + (nextIdx > 0 && i < nextIdx ? " past" : "") +
         (i === nextIdx ? " next" : "");
       var place = dep ? b.dst : b.org;
-      var big = dep ? b.dep : b.arr, small = dep ? b.arr : b.dep;
+      // departures carry the arrival time as a second line; arrivals
+      // show one time only, the one a person waiting cares about
+      var big = dep ? b.dep : b.arr, small = dep ? b.arr : null;
       return "<div class='" + cls + "' data-cs='" + esc(b.flight) + "'>" +
         "<span class='t'>" + esc(big) +
-        (small ? "<span class='arr'>" + (dep ? "arr " : "dep ") + esc(small) +
-          "</span>" : "") +
+        (small ? "<span class='arr'>arr " + esc(small) + "</span>" : "") +
         "</span><span class='to apcode' data-code='" + esc(place) + "'>" +
         "<span class='city'>" + esc(cityOf(place)) + "</span>" +
         "<span class='code'>" + esc(place) + "</span></span>" +

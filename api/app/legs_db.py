@@ -176,12 +176,14 @@ class LegBook:
             self._connect()
             if self._conn is None:
                 return []
+            # A range, not LIKE: LIKE walks the whole callsign index
+            # (16 M rows); the range lands on the prefix directly.
             rows = self._conn.execute(
                 "SELECT callsign, COUNT(*), MAX(date)"
-                " FROM legs WHERE callsign LIKE ? AND org IS NOT NULL"
-                " AND dst IS NOT NULL AND org <> dst"
+                " FROM legs WHERE callsign >= ? AND callsign < ?"
+                " AND org IS NOT NULL AND dst IS NOT NULL AND org <> dst"
                 " GROUP BY callsign ORDER BY 2 DESC, 1 LIMIT ?",
-                (prefix.replace("%", "").replace("_", "") + "%", limit)
+                (prefix, prefix + "\uffff", limit)
             ).fetchall()
         return [{"callsign": r[0], "flights": r[1], "last": r[2]}
                 for r in rows]

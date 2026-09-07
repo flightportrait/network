@@ -24,32 +24,65 @@ def _norm(q: str) -> str:
     return " ".join(q.strip().upper().split())
 
 
-def _aircraft(session, q):
-    bare = q.replace("-", "")
-    conds = [func.upper(RefAirframe.registration).like(q + "%")]
-    # Typed without the dash (9VSHA): only once a digit is in it, so a
-    # city name like Doha does not surface D-OHAR.
-    if any(c.isdigit() for c in bare):
-        conds.append(func.replace(func.upper(RefAirframe.registration),
-                                  "-", "").like(bare + "%"))
-    if len(q) >= 3 and all(c in "0123456789ABCDEF" for c in q):
-        conds.append(RefAirframe.hex.like(q.lower() + "%"))
-    rows = session.execute(
+def _shape(q: str) -> dict:
+    """What the query can be, from its letters alone, so each kind runs
+    only when it could match and the likeliest kind answers first."""
+    compact = q.replace(" ", "").replace("-", "")
+    has_digit = any(c.isdigit() for c in compact)
+    alpha = compact.isalpha()
+    return {
+        # registrations carry a digit or a dash; a short code may be one
+        "aircraft": has_digit or "-" in q or len(compact) <= 6,
+        # flight numbers: two or three letters then digits, or a bare
+        # airline prefix
+        "flight": (len(compact) >= 3 and compact[:2].isalpha()
+                   and (has_digit or len(compact) <= 4)),
+        # airports and airlines are words or short codes
+        "airport": alpha and 2 <= len(compact) <= 40,
+        "airline": alpha and 2 <= len(compact) <= 40,
+        # a word of four letters or more is a place or a name first
+        "words_first": alpha and len(compact) >= 4,
+    }
+
+
+def _serialize_frame(frame, type_name, airline):
+    bits = [type_name or frame.type_code, airline or frame.operator_name]
+    return {"kind": "aircraft", "id": frame.hex,
+            "label": frame.registration or frame.hex.upper(),
+            "detail": " · ".join(b for b in bits if b) or None}
+
+
+def _frames(session, cond):
+    return session.execute(
         select(RefAirframe, RefType.name, RefAirline.name)
         .outerjoin(RefType, RefType.designator == RefAirframe.type_code)
         .outerjoin(RefAirline, RefAirline.icao == RefAirframe.operator_icao)
-        .where(or_(*conds))
-        .order_by(func.length(RefAirframe.registration),
-                  RefAirframe.registration)
+        .where(cond)
+        .order_by(RefAirframe.registration)
         .limit(PER_KIND)).all()
-    out = []
+
+
+def _aircraft(session, q):
+    """Registrations are stored uppercase, so the prefix compares raw and
+    the two indexes (registration, registration without dashes) serve
+    each query on their own; two small ordered scans beat one OR."""
+    rows = _frames(session, RefAirframe.registration.like(q + "%"))
+    bare = q.replace("-", "")
+    # Typed without the dash (9VSHA): only once a digit is in it, so a
+    # city name like Doha does not surface D-OHAR.
+    if "-" not in q and any(c.isdigit() for c in bare) and len(rows) < PER_KIND:
+        rows += _frames(session, func.replace(RefAirframe.registration,
+                                              "-", "").like(bare + "%"))
+    if len(q) >= 3 and all(c in "0123456789ABCDEF" for c in q) \
+            and len(rows) < PER_KIND:
+        rows += _frames(session, RefAirframe.hex.like(q.lower() + "%"))
+    out, seen = [], set()
     for frame, type_name, airline in rows:
-        bits = [type_name or frame.type_code,
-                airline or frame.operator_name]
-        out.append({"kind": "aircraft", "id": frame.hex,
-                    "label": frame.registration or frame.hex.upper(),
-                    "detail": " · ".join(b for b in bits if b) or None})
-    return out
+        if frame.hex in seen:
+            continue
+        seen.add(frame.hex)
+        out.append(_serialize_frame(frame, type_name, airline))
+    return out[:PER_KIND]
 
 
 def _flights(session, request, q):
@@ -57,8 +90,6 @@ def _flights(session, request, q):
     if not book.available():
         return []
     prefix = q.replace(" ", "")
-    if not (len(prefix) >= 3 and prefix[:2].isalpha()):
-        return []
     prefixes = [prefix]
     # An IATA flight number (SQ322) is also its ICAO callsign (SIA322).
     if prefix[2].isdigit():
@@ -134,7 +165,16 @@ def search(request: Request, response: Response,
     q = _norm(q)
     if len(q) < 2:
         raise ApiError(422, "invalid_request", "type at least two characters")
-    results = (_aircraft(session, q) + _flights(session, request, q)
-               + _airports(session, q) + _airlines(session, q))
+    shape = _shape(q)
+    parts = {
+        "aircraft": _aircraft(session, q) if shape["aircraft"] else [],
+        "flight": _flights(session, request, q) if shape["flight"] else [],
+        "airport": _airports(session, q) if shape["airport"] else [],
+        "airline": _airlines(session, q) if shape["airline"] else [],
+    }
+    order = (("airport", "airline", "flight", "aircraft")
+             if shape["words_first"]
+             else ("aircraft", "flight", "airport", "airline"))
+    results = [r for kind in order for r in parts[kind]]
     response.headers["Cache-Control"] = CACHE
     return {"q": q, "results": results}
