@@ -26,10 +26,12 @@ def _norm(q: str) -> str:
 
 def _aircraft(session, q):
     bare = q.replace("-", "")
-    like = func.upper(RefAirframe.registration).like(q + "%")
-    like_bare = func.replace(func.upper(RefAirframe.registration),
-                             "-", "").like(bare + "%")
-    conds = [like, like_bare]
+    conds = [func.upper(RefAirframe.registration).like(q + "%")]
+    # Typed without the dash (9VSHA): only once a digit is in it, so a
+    # city name like Doha does not surface D-OHAR.
+    if any(c.isdigit() for c in bare):
+        conds.append(func.replace(func.upper(RefAirframe.registration),
+                                  "-", "").like(bare + "%"))
     if len(q) >= 3 and all(c in "0123456789ABCDEF" for c in q):
         conds.append(RefAirframe.hex.like(q.lower() + "%"))
     rows = session.execute(

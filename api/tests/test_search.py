@@ -25,6 +25,11 @@ def test_registration_prefix_and_bare_form(ctx, tmp_path):
     # typed without the dash, still found
     bare = client.get("/v1/search", params={"q": "9VSHA"}).json()
     assert [r["label"] for r in bare["results"]] == ["9V-SHA"]
+    # letters alone never match the dashless form: a city is not a tail
+    words = client.get("/v1/search", params={"q": "9VSH"}).json()
+    assert [r["label"] for r in words["results"]] == ["9V-SHA", "9V-SHB"]
+    none = client.get("/v1/search", params={"q": "VSHA"}).json()
+    assert none["results"] == []
 
 
 def test_hex_prefix(ctx, tmp_path):
