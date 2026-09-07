@@ -1,5 +1,6 @@
 """/v1/search: one box over airframes, flights, airports, airlines."""
 from app.legs_db import LegBook
+from app.refdata_models import RefAirline, RefAirport
 
 from test_legs import LEGS, _build
 from test_refdata import _seed_all
@@ -103,3 +104,19 @@ def test_words_put_places_first_and_skip_the_tail_scan(ctx, tmp_path):
     # a code-shaped query answers aircraft and flights first
     body = client.get("/v1/search", params={"q": "SQ32"}).json()
     assert body["results"][0]["kind"] == "flight"
+
+
+def test_rows_without_a_code_never_outrank_the_real_one(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    _seed_all(sm, tmp_path)
+    session = sm()
+    session.add(RefAirport(ident="WSAC", name="Changi Air Base (East)",
+                           kind="medium_airport", iso_country="SG",
+                           municipality="Singapore", iata=None))
+    session.add(RefAirline(icao="SQC", iata=None,
+                           name="Singapore Airlines Cargo"))
+    session.commit(); session.close()
+    body = client.get("/v1/search", params={"q": "Singapore"}).json()
+    airports = [r["id"] for r in body["results"] if r["kind"] == "airport"]
+    airlines = [r["id"] for r in body["results"] if r["kind"] == "airline"]
+    assert airports[0] == "SIN" and airlines[0] == "SIA"

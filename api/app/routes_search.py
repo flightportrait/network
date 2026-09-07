@@ -6,7 +6,7 @@ here is a new source of truth; it is the index over what the other
 routes already serve.
 """
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 
 from . import openapi as spec
 from . import ratelimit
@@ -116,11 +116,15 @@ def _airports(session, q):
     names = or_(func.upper(RefAirport.name).like(q + "%"),
                 func.upper(RefAirport.name).like("% " + q + "%"),
                 func.upper(RefAirport.municipality).like(q + "%"))
+    # case(), not exact.desc(): a NULL iata makes the OR NULL, and NULL
+    # sorts first in DESC on Postgres, which put an air base above Changi.
     rows = session.execute(
         select(RefAirport)
         .where(or_(exact, names))
         .where(RefAirport.kind.in_(("large_airport", "medium_airport")))
-        .order_by(exact.desc(), RefAirport.kind, RefAirport.name)
+        .order_by(case((exact, 0), else_=1),
+                  case((RefAirport.iata.is_(None), 1), else_=0),
+                  RefAirport.kind, RefAirport.name)
         .limit(PER_KIND)).scalars().all()
     out = []
     for a in rows:
@@ -138,7 +142,9 @@ def _airlines(session, q):
         select(RefAirline)
         .where(or_(exact, func.upper(RefAirline.name).like(q + "%"),
                    func.upper(RefAirline.name).like("% " + q + "%")))
-        .order_by(exact.desc(), RefAirline.name)
+        .order_by(case((exact, 0), else_=1),
+                  case((RefAirline.iata.is_(None), 1), else_=0),
+                  RefAirline.name)
         .limit(PER_KIND)).scalars().all()
     return [{"kind": "airline", "id": a.icao, "label": a.name,
              "detail": " · ".join(b for b in (a.icao, a.iata) if b)}
