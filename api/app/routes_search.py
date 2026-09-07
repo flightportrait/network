@@ -10,7 +10,7 @@ import math
 import re
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, text
 
 from . import openapi as spec
 from . import ratelimit
@@ -242,19 +242,22 @@ def _airports(session, q):
                   case((RefAirport.iata.is_(None), 1), else_=0),
                   RefAirport.name)
         .limit(PER_KIND)).all()
-    if not rows and session.bind.dialect.name == "postgresql" and len(q) >= 4:
-        # a near miss: Chnagi, Heathro
-        # word_similarity: the query against the closest word of the
-        # name, so "Chnagi" scores against "Changi", not the whole
-        # "Singapore Changi Airport"
-        sim = func.greatest(
-            func.word_similarity(q, func.upper(RefAirport.name)),
-            func.word_similarity(q, func.upper(RefAirport.municipality)))
+    if not rows and session.bind.dialect.name == "postgresql" \
+            and len(q) >= 5 and q.isalpha():
+        # a near miss: Chnagi, Heathro. Edit distance against each word
+        # of the name and city, two edits at most; trigrams rank Chicago
+        # above Changi for a transposition.
+        near = text(
+            "EXISTS (SELECT 1 FROM regexp_split_to_table("
+            " upper(coalesce(ref_airports.name, '')) || ' ' ||"
+            " upper(coalesce(ref_airports.municipality, '')), '\\s+') w"
+            " WHERE length(w) >= 4 AND levenshtein(w, :q) <= 2)"
+        ).bindparams(q=q)
         rows = session.execute(
-            select(RefAirport, sim * 0 + NEAR, traffic)
-            .where(sim > 0.25)
+            select(RefAirport, text(str(NEAR)), traffic)
+            .where(near)
             .where(RefAirport.kind.in_(("large_airport", "medium_airport")))
-            .order_by(sim.desc(), traffic.desc())
+            .order_by(traffic.desc())
             .limit(PER_KIND)).all()
     out = []
     for a, score, traffic_n in rows:
@@ -279,11 +282,16 @@ def _airlines(session, q):
                   case((RefAirline.iata.is_(None), 1), else_=0),
                   RefAirline.name)
         .limit(PER_KIND)).all()
-    if not rows and session.bind.dialect.name == "postgresql" and len(q) >= 4:
-        sim = func.word_similarity(q, func.upper(RefAirline.name))
+    if not rows and session.bind.dialect.name == "postgresql" \
+            and len(q) >= 5 and q.isalpha():
+        near = text(
+            "EXISTS (SELECT 1 FROM regexp_split_to_table("
+            " upper(ref_airlines.name), '\\s+') w"
+            " WHERE length(w) >= 4 AND levenshtein(w, :q) <= 2)"
+        ).bindparams(q=q)
         rows = session.execute(
-            select(RefAirline, sim * 0 + NEAR)
-            .where(sim > 0.25).order_by(sim.desc()).limit(PER_KIND)).all()
+            select(RefAirline, text(str(NEAR)))
+            .where(near).order_by(RefAirline.name).limit(PER_KIND)).all()
     return [{"kind": "airline", "id": a.icao, "label": a.name,
              "detail": " · ".join(b for b in (a.icao, a.iata) if b),
              "score": score + (2 if a.iata else 0)}
