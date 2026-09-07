@@ -21,22 +21,46 @@
     return "#";
   }
   var KIND = { live: "In the air now", flight: "Flight", aircraft: "Aircraft", airport: "Airport", airline: "Airline" };
+  function tailFor(icao) {
+    var e = icao && tails[icao], rel = e && e["64"];
+    return rel ? "assets/airline-tails/" + rel : null;
+  }
+  function pictureFor(r) {
+    if (r.kind === "airport") return "assets/icons/airport.png";
+    if (r.kind === "airline") return tailFor(r.id) || "assets/icons/narrow.png";
+    if (r.kind === "flight" || r.kind === "live") {
+      var m = /^([A-Z]{3})\d/.exec(r.label || r.id || "");
+      return (m && tailFor(m[1])) || "assets/icons/narrow.png";
+    }
+    var d = String(r.detail || "");
+    if (/A380|747/.test(d)) return "assets/icons/wide4.png";
+    if (/777|787|A350|A330|A340|767|A300|MD-11/.test(d)) return "assets/icons/wide.png";
+    if (/ATR|Dash|Q400|Saab|Cessna|Piper|Beech|King Air|PC-12|Twin Otter/.test(d)) return "assets/icons/prop.png";
+    if (/Gulfstream|Global|Challenger|Falcon|Citation|Learjet|Legacy|Phenom|Praetor|Hawker/.test(d)) return "assets/icons/bizjet.png";
+    if (/Helicopter|AW139|H145|S-76|EC135|Bell/.test(d)) return "assets/icons/heli.png";
+    return "assets/icons/narrow.png";
+  }
   var EXACT = 100, PREFIX = 60, WORD = 40;
 
   // ---- the reference index, loaded once per page --------------------
-  var apts = null, airlines = null, loading = null;
+  var apts = null, airlines = null, tails = {}, loading = null;
   function load() {
     if (loading) return loading;
     loading = Promise.all([
       fetch("assets/airports.json").then(function (r) { return r.json(); }).catch(function () { return {}; }),
-      fetch("assets/airlines.json").then(function (r) { return r.json(); }).catch(function () { return []; })
+      fetch("assets/airlines.json").then(function (r) { return r.json(); }).catch(function () { return []; }),
+      fetch("assets/airline-tails/manifest.json").then(function (r) { return r.json(); })
+        .then(function (m) { tails = m.airlines || {}; }).catch(function () {})
     ]).then(function (both) {
       // airports.json keys every field under both its codes; keep one
       // entry per field, the IATA code when it has one
       var raw = both[0], byPos = {};
       Object.keys(raw).forEach(function (code) {
         var a = raw[code], k = a[1] + "," + a[2];
-        if (!byPos[k] || code.length === 3) byPos[k] = { code: code, city: a[0], rank: a[4] || 99999, tier: a[3] || 9 };
+        // "Paris (Roissy-en-France, Val-d'Oise)" is the field's registry
+        // name; the reader means Paris
+        var city = String(a[0] || "").replace(/\s*\(.*$/, "");
+        if (!byPos[k] || code.length === 3) byPos[k] = { code: code, city: city, rank: a[4] || 99999, tier: a[3] || 9 };
       });
       apts = Object.keys(byPos).map(function (k) { return byPos[k]; });
       airlines = both[1].map(function (r) { return { icao: r[0], iata: r[1], name: r[2], routes: r[3] || 0 }; });
@@ -97,8 +121,9 @@
       results.forEach(function (r, i) {
         if (r.kind !== kind) { kind = r.kind; html += "<div class='s-kind caps'>" + KIND[kind] + "</div>"; }
         html += "<a class='s-row' data-i='" + i + "' href='" + esc(hrefFor(r)) + "'>" +
-          "<span class='s-label'>" + esc(r.label) + "</span>" +
-          (r.detail ? "<span class='s-detail'>" + esc(r.detail) + "</span>" : "") + "</a>";
+          "<img class='s-pic' alt='' src='" + esc(pictureFor(r)) + "'>" +
+          "<span class='s-text'><span class='s-label'>" + esc(r.label) + "</span>" +
+          (r.detail ? "<span class='s-detail'>" + esc(r.detail) + "</span>" : "") + "</span></a>";
       });
       list.innerHTML = html; list.hidden = false; active = -1;
     }

@@ -163,7 +163,8 @@ def _flights(session, request, q):
     for p in prefixes:
         for callsign, n, org, dst, legs in _schedule_rows(
                 session, RefSchedule.callsign.like(p + "%")):
-            if callsign in seen:
+            # a bare prefix flown as a callsign ("CDG") is noise
+            if callsign in seen or not any(c.isdigit() for c in callsign):
                 continue
             seen.add(callsign)
             out.append(_flight_item(callsign, n, org, dst, legs,
