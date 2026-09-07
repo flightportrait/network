@@ -542,7 +542,6 @@
     align-items:baseline;padding:4px 0;
     border-bottom:1px solid rgba(34,31,26,.06);font-size:13.5px}
   .sched-row .t{font-variant-numeric:tabular-nums;font-weight:600}
-  .sched-row .t .arr{color:var(--quiet);font-weight:400}
   .sched-row .fn{font-family:'IBM Plex Mono','SFMono-Regular',Menlo,monospace;
     font-size:12.5px}
   .sched-row .ac{color:var(--quiet);font-size:11.5px;text-align:right}
@@ -3084,7 +3083,6 @@ window.__initAirlines = function () {
               return '<div class="sched-row" data-cs="' +
                 (x.callsign || "") + '"><span class="t">' +
                 (x.dep || "—") +
-                (x.arr ? '<span class="arr">–' + x.arr + "</span>" : "") +
                 '</span><span class="fn">' + x.flight +
                 '</span><span class="ac">' + (x.type_name || x.type || "") +
                 "</span></div>";
@@ -4507,9 +4505,20 @@ window.__initJoin = function () {
     return coords;
   }
 
-  var af = { paths: [], t: 0, playing: false, raf: null, token: 0,
+  function legKm(A, B) {                  // great-circle km, apt rows [code, lat, lon]
+    var f1 = A[1] * TO_R, f2 = B[1] * TO_R, dl = (B[2] - A[2]) * TO_R;
+    var h = Math.pow(Math.sin((f2 - f1) / 2), 2) +
+      Math.cos(f1) * Math.cos(f2) * Math.pow(Math.sin(dl / 2), 2);
+    return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  var af = { paths: [], total: 0, t: 0, playing: false, raf: null, token: 0,
              lastTs: null, kind: "narrow" };
-  var LEG_MS = 1000;                     // scrub units per leg
+  // The scrub axis is distance, not leg count: t runs 0..af.total in km
+  // along the timeline, so the plane covers ground at one speed whether
+  // the leg is a 300 km hop or a 9,000 km crossing. LEG_KM_MIN keeps a
+  // very short leg on screen long enough to read its label.
+  var LEG_KM_MIN = 60, PLAY_S_PER_LEG = 2.6;   // whole timeline ≈ legs × 2.6 s
 
   function ensureLayers(M) {
     if (M.getSource("af-arcs")) return;
@@ -4556,9 +4565,9 @@ window.__initJoin = function () {
   }
 
   function posAt(t) {
-    var n = af.paths.length;
-    var idx = Math.min(Math.floor(t / LEG_MS), n - 1);
-    var f = Math.min(1, (t - idx * LEG_MS) / LEG_MS);
+    var n = af.paths.length, idx = 0;
+    while (idx < n - 1 && t >= af.paths[idx].start + af.paths[idx].km) idx++;
+    var f = Math.min(1, Math.max(0, (t - af.paths[idx].start) / af.paths[idx].km));
     var coords = af.paths[idx].coords;
     var k = f * (coords.length - 1);
     var i = Math.min(Math.floor(k), coords.length - 2);
@@ -4575,7 +4584,7 @@ window.__initJoin = function () {
   function setScrub(t) {
     var M = mapRef();
     if (!M || !af.paths.length) return;
-    af.t = Math.max(0, Math.min(t, af.paths.length * LEG_MS - 1));
+    af.t = Math.max(0, Math.min(t, af.total - 0.001));
     var p = posAt(af.t);
     M.getSource("af-plane").setData({ type: "Feature",
       properties: { rot: p.rot, icon: "icon-" + af.kind },
@@ -4596,17 +4605,17 @@ window.__initJoin = function () {
         r.classList.toggle("sel", +r.dataset.idx === p.idx);
       });
     }
-    el("af-scrub").value = Math.round(
-      1000 * af.t / (af.paths.length * LEG_MS));
+    el("af-scrub").value = Math.round(1000 * af.t / af.total);
   }
 
   function tick(ts) {
     if (!af.playing) return;
     var dt = af.lastTs == null ? 16 : ts - af.lastTs;
     af.lastTs = ts;
-    var next = af.t + dt * (LEG_MS / 2600);   // ~2.6s per leg
-    if (next >= af.paths.length * LEG_MS - 1) {
-      setScrub(af.paths.length * LEG_MS - 1);
+    var kmPerMs = af.total / (af.paths.length * PLAY_S_PER_LEG * 1000);
+    var next = af.t + dt * kmPerMs;
+    if (next >= af.total - 0.001) {
+      setScrub(af.total);
       setPlaying(false);
       return;
     }
@@ -4618,7 +4627,7 @@ window.__initJoin = function () {
     af.lastTs = null;
     el("af-play").innerHTML = on ? "&#10073;&#10073;" : "&#9654;";
     if (on) {
-      if (af.t >= af.paths.length * LEG_MS - 2) setScrub(0);
+      if (af.t >= af.total - 0.01) setScrub(0);
       af.raf = requestAnimationFrame(tick);
     } else if (af.raf) {
       cancelAnimationFrame(af.raf);
@@ -4721,9 +4730,15 @@ window.__initJoin = function () {
     var M = mapRef();
     if (!usable.length || !M) return;
     ensureLayers(M);
+    var start = 0;
     af.paths = usable.map(function (l) {
-      return { leg: l, coords: gc(apts[l.org], apts[l.dst]) };
+      var A = apts[l.org], B = apts[l.dst];
+      var km = Math.max(LEG_KM_MIN, legKm(A, B));
+      var p = { leg: l, coords: gc(A, B), km: km, start: start };
+      start += km;
+      return p;
     });
+    af.total = start;
     M.getSource("af-arcs").setData({ type: "FeatureCollection",
       features: af.paths.map(function (p, i) {
         return { type: "Feature", id: i, properties: { i: i },
@@ -4771,18 +4786,18 @@ window.__initJoin = function () {
      "af-legs", "af-note"].forEach(function (id) {
       el(id).hidden = false;
     });
-    setScrub(af.paths.length * LEG_MS - 1);   // rest at its latest leg
+    setScrub(af.total);                       // rest at its latest leg
   }
 
   el("af-legs").addEventListener("click", function (e) {
     var row = e.target.closest(".rrow");
     if (!row || row.dataset.idx == null) return;
     setPlaying(false);
-    setScrub(+row.dataset.idx * LEG_MS);
+    setScrub(af.paths[+row.dataset.idx].start);
   });
   el("af-scrub").addEventListener("input", function () {
     setPlaying(false);
-    setScrub(this.value / 1000 * af.paths.length * LEG_MS);
+    setScrub(this.value / 1000 * af.total);
   });
   el("af-play").addEventListener("click", function () {
     setPlaying(!af.playing);
