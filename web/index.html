@@ -1316,6 +1316,57 @@
     return style;
   }
 
+  // Atlas skin: the world in its own quiet colours. Blue water, land the
+  // colour of dry paper, parks and woods a faint green, the line-work
+  // unchanged. Selected with ?skin=atlas until one is chosen.
+  var ATLAS = { paper: [241, 236, 224], water: "#B7CFDE", waterway: "#A8C4D6" };
+  function towardPaper(rgba, keep) {
+    var p = ATLAS.paper;
+    var mix = function (i) { return Math.round(p[i] + (rgba[i] - p[i]) * keep); };
+    return "rgba(" + mix(0) + "," + mix(1) + "," + mix(2) + "," + rgba[3] + ")";
+  }
+  function atlasify(style) {
+    style.layers = style.layers.filter(function (l) {
+      return !/^(poi|housenumber|road_shield|highway-shield|road_one_way|natural_earth)/.test(l.id);
+    });
+    style.layers.forEach(function (l) {
+      var id = l.id;
+      if (l.type === "background") {
+        paint(l, "background-color", "rgb(" + ATLAS.paper.join(",") + ")");
+      } else if (l.type === "fill") {
+        if (id === "water") paint(l, "fill-color", ATLAS.water);
+        else if (id === "building") paint(l, "fill-color", inkAt(0.07));
+        else if (/^aeroway/.test(id)) paint(l, "fill-color", inkAt(0.10));
+        else {
+          Object.keys(l.paint || {}).forEach(function (k) {
+            if (/color/.test(k)) {
+              l.paint[k] = mapColors(l.paint[k], function (rgba) {
+                return towardPaper(rgba, /wood|park|grass|scrub|forest|wetland|cemetery|golf|farmland/.test(id) ? 0.55 : 0.30);
+              });
+            }
+          });
+        }
+      } else if (l.type === "line") {
+        if (/casing/.test(id)) paint(l, "line-color", "rgb(" + ATLAS.paper.join(",") + ")");
+        else if (/^waterway/.test(id)) paint(l, "line-color", ATLAS.waterway);
+        else if (/^boundary/.test(id)) paint(l, "line-color", inkAt(0.34));
+        else if (/motorway|trunk_primary/.test(id)) paint(l, "line-color", inkAt(0.38));
+        else if (/rail/.test(id)) paint(l, "line-color", inkAt(0.16));
+        else if (/^aeroway/.test(id)) paint(l, "line-color", inkAt(0.35));
+        else paint(l, "line-color", inkAt(0.20));
+      } else if (l.type === "symbol") {
+        paint(l, "text-color", inkAt(0.68));
+        paint(l, "text-halo-color", "rgba(241,236,224,.85)");
+        if (l.paint && l.paint["icon-color"]) {
+          paint(l, "icon-color", inkAt(0.5));
+        }
+      }
+    });
+    return style;
+  }
+  var SKIN = new URLSearchParams(location.search).get("skin") === "atlas"
+    ? atlasify : paperify;
+
   var FALLBACK_STYLE = {
     version: 8,
     sources: { land: { type: "geojson", data: "assets/land.json" } },
@@ -1690,7 +1741,7 @@
     if (!r.ok) throw new Error(r.status);
     return r.json();
   }).then(function (style) {
-    startMap(paperify(style));
+    startMap(SKIN(style));
   }).catch(function () {
     startMap(FALLBACK_STYLE);
   });
