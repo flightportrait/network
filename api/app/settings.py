@@ -101,6 +101,17 @@ class Settings:
         "NETWORK_API_ROUTES_PATH", "data/routes.json.gz"))
     route_rate_limit: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_ROUTE_RATE_LIMIT", 600))
+    # The gaps artifact (gaps_db.py): callsigns whose route is settled at
+    # one end only, published as questions; answers arrive as
+    # contributions.
+    gaps_path: str = field(default_factory=lambda: _env(
+        "NETWORK_API_GAPS_PATH", "data/gaps.json.gz"))
+    gaps_rate_limit: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_GAPS_RATE_LIMIT", 300))
+    # Contributions are writes from strangers: a small bucket, and every
+    # submission is reviewed before it can be served.
+    contribute_rate_limit: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_CONTRIBUTE_RATE_LIMIT", 30))
     # Per-airframe flight logs (SQLite artifact, legs_db.py).
     legs_path: str = field(default_factory=lambda: _env(
         "NETWORK_API_LEGS_PATH", "data/legs.db"))

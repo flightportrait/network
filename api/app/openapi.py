@@ -16,6 +16,9 @@ TAGS = [
                                        "airports."},
     {"name": "Stations", "description": "Feeder roster."},
     {"name": "Reference", "description": "Airlines, alliances, types."},
+    {"name": "Contributions", "description": "What observation could not "
+                                             "settle, and the community "
+                                             "answers to it."},
     {"name": "Meta", "description": "Index and health."},
 ]
 
@@ -40,7 +43,11 @@ DESCRIPTION = (
     "exception is the airport departures board, whose rows may be inferred "
     "from published timetables — each board row carries its own `source` "
     "(observed / published / both); a published row is not a receiver "
-    "observation.\n"
+    "observation. Likewise a flight's `route_source`: `observed` when "
+    "both ends were seen, `observed+catalog` when the community supplied "
+    "the end coverage never reached, `catalog` when it supplied both. "
+    "Catalog answers are reviewed before they are served, and observation "
+    "outranks them whenever it speaks.\n"
     "\n"
     "**Errors.** Every non-200 body is `{\"error\": <code>, \"detail\": "
     "<human text>}` with `Cache-Control: no-store`. 404 `not_found` / "
@@ -138,11 +145,12 @@ R503 = {503: {
 }}
 
 
-def ok(example, *extra, schema=None):
+def ok(example, *extra, schema=None, status=200):
     content = {"application/json": {"example": example}}
     if schema is not None:
         content["application/json"]["schema"] = schema
-    responses = {200: {"description": "OK", "content": content}}
+    label = "Accepted" if status == 202 else "OK"
+    responses = {status: {"description": label, "content": content}}
     for d in extra:
         responses.update(d)
     return responses
@@ -333,9 +341,12 @@ EX_AIRFRAME = {
 SCH_FLIGHT = _obj({
     "callsign": _t("string"),
     "route": {"description": "[origin, ...via, destination], IATA, from "
-                             "the derived routes artifact. Null when "
-                             "unknown or the artifact is not loaded.",
+                             "the derived routes artifact, else from the "
+                             "community catalog. Null when unknown or "
+                             "the artifact is not loaded.",
               "oneOf": [_arr(_t("string")), {"type": "null"}]},
+    "route_source": _t("string", "observed, observed+catalog, or catalog. "
+                                 "Null when route is null.", nullable=True),
     "legs": {"description": "Observed legs, busiest first (top 10), with "
                             "typical local times when the inferred "
                             "timetable knows them. Null = log artifact "
@@ -375,6 +386,7 @@ SCH_FLIGHT = _obj({
 EX_FLIGHT = {
     "callsign": "SQ322",
     "route": ["SIN", "LHR"],
+    "route_source": "observed",
     "legs": [{"org": "SIN", "dst": "LHR", "flights": 12, "days": 7,
               "last": "2026-08-27", "dep": "09:00", "arr": "15:10",
               "type": "A359"}],
@@ -391,6 +403,8 @@ SCH_AIRPORT = _obj({
     "ident": _t("string", "ICAO ident.", nullable=True),
     "name": _t("string", nullable=True),
     "kind": _t("string", "OurAirports kind (large_airport, ...).",
+               nullable=True),
+    "role": _t("string", "commercial, general, military, or closed.",
                nullable=True),
     "lat": _t("number", nullable=True),
     "lon": _t("number", nullable=True),
@@ -668,3 +682,77 @@ EX_INDEX = {
 }
 
 EX_HEALTHZ = {"ok": True}
+
+
+# ---- contributions ----------------------------------------------------
+
+_SCH_GAP_ROW = _obj({
+    "callsign": _t("string"),
+    "side": _t("string", "The missing end: origin or dest."),
+    "known": _t("string", "The settled end, IATA."),
+    "hint": _t("string", "The missing end's leading code when observation "
+                         "saw it too rarely to settle it.", nullable=True),
+    "n_recent": _t("integer", "Sightings in the last 90 days."),
+    "last_seen": _t("string", "Last date observed, YYYY-MM-DD."),
+    "last_heard": {"description": "Where the most recent truncated leg "
+                                  "was last heard, with its track in "
+                                  "degrees true. Null when unknown.",
+                   "oneOf": [_obj({"lat": _t("number"),
+                                   "lon": _t("number"),
+                                   "track": _t("integer", nullable=True)}),
+                             {"type": "null"}]},
+})
+
+SCH_GAPS = _obj({
+    "total": _t("integer", "Rows matching the filters."),
+    "offset": _t("integer"),
+    "gaps": _arr(_SCH_GAP_ROW),
+    "coverage": _SCH_COVERAGE,
+}, required=["total", "offset", "gaps", "coverage"])
+
+EX_GAPS = {
+    "total": 1, "offset": 0,
+    "gaps": [{"callsign": "SIA842", "side": "dest", "known": "SIN",
+              "hint": None, "n_recent": 13, "last_seen": "2026-09-06",
+              "last_heard": {"lat": 12.41, "lon": 106.92, "track": 21}}],
+    "coverage": "observed",
+}
+
+SCH_GAP = _obj(dict(_SCH_GAP_ROW["properties"], **{
+    "catalog": {"description": "The community answer in force, if any.",
+                "oneOf": [_obj({"origin": _t("string"),
+                                "dest": _t("string"),
+                                "valid_from": _t("string")}),
+                          {"type": "null"}]},
+}))
+
+EX_GAP = dict(EX_GAPS["gaps"][0], catalog=None)
+
+SCH_CONTRIBUTION = _obj({
+    "id": _t("integer"),
+    "status": _t("string", "Always pending on submission.",
+                 const="pending"),
+    "callsign": _t("string"),
+    "origin": _t("string"),
+    "dest": _t("string"),
+    "checks": _obj({
+        "known_end": _t("string", "pass / fail: the end you gave for the "
+                                  "settled side matches observation."),
+        "not_same": _t("string"),
+        "airport": _t("string", "The missing end is a commercial airport "
+                                "we know."),
+        "observation": _t("string", "pass / fail / skip: agrees with the "
+                                    "rare observation of that end."),
+        "corridor": _t("string", "pass / fail / skip: the claimed end lies "
+                                 "along the track the aircraft was last "
+                                 "heard on."),
+        "agreeing": _t("integer", "Earlier answers that say the same."),
+    }),
+}, required=["id", "status", "callsign", "origin", "dest", "checks"])
+
+EX_CONTRIBUTION = {
+    "id": 17, "status": "pending", "callsign": "SIA842",
+    "origin": "SIN", "dest": "TFU",
+    "checks": {"known_end": "pass", "not_same": "pass", "airport": "pass",
+               "observation": "skip", "corridor": "pass", "agreeing": 0},
+}

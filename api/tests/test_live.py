@@ -135,6 +135,7 @@ OPENAPI_PATHS = {
     "/v1/airframes/{hex}",
     "/v1/flights/{callsign}",
     "/v1/airports/{code}",
+    "/v1/gaps", "/v1/gaps/{callsign}", "/v1/contributions",
     "/v1/stations", "/v1/stations/{station_uuid}",
     "/v1/airlines",
     "/v1/airlines/{icao}",
@@ -162,6 +163,7 @@ STABLE_PATHS = {
     "/", "/healthz", "/v1/now", "/v1/aircraft", "/v1/trace/{hex}",
     "/v2/point/{lat}/{lon}/{radius}", "/v1/airframes/{hex}",
     "/v1/flights/{callsign}", "/v1/airports/{code}",
+    "/v1/gaps", "/v1/gaps/{callsign}", "/v1/contributions",
     "/v1/stations", "/v1/stations/{station_uuid}",
     "/v1/airlines", "/v1/airlines/{icao}", "/v1/types/{designator}",
 }
@@ -173,10 +175,10 @@ def test_openapi_metadata(ctx):
     assert spec["info"]["title"] == "FlightPortrait network API"
     assert spec["servers"] == [{"url": "https://data.flightportrait.com"}]
     assert {t["name"] for t in spec["tags"]} == {
-        "Live", "History", "Stations", "Reference", "Meta"}
+        "Live", "History", "Stations", "Reference", "Contributions", "Meta"}
     ids = []
     for path, item in spec["paths"].items():
-        op = item["get"]
+        op = next(iter(item.values()))       # one operation per path
         assert op.get("summary"), path
         assert op.get("description"), path
         assert op.get("tags"), path
@@ -194,7 +196,8 @@ def test_openapi_metadata(ctx):
     assert set(content["example"]["aircraft"][0]) <= set(AIRCRAFT_FIELDS)
     # every stable operation ships a real 200 schema, not just an example
     for path in STABLE_PATHS:
-        ok = spec["paths"][path]["get"]["responses"]["200"]
+        responses = next(iter(spec["paths"][path].values()))["responses"]
+        ok = responses.get("200") or responses["202"]
         assert "schema" in ok["content"]["application/json"], path
 
 

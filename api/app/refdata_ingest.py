@@ -160,6 +160,26 @@ def ingest_airframes(session, path):
     return _merge_streaming(session, pairs(), "fp-dump")
 
 
+_MILITARY_WORDS = (" air base", " airbase", " air force", " afb", " raf ",
+                   " naval air", " nas ", " army air", " military",
+                   " marine corps", " air station", " air national guard")
+
+
+def airport_role(kind, scheduled_service, name):
+    """commercial | general | military | closed, from what the registry
+    says: scheduled service makes a field commercial whatever else it
+    is; a closed field is closed; the name tells a base from a strip."""
+    kind = (kind or "").strip().lower()
+    if kind == "closed":
+        return "closed"
+    if (scheduled_service or "").strip().lower() == "yes":
+        return "commercial"
+    padded = " %s " % re.sub(r"[^a-z ]", " ", (name or "").lower())
+    if any(w in padded for w in _MILITARY_WORDS):
+        return "military"
+    return "general"
+
+
 def ingest_airports(session, path):
     """OurAirports airports.csv (public domain). Keyed by ident, which is
     ICAO-style where one exists — the same idents route chains use."""
@@ -172,6 +192,9 @@ def ingest_airports(session, path):
             values = {
                 "name": _clean(row.get("name"), 120),
                 "kind": _clean(row.get("type"), 20),
+                "role": airport_role(row.get("type"),
+                                     row.get("scheduled_service"),
+                                     row.get("name")),
                 "iso_country": _clean(row.get("iso_country"), 2),
                 "municipality": _clean(row.get("municipality"), 80),
                 "iata": _clean(row.get("iata_code"), 3),

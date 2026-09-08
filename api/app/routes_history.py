@@ -19,6 +19,7 @@ from . import openapi as spec
 from . import ratelimit
 from .db import get_session
 from .errors import ApiError
+from .contributions import catalog_current
 from .refdata_models import RefAirframe, RefAirline, RefAirport, RefSchedule, \
     RefType
 from .routes_refdata import _hhmm, _memberships_by_airline, _serialize_airline
@@ -132,6 +133,16 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
     if not routes_up and not legs_up:
         raise _dark()
     route = routes_book.get(callsign) if routes_up else None
+    route_source = "observed" if route else None
+    if route is None:
+        # Observation first; the community catalog only where it is silent.
+        current = catalog_current(session, callsign)
+        if current is not None:
+            route = [current.origin, current.dest]
+            question = request.app.state.gaps.get(callsign)
+            route_source = ("observed+catalog"
+                            if question and question.get("known") in route
+                            else "catalog")
     log = legs_book.flight(callsign) if legs_up else None
     if route is None and log is None:
         raise ApiError(404, "not_observed", "no observations")
@@ -139,6 +150,7 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
     out = {
         "callsign": callsign,
         "route": route,
+        "route_source": route_source,
         "legs": None, "aircraft": None, "recent": None,
         "window_days": legs_book.window_days() if legs_up else None,
         "coverage": "observed",
@@ -247,6 +259,7 @@ def airport(code: spec.AirportCode, request: Request, response: Response,
         "ident": reg.ident if reg else None,
         "name": reg.name if reg else None,
         "kind": reg.kind if reg else None,
+        "role": reg.role if reg else None,
         "lat": reg.lat if reg else None,
         "lon": reg.lon if reg else None,
         "iso_country": reg.iso_country if reg else None,

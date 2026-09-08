@@ -19,6 +19,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .db import make_sessionmaker
 from . import errors
 from . import openapi as spec
+from .contributions import router as contributions_router
+from .gaps_db import GapBook
 from .readsb import ReadsbClient
 from .routes_history import router as history_router
 from .routes_live import router as live_router
@@ -72,6 +74,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     app.state.presence_available = True
     app.state.presence_at = 0.0
     app.state.routes = RouteBook(settings.routes_path)
+    app.state.gaps = GapBook(settings.gaps_path)
     from .legs_db import LegBook
     app.state.legs = LegBook(settings.legs_path)
 
@@ -81,7 +84,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=False,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["Content-Type"],
         max_age=600,
     )
@@ -131,6 +134,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     app.include_router(stations_router)
     app.include_router(refdata_router)
     app.include_router(search_router)
+    app.include_router(contributions_router)
 
     @app.get("/healthz", tags=["Meta"], summary="Health",
              description="Liveness. Does not check the aggregator; a sick "

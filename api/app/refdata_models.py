@@ -127,6 +127,11 @@ class RefAirport(Base):
     ident: Mapped[str] = mapped_column(String(8), primary_key=True)
     name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # What the field is for: commercial (scheduled service), general
+    # (everything else with a runway), military, closed. Derived at
+    # ingest from the registry's service flag and name; corrections
+    # arrive as contributions.
+    role: Mapped[str | None] = mapped_column(String(12), nullable=True)
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lon: Mapped[float | None] = mapped_column(Float, nullable=True)
     iso_country: Mapped[str | None] = mapped_column(String(2), nullable=True)
@@ -232,3 +237,58 @@ class RefImport(Base):
     rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     imported_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class Contribution(Base):
+    """One community answer to a published gap, exactly as submitted,
+    with the checks the service ran against observation at the time.
+    Never served as fact: an approved contribution is copied into
+    RouteCatalog, and the row here stays as the audit trail."""
+    __tablename__ = "contributions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(12), nullable=False)   # route
+    callsign: Mapped[str] = mapped_column(String(12), index=True)
+    origin: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    dest: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    valid_from: Mapped[datetime.date | None] = mapped_column(
+        Date, nullable=True)
+    note: Mapped[str | None] = mapped_column(String(280), nullable=True)
+    contact: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # pending | approved | rejected
+    status: Mapped[str] = mapped_column(String(12), nullable=False,
+                                       default="pending", index=True)
+    # The vetting result: {"ok": bool, "checks": {name: pass|fail|skip}}.
+    checks: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    submitted_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False)
+    reviewed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    review_note: Mapped[str | None] = mapped_column(String(280),
+                                                    nullable=True)
+
+
+class RouteCatalog(Base):
+    """Routes the network could not observe end to end, answered by the
+    community and approved by the operator. Dated: a schedule change is
+    a new row that closes the old one, never an edit. Observation always
+    outranks a catalog row when both speak."""
+    __tablename__ = "route_catalog"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    callsign: Mapped[str] = mapped_column(String(12), index=True)
+    origin: Mapped[str] = mapped_column(String(4), nullable=False)
+    dest: Mapped[str] = mapped_column(String(4), nullable=False)
+    valid_from: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    # Open (null) while current; the date it stopped being true otherwise.
+    valid_to: Mapped[datetime.date | None] = mapped_column(Date,
+                                                           nullable=True)
+    source: Mapped[str] = mapped_column(String(12), nullable=False,
+                                       default="community")
+    contribution_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contributions.id"), nullable=True)
+    approved_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False)
+    # Why a row closed: superseded, contradicted (by observation), withdrawn.
+    closed_reason: Mapped[str | None] = mapped_column(String(20),
+                                                      nullable=True)

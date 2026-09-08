@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- What observation could not settle: flight numbers the network sees
+     leave or arrive, whose other end lies beyond receiver coverage.
+     Anyone who knows the route can answer here; answers are checked
+     against what was observed and reviewed before they are served. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Missing routes · FlightPortrait network</title>
+<meta name="description" content="Flight numbers the network hears at one end only. If you know where they go, tell us.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FlightPortrait network">
+<meta property="og:title" content="Missing routes · FlightPortrait network">
+<meta property="og:description" content="Flight numbers the network hears at one end only. If you know where they go, tell us.">
+<meta property="og:url" content="https://flightportrait.com/network/gaps.html">
+<meta property="og:image" content="https://flightportrait.com/og-network.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#F5F1E6">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
+    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
+    --card:#FAF7EE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);overflow-x:hidden;
+    font:17px/1.6 Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
+    -webkit-font-smoothing:antialiased}
+  .caps{font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:12px;letter-spacing:.1em}
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px}
+  .topbar{position:sticky;top:0;z-index:5;background:var(--paper)}
+  .topbar .wrap{max-width:1000px;display:flex;align-items:center;
+    justify-content:space-between;height:64px;gap:18px}
+  .wordmark{display:flex;align-items:center;gap:10px;text-decoration:none;
+    color:var(--ink);font-size:17px}
+  .wordmark img{width:24px;height:24px;display:block;border-radius:5px}
+  .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
+  .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
+    white-space:nowrap}
+  .topnav a:hover{color:var(--red)}
+  main a{color:var(--ink)}
+
+  .head{padding:48px 0 0}
+  h1{font-size:44px;line-height:1.1;font-weight:400}
+  .sub{font-size:18px;color:var(--quiet);margin-top:4px;max-width:620px}
+  .filters{display:flex;gap:12px;flex-wrap:wrap;align-items:center;
+    padding:26px 0 0}
+  .filters input{font:15px 'Helvetica Neue',Arial,sans-serif;
+    padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+    background:var(--card);color:var(--ink);outline:none;width:150px}
+  .filters input:focus{border-color:var(--ink)}
+  .filters .count{color:var(--quiet);font-size:15px}
+
+  .log{padding:22px 0 60px}
+  .tablewrap{overflow-x:auto}
+  table.legs{width:100%;border-collapse:collapse;
+    font-variant-numeric:tabular-nums;font-size:16px}
+  table.legs th{text-align:left;font-weight:400;color:var(--quiet);
+    padding:8px 12px 8px 0;border-bottom:1px solid var(--ink);
+    white-space:nowrap}
+  table.legs td{padding:10px 12px 10px 0;vertical-align:top;
+    border-bottom:1px solid rgba(34,31,26,.08);white-space:nowrap}
+  table.legs th.num,table.legs td.num{text-align:right}
+  table.legs th.num+th,table.legs td.num+td{padding-left:18px}
+  table.legs th:last-child,table.legs td:last-child{padding-right:0}
+  table.legs .city{display:block;font-size:13px;color:var(--quiet);
+    line-height:1.3}
+  td.flight a{color:var(--ink);text-decoration:none}
+  td.flight a:hover{color:var(--red)}
+  td.answer{min-width:260px}
+  td.answer form{display:flex;gap:8px;align-items:center}
+  td.answer input{font:15px 'Helvetica Neue',Arial,sans-serif;
+    text-transform:uppercase;width:78px;padding:6px 10px;
+    border:1px solid var(--line);border-radius:6px;background:var(--card);
+    color:var(--ink);outline:none}
+  td.answer input:focus{border-color:var(--ink)}
+  td.answer button{font:14px 'Helvetica Neue',Arial,sans-serif;
+    padding:7px 12px;border:1px solid var(--ink);border-radius:6px;
+    background:var(--ink);color:var(--paper);cursor:pointer}
+  td.answer button:disabled{opacity:.5;cursor:default}
+  td.answer .done{color:var(--green)}
+  td.answer .held{color:var(--quiet)}
+  td.answer .no{color:var(--red)}
+  .more{font:14px 'Helvetica Neue',Arial,sans-serif;padding:8px 14px;
+    border:1px solid var(--line);border-radius:6px;background:var(--card);
+    color:var(--ink);cursor:pointer;margin-top:14px}
+  .empty{padding:40px 0;color:var(--quiet)}
+  .note{color:var(--quiet);font-size:14px;padding:32px 0 0;max-width:620px}
+  .note a{color:var(--quiet)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span style="color:var(--quiet)">network</span></a>
+    <nav class="topnav" aria-label="Network">
+      <a href="/network/">Live map</a>
+      <a href="/network/?mode=airlines">Airlines</a>
+      <a href="/network/search.html">Search</a>
+      <a href="https://docs.flightportrait.com">Docs</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="head">
+      <h1>Missing routes.</h1>
+      <div class="sub">Flights the network hears at one end only. The other end lies past the last receiver. If you know where a flight goes, type the airport and send it.</div>
+      <div class="filters">
+        <input id="airline" type="text" placeholder="Airline, e.g. SIA" maxlength="3" autocomplete="off" spellcheck="false">
+        <span class="count" id="count"></span>
+      </div>
+    </div>
+    <div class="log">
+      <div class="tablewrap">
+        <table class="legs" id="table" hidden>
+          <thead><tr><th>Flight</th><th>Known end</th><th>Missing</th><th class="num">Seen</th><th>Last</th><th>Your answer</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="empty" hidden></div>
+      <button class="more" id="more" hidden>More</button>
+      <div class="note">Answers are checked against what was observed and reviewed before they appear on a flight's page. A route that observation later contradicts is withdrawn. Data ODbL · <a href="https://github.com/flightportrait/network/blob/main/docs/contributions.md">How contributions work</a></div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var API = window.FP_API || "https://data.flightportrait.com";
+  var PAGE = 50;
+  var state = { offset: 0, total: 0, airline: "" };
+  var apts = {};
+  fetch("assets/airports.json").then(function (r) { return r.json(); })
+    .then(function (d) { apts = d; }).catch(function () {});
+
+  function el(id) { return document.getElementById(id); }
+  function esc(x) {
+    return String(x == null ? "" : x).replace(/[&<>"']/g, function (c) {
+      return "&#" + c.charCodeAt(0) + ";";
+    });
+  }
+  function place(code) {
+    var a = apts[code];
+    return esc(code) + (a ? '<span class="city">' + esc(a[0]) + "</span>" : "");
+  }
+  function row(g) {
+    var missing = g.side === "dest" ? "Destination" : "Origin";
+    var hint = g.hint ? ' <span class="city">perhaps ' + esc(g.hint) + "</span>" : "";
+    return "<tr data-cs='" + esc(g.callsign) + "' data-side='" + esc(g.side) + "'>" +
+      "<td class='flight'><a href='/network/flight.html?callsign=" + encodeURIComponent(g.callsign) + "'>" + esc(g.callsign) + "</a></td>" +
+      "<td>" + place(g.known) + "</td>" +
+      "<td>" + missing + hint + "</td>" +
+      "<td class='num'>" + esc(g.n_recent) + "</td>" +
+      "<td>" + esc(g.last_seen) + "</td>" +
+      "<td class='answer'><form><input type='text' maxlength='4' placeholder='Airport' aria-label='Airport code' autocomplete='off' spellcheck='false'><button type='submit'>Send</button></form></td></tr>";
+  }
+
+  function load(reset) {
+    if (reset) { state.offset = 0; el("rows").innerHTML = ""; }
+    var url = API + "/v1/gaps?limit=" + PAGE + "&offset=" + state.offset +
+      (state.airline ? "&airline=" + encodeURIComponent(state.airline) : "");
+    fetch(url).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) {
+          el("table").hidden = true; el("more").hidden = true;
+          el("empty").hidden = false;
+          el("empty").textContent = "The list is not available right now.";
+          return;
+        }
+        state.total = d.total;
+        el("count").textContent = d.total ? d.total + " open" : "";
+        if (!d.total) {
+          el("table").hidden = true; el("more").hidden = true;
+          el("empty").hidden = false;
+          el("empty").textContent = "Nothing missing here.";
+          return;
+        }
+        el("empty").hidden = true; el("table").hidden = false;
+        el("rows").insertAdjacentHTML("beforeend", d.gaps.map(row).join(""));
+        state.offset += d.gaps.length;
+        el("more").hidden = state.offset >= d.total;
+      });
+  }
+
+  el("rows").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var form = e.target, tr = form.closest("tr");
+    var code = form.querySelector("input").value.trim().toUpperCase();
+    if (code.length < 3) return;
+    var body = { callsign: tr.dataset.cs };
+    body[tr.dataset.side === "dest" ? "dest" : "origin"] = code;
+    form.querySelector("button").disabled = true;
+    fetch(API + "/v1/contributions", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); })
+      .then(function (res) {
+        var status = res[0], d = res[1], cell = tr.querySelector(".answer");
+        if (status === 202) {
+          var fails = Object.keys(d.checks).filter(function (k) { return d.checks[k] === "fail"; });
+          cell.innerHTML = fails.length
+            ? "<span class='held'>Received. It does not match what we observed, so it will be looked at closely.</span>"
+            : "<span class='done'>Thank you. " + esc(code) + " is in review.</span>";
+        } else {
+          cell.querySelector("button").disabled = false;
+          var msg = d && d.detail ? d.detail : "Not sent.";
+          var note = cell.querySelector(".no") || document.createElement("div");
+          note.className = "no"; note.textContent = msg;
+          cell.appendChild(note);
+        }
+      }).catch(function () { form.querySelector("button").disabled = false; });
+  });
+
+  el("more").addEventListener("click", function () { load(false); });
+  var timer = null;
+  el("airline").addEventListener("input", function () {
+    clearTimeout(timer);
+    var v = this.value.trim().toUpperCase();
+    timer = setTimeout(function () {
+      if (v === state.airline) return;
+      state.airline = v.length >= 2 ? v : "";
+      load(true);
+    }, 250);
+  });
+  var q = new URLSearchParams(location.search).get("airline");
+  if (q) { el("airline").value = q.toUpperCase(); state.airline = q.toUpperCase(); }
+  load(true);
+})();
+</script>
+</body>
+</html>

@@ -38,6 +38,13 @@ Keep the UUID. Starting from a Pi and a dongle:
 Stations on the map are rounded to about 11 km. We do not store
 feeder IPs.
 
+## Contributing data
+
+Routes the network hears at one end only are listed at
+`/v1/gaps` and on the map's "Missing routes" page. Answers go through
+`POST /v1/contributions`, are checked against observation, and are
+served after review. See [docs/contributions.md](docs/contributions.md).
+
 ## Licenses
 
 Code here is Apache-2.0. Data from the API is ODbL 1.0.
