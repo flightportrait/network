@@ -7,9 +7,10 @@
      Top-down archetype icons, sized by type; no station locations on
      the map (no comparable network plots feeders).
 
-     Basemap: OpenFreemap liberty (community vector tiles, no key,
-     self-hostable when we outgrow the courtesy), reskinned at load by
-     paperify() below. Fallback: the vendored Natural Earth land layer
+     Basemap: OpenFreemap bright (community vector tiles, no key,
+     self-hostable when we outgrow the courtesy), served as drawn; the
+     paper and atlas skins below are optional. Fallback: the vendored
+     Natural Earth land layer
      (assets/land.json) if their tiles are unreachable. MapLibre is
      vendored; the only external requests are basemap tiles and the API. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1222,7 +1223,7 @@
   // Talks to the instance we operate. For local hacking, set
   // window.FP_API before this script.
   var API = window.FP_API || "https://data.flightportrait.com";
-  var BASEMAP = "https://tiles.openfreemap.org/styles/liberty";
+  var BASEMAP = "https://tiles.openfreemap.org/styles/bright";
   var PAPER = [245, 241, 230], INK = [34, 31, 26];
   var state = { aircraft: [], stations: [], generatedAt: 0, ok: false,
                 touched: false, fitted: false, selected: null, fetchedAt: 0 };
@@ -1364,8 +1365,11 @@
     });
     return style;
   }
-  var SKIN = new URLSearchParams(location.search).get("skin") === "atlas"
-    ? atlasify : paperify;
+  // The basemap is served as OpenFreeMap draws it. The paper and atlas
+  // skins stay reachable for comparison: ?skin=paper, ?skin=atlas.
+  var SKIN = { paper: paperify, atlas: atlasify }[
+    new URLSearchParams(location.search).get("skin")] ||
+    function (style) { return style; };
 
   var FALLBACK_STYLE = {
     version: 8,
