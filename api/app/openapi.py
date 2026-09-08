@@ -714,6 +714,12 @@ _SCH_GAP_ROW = _obj({
                                  "time the airframe takes to come back. "
                                  "Null until a few rotations were seen.",
                       nullable=True),
+    "suggested": _arr(_t("string"), description="Airports the evidence "
+                      "allows for the missing end, best first: at the "
+                      "rotation's distance, within the type's range, "
+                      "along the last heard track, ranked by how much "
+                      "the airline is seen flying there. Empty until the "
+                      "rotation is known."),
 })
 
 SCH_GAPS = _obj({
@@ -729,7 +735,7 @@ EX_GAPS = {
               "hint": None, "chain": None, "type": "B78X", "n_recent": 13,
               "last_seen": "2026-09-06",
               "last_heard": {"lat": 12.41, "lon": 106.92, "track": 21},
-              "rotation_km": 3150}],
+              "rotation_km": 3150, "suggested": ["TFU", "CTU"]}],
     "coverage": "observed",
 }
 

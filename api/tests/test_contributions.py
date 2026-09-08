@@ -34,6 +34,10 @@ AIRPORTS_CSV = (
     '"Buenos Aires","yes","SAEZ","EZE","SAEZ",,,,\n'
     '9,"HAAB","large_airport","Bole",8.98,38.8,7625,"AF","ET","ET-AA",'
     '"Addis Ababa","yes","HAAB","ADD","HAAB",,,,\n'
+    '10,"ZUUU","large_airport","Chengdu Shuangliu",30.58,103.95,1625,"AS",'
+    '"CN","CN-51","Chengdu","yes","ZUUU","CTU","ZUUU",,,,\n'
+    '11,"ZBAA","large_airport","Beijing Capital",40.08,116.58,116,"AS","CN",'
+    '"CN-11","Beijing","yes","ZBAA","PEK","ZBAA",,,,\n'
 )
 
 # SIA842 leaves SIN daily and is last heard over Vietnam heading north,
@@ -67,6 +71,11 @@ def _write_gz(path, data):
         json.dump(data, fh)
 
 
+ROUTES = {"SIA800": ["SIN", "PEK"], "SIA802": ["SIN", "PEK"],
+          "SIA850": ["SIN", "TFU"], "SIA632": ["SIN", "NRT"],
+          "SIA224": ["SIN", "PER"], "QFA1": ["SYD", "SIN", "LHR"]}
+
+
 def _setup(ctx, tmp_path, routes=None):
     client, app, sm, settings, readsb = ctx
     airports = tmp_path / "airports.csv"
@@ -78,7 +87,7 @@ def _setup(ctx, tmp_path, routes=None):
     finally:
         session.close()
     _write_gz(tmp_path / "gaps.json.gz", GAPS)
-    _write_gz(tmp_path / "routes.json.gz", routes or {})
+    _write_gz(tmp_path / "routes.json.gz", routes if routes is not None else ROUTES)
     app.state.gaps = GapBook(str(tmp_path / "gaps.json.gz"))
     app.state.routes = RouteBook(str(tmp_path / "routes.json.gz"))
     app.state.legs = LegBook(str(tmp_path / "absent.db"))
@@ -97,7 +106,7 @@ def _pull(sm, app, subs):
         return contributions.pull(session, app.state.gaps,
                                   lambda after: [s for s in pages.pop(0)
                                                  if s["id"] > after]
-                                  if pages else [])
+                                  if pages else [], routes=app.state.routes)
     finally:
         session.close()
 
@@ -165,6 +174,7 @@ def test_corroborated_claim_approves_itself(ctx, tmp_path):
         checks = claim.checks
         assert checks["corridor"] == "pass" and checks["rotation"] == "pass"
         assert checks["type"] == "pass" and checks["mirror"] == "pass"
+        assert checks["network"] == "pass" and checks["unique"] == "pass"
         assert checks["named"] == 1 and checks["keyed"] == 0
         assert contributions.catalog_current(session, "SIA842").dest == "TFU"
     finally:
@@ -365,3 +375,36 @@ def test_open_chain_answer_serves_the_whole_route(ctx, tmp_path):
     assert body["route_source"] == "observed+catalog"
     assert client.get("/v1/gaps/ETH506").json()["catalog"]["route"] == \
         ["ADD", "GRU", "EZE"]
+
+
+def test_suggestions_follow_the_evidence(ctx, tmp_path):
+    """SIA842 from SIN, 3,150 km, heading north-north-east, on a 787:
+    the two Chengdu airports fit, Tianfu first because the airline is
+    seen there; Beijing is too far, Perth is behind the aircraft."""
+    client, _, _ = _setup(ctx, tmp_path)
+    body = client.get("/v1/gaps?airline=SIA").json()
+    by = {g["callsign"]: g for g in body["gaps"]}
+    assert by["SIA842"]["suggested"] == ["TFU", "CTU"]
+    assert by["SIA843"]["suggested"] == []           # no rotation yet
+    assert client.get("/v1/gaps/SIA842").json()["suggested"] == ["TFU", "CTU"]
+
+
+def test_propose_files_the_sole_airport_the_airline_flies_to(ctx, tmp_path):
+    client, app, sm = _setup(ctx, tmp_path)
+    session = sm()
+    try:
+        filed, approved = contributions.propose(session, app.state.gaps,
+                                                app.state.routes)
+        assert (filed, approved) == (1, 1)
+        claim = session.query(Claim).one()
+        assert (claim.callsign, claim.dest, claim.status) == \
+            ("SIA842", "TFU", "approved")
+        assert claim.reviewed_by == "verdict"
+        assert session.query(Endorsement).one().key_name == "evidence"
+        # a second pass leaves it alone
+        assert contributions.propose(session, app.state.gaps,
+                                     app.state.routes) == (0, 0)
+    finally:
+        session.close()
+    assert client.get("/v1/flights/SIA842").json()["route"] == ["SIN", "TFU"]
+    assert client.get("/v1/contributors").json()["contributors"] == []

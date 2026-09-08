@@ -58,3 +58,20 @@ class RouteBook:
     def count(self) -> int:
         self._maybe_load()
         return len(self._routes)
+
+    def by_airline(self) -> dict[str, dict[str, int]]:
+        """{airline prefix: {airport: routes touching it}} over the whole
+        artifact: the network each airline is observed to fly."""
+        self._maybe_load()
+        if getattr(self, "_by_airline_for", None) != self._loaded_mtime:
+            index: dict[str, dict[str, int]] = {}
+            for callsign, chain in self._routes.items():
+                prefix = callsign[:3]
+                if not prefix.isalpha() or len(callsign) < 4:
+                    continue
+                bucket = index.setdefault(prefix, {})
+                for code in chain:
+                    bucket[code] = bucket.get(code, 0) + 1
+            self._by_airline = index
+            self._by_airline_for = self._loaded_mtime
+        return self._by_airline

@@ -100,6 +100,12 @@
     padding:7px 12px;border:1px solid var(--ink);border-radius:6px;
     background:var(--ink);color:var(--paper);cursor:pointer}
   td.answer button:disabled{opacity:.5;cursor:default}
+  td.answer .hints{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  td.answer .hint{font:13px 'Helvetica Neue',Arial,sans-serif;padding:3px 9px;
+    border:1px solid var(--line);border-radius:12px;background:var(--paper);
+    color:var(--ink);cursor:pointer}
+  td.answer .hint:hover{border-color:var(--ink)}
+  td.answer .hint .city{display:inline;font-size:13px;margin-left:4px}
   td.answer .done{color:var(--green)}
   td.answer .held{color:var(--quiet)}
   td.answer .no{color:var(--red)}
@@ -221,7 +227,12 @@
       "<td class='route'>" + route + "</td>" +
       "<td class='num'>" + esc(g.n_recent) + "</td>" +
       "<td>" + esc(g.last_seen) + "</td>" +
-      "<td class='answer'><form><input class='code' type='text' maxlength='4' placeholder='Code' aria-label='Airport code' autocomplete='off' spellcheck='false'><input class='why' type='text' maxlength='280' placeholder='Note, optional' aria-label='Note'><button type='submit'>Send</button></form></td></tr>";
+      "<td class='answer'><form><input class='code' type='text' maxlength='4' placeholder='Code' aria-label='Airport code' autocomplete='off' spellcheck='false'><input class='why' type='text' maxlength='280' placeholder='Note, optional' aria-label='Note'><button type='submit'>Send</button></form>" +
+      ((g.suggested || []).length ? "<div class='hints'>" + g.suggested.map(function (c) {
+        var a = apts[c];
+        return "<button type='button' class='hint' data-code='" + esc(c) + "'>" + esc(c) +
+          (a ? "<span class='city'>" + esc(a[0]) + "</span>" : "") + "</button>";
+      }).join("") + "</div>" : "") + "</td></tr>";
   }
 
   function load(reset) {
@@ -319,6 +330,13 @@
       }).catch(function (err) { fail(err && err.message ? err.message : "Not sent."); });
   });
 
+  el("rows").addEventListener("click", function (e) {
+    var hint = e.target.closest(".hint");
+    if (!hint) return;
+    var form = hint.closest("td").querySelector("form");
+    form.querySelector("input.code").value = hint.dataset.code;
+    form.querySelector("input.code").focus();
+  });
   el("more").addEventListener("click", function () { load(false); });
   var timer = null;
   el("airline").addEventListener("input", function () {

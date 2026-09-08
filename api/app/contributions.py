@@ -15,6 +15,7 @@ the catalog whenever both speak.
     python -m app.contributions approve ID [--from YYYY-MM-DD] [--note ..]
     python -m app.contributions reject ID [--note ..]
     python -m app.contributions reconcile       # close rows observation overtook
+    python -m app.contributions propose         # file what the evidence points at
 """
 import argparse
 import datetime
@@ -40,6 +41,8 @@ CORRIDOR_DEG = 45
 ROTATION_TOLERANCE = 0.25
 ROTATION_FLOOR_KM = 400
 MIN_ROTATIONS = 2
+PROPOSE_ROTATIONS = 3
+SUGGESTIONS = 3
 MAX_CLAIMS_PER_QUESTION = 3
 PURGE_AFTER_DAYS = 90
 PULL_PAGE = 500
@@ -123,9 +126,73 @@ def _mirror_numbers(callsign):
     return [prefix + str(n) for n in (number - 1, number + 1) if n > 0]
 
 
+# ---- candidates ---------------------------------------------------------
+
+class AirportIndex:
+    """Commercial airports with coordinates, loaded once per process
+    from the reference table; the candidate search walks them all."""
+
+    def __init__(self):
+        self.rows = None
+
+    def load(self, session):
+        if self.rows is None:
+            self.rows = [(a.iata or a.ident, a.lat, a.lon) for a in
+                         session.execute(select(RefAirport).where(
+                             RefAirport.role == "commercial",
+                             RefAirport.lat.is_not(None))).scalars()]
+        return self.rows
+
+
+def candidates(session, airports, network, gap, callsign, limit=SUGGESTIONS):
+    """Airports the evidence allows for the missing end, best first:
+    inside the ring the rotation implies, within the type's range,
+    along the last heard track, never the known end or a stop already
+    in the chain. Ranked by how much the airline flies there; airports
+    the airline is never seen at come last. [] when the rotation is
+    still unknown."""
+    est = gap.get("est_km")
+    if not est or (gap.get("n_rot") or 0) < MIN_ROTATIONS:
+        return []
+    known = _airport(session, gap["known"])
+    if known is None or known.lat is None:
+        return []
+    tolerance = max(ROTATION_FLOOR_KM, ROTATION_TOLERANCE * est)
+    reach = RANGE_KM.get(gap.get("type") or "")
+    lat, lon, trk = gap.get("last_lat"), gap.get("last_lon"), gap.get("last_trk")
+    heading = (gap["side"] == "dest" and lat is not None and lon is not None
+               and trk is not None)
+    served = network.get(callsign[:3], {})
+    exclude = {gap["known"], *(gap.get("chain") or [])}
+    out = []
+    for code, alat, alon in airports.load(session):
+        if code in exclude:
+            continue
+        if abs(alat - known.lat) * 111 > est + tolerance:
+            continue
+        d = _distance_km(known.lat, known.lon, alat, alon)
+        if abs(d - est) > tolerance or (reach and d > reach):
+            continue
+        if heading and _angle_between(_bearing(lat, lon, alat, alon), trk) \
+                > CORRIDOR_DEG:
+            continue
+        out.append((-(served.get(code, 0)), abs(d - est), code))
+    out.sort()
+    return [code for _, _, code in out[:limit]]
+
+
+def unique_candidate(session, airports, network, gap, callsign):
+    """The one airport the airline is known to fly to that fits every
+    filter, or None when there is none or more than one."""
+    fitting = candidates(session, airports, network, gap, callsign, limit=50)
+    served = network.get(callsign[:3], {})
+    in_network = [c for c in fitting if served.get(c)]
+    return in_network[0] if len(in_network) == 1 else None
+
+
 # ---- checks -------------------------------------------------------------
 
-def check_claim(session, book, claim):
+def check_claim(session, book, claim, airports=None, network=None):
     """Every test the evidence allows, as {name: pass | fail | skip} plus
     the counts of people behind the claim. verdict() reads the set."""
     gap = book.get(claim.callsign)
@@ -185,6 +252,15 @@ def check_claim(session, book, claim):
             checks["mirror"] = "pass" if answer == claimed else "fail"
             break
 
+    checks["unique"] = "skip"
+    if airports is not None and network is not None:
+        sole = unique_candidate(session, airports, network, gap, claim.callsign)
+        if sole is not None:
+            checks["unique"] = "pass" if sole == claimed else "fail"
+    served = (network or {}).get(claim.callsign[:3], {})
+    checks["network"] = ("pass" if served.get(claimed) else "fail") \
+        if served else "skip"
+
     checks["keyed"] = int(session.execute(
         select(func.count(func.distinct(Endorsement.key_name)))
         .where(Endorsement.claim_id == claim.id,
@@ -199,7 +275,7 @@ def check_claim(session, book, claim):
 
 HARD = ("asked", "known_end", "not_same", "airport", "observation",
         "corridor", "rotation", "type", "mirror")
-CORROBORATING = ("corridor", "rotation", "mirror")
+CORROBORATING = ("corridor", "rotation", "mirror", "unique")
 
 
 def verdict(checks):
@@ -265,12 +341,12 @@ def file_submission(session, book, sub, now=None):
     return claim
 
 
-def evaluate(session, book, claim, now=None):
+def evaluate(session, book, claim, now=None, airports=None, network=None):
     """Run the checks, record the verdict, act when the evidence is
     decisive. Pending claims are evaluated on every pull, since the
     artifact behind the checks refreshes nightly."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
-    claim.checks = check_claim(session, book, claim)
+    claim.checks = check_claim(session, book, claim, airports, network)
     if claim.status != "pending" or claim.verdict == "contested":
         return claim.status
     claim.verdict = verdict(claim.checks)
@@ -322,10 +398,12 @@ def fetch_submissions(url, token, after, limit=PULL_PAGE):
         return json.load(resp).get("submissions", [])
 
 
-def pull(session, book, fetch, now=None):
+def pull(session, book, fetch, now=None, routes=None):
     """File everything new at the edge, evaluate every pending claim,
     purge what is old and rejected. Returns the summary counts."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
+    airports = AirportIndex()
+    network = routes.by_airline() if routes is not None else {}
     state = session.get(PullState, 1)
     if state is None:
         state = PullState(id=1, cursor=0)
@@ -348,7 +426,7 @@ def pull(session, book, fetch, now=None):
     counts.update({"approved": 0, "rejected": 0})
     for claim in session.execute(
             select(Claim).where(Claim.status == "pending")).scalars().all():
-        status = evaluate(session, book, claim, now)
+        status = evaluate(session, book, claim, now, airports, network)
         if status in ("approved", "rejected"):
             counts[status] += 1
     cutoff = now - datetime.timedelta(days=PURGE_AFTER_DAYS)
@@ -366,6 +444,39 @@ def pull(session, book, fetch, now=None):
         .where(Claim.status == "pending")).scalar_one()
     session.commit()
     return counts
+
+
+def propose(session, book, routes, now=None):
+    """Where the evidence leaves exactly one airport the airline flies
+    to, file that as a claim and judge it like any other. Returns
+    (filed, approved). Questions with an open or approved claim, or too
+    few rotations, are left alone."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    airports = AirportIndex()
+    network = routes.by_airline()
+    taken = {cs for (cs,) in session.execute(
+        select(Claim.callsign).where(Claim.status != "rejected"))}
+    filed = approved = 0
+    for callsign, gap in book.page(0, book.count())[0]:
+        if callsign in taken or (gap.get("n_rot") or 0) < PROPOSE_ROTATIONS:
+            continue
+        code = unique_candidate(session, airports, network, gap, callsign)
+        if code is None:
+            continue
+        sub = {"callsign": callsign, "key_name": "evidence",
+               "note": "the one airport the airline flies to at this "
+                       "distance and heading"}
+        sub["dest" if gap["side"] == "dest" else "origin"] = code
+        claim = file_submission(session, book, sub, now)
+        if claim is None:
+            continue
+        filed += 1
+        if evaluate(session, book, claim, now, airports, network) == "approved":
+            approved += 1
+        if filed % 200 == 0:
+            session.commit()
+    session.commit()
+    return filed, approved
 
 
 # ---- routes -------------------------------------------------------------
@@ -413,7 +524,8 @@ def gaps(request: Request, response: Response,
                                      description="ICAO airline prefix."),
          side: str | None = Query(None, pattern="^(origin|dest)$"),
          limit: int = Query(50, ge=1, le=200),
-         offset: int = Query(0, ge=0)):
+         offset: int = Query(0, ge=0),
+         session=Depends(get_session)):
     settings = request.app.state.settings
     ratelimit.throttle(request, settings.gaps_rate_limit,
                        settings.rate_window_s, bucket="gaps")
@@ -423,10 +535,24 @@ def gaps(request: Request, response: Response,
     rows, total = book.page(offset, limit,
                             airline=(airline or "").upper() or None,
                             side=side)
+    airports, network = _indexes(request)
+    out = []
+    for cs, g in rows:
+        row = _gap_row(cs, g)
+        row["suggested"] = candidates(session, airports, network, g, cs)
+        out.append(row)
     response.headers["Cache-Control"] = CACHE
-    return {"total": total, "offset": offset,
-            "gaps": [_gap_row(cs, g) for cs, g in rows],
+    return {"total": total, "offset": offset, "gaps": out,
             "coverage": "observed"}
+
+
+def _indexes(request):
+    state = request.app.state
+    if not hasattr(state, "airport_index"):
+        state.airport_index = AirportIndex()
+    routes = state.routes
+    network = routes.by_airline() if routes.available() else {}
+    return state.airport_index, network
 
 
 @router.get(
@@ -455,6 +581,8 @@ def gap(callsign: spec.Callsign, request: Request, response: Response,
     if found is None:
         raise ApiError(404, "not_found", "no open question")
     out = _gap_row(callsign, found)
+    airports, network = _indexes(request)
+    out["suggested"] = candidates(session, airports, network, found, callsign)
     current = catalog_current(session, callsign)
     out["catalog"] = ({"route": catalog_route(current),
                        "valid_from": str(current.valid_from)}
@@ -580,6 +708,7 @@ def main(argv=None):
     p = sub.add_parser("reject"); p.add_argument("id", type=int)
     p.add_argument("--note")
     sub.add_parser("reconcile")
+    sub.add_parser("propose")
     args = ap.parse_args(argv)
 
     from .gaps_db import GapBook
@@ -597,7 +726,7 @@ def main(argv=None):
                 sys.exit("the gaps artifact is not loaded")
             counts = pull(session, book, lambda after: fetch_submissions(
                 settings.contribute_pull_url, settings.contribute_pull_token,
-                after))
+                after), routes=RouteBook(settings.routes_path))
             print("pull: " + ", ".join("%s %d" % kv for kv in counts.items()))
             if counts["pending"] > settings.contribute_pending_alert \
                     or counts["received"] > settings.contribute_received_alert:
@@ -628,6 +757,13 @@ def main(argv=None):
             for callsign, reason in closed:
                 print("closed %s: %s" % (callsign, reason))
             print("%d closed" % len(closed))
+        elif args.cmd == "propose":
+            book = GapBook(settings.gaps_path)
+            if not book.available():
+                sys.exit("the gaps artifact is not loaded")
+            filed, approved = propose(session, book,
+                                      RouteBook(settings.routes_path))
+            print("propose: filed %d, approved %d" % (filed, approved))
     finally:
         session.close()
 

@@ -29,6 +29,11 @@ has an open question and the airport is a commercial field.
 The network files each answer as a claim, with the people behind it,
 and checks the claim against what was observed:
 
+Where the rotation is known, each question also lists the airports the
+evidence allows, best first: at that distance, within the aircraft's
+range, along the last heard track, ranked by how much the airline is
+seen flying there. Pick one, or type another.
+
 | check | meaning |
 |---|---|
 | corridor | lies along the track the aircraft was last heard on |
@@ -36,7 +41,13 @@ and checks the claim against what was observed:
 | type | within the aircraft type's range |
 | mirror | agrees with what is known about the return flight |
 | observation | agrees with the rare sighting of that end, when there was one |
+| unique | the one airport the airline flies to that fits every filter |
+| network | the airline is seen flying there elsewhere |
 | keyed | distinct key holders who said the same |
+
+When the filters leave exactly one airport the airline flies to, the
+network files that answer itself each night and judges it like any
+other; such claims carry the endorser `evidence`.
 
 A claim with no failing check and two corroborating signals enters the
 catalog on its own. A claim that fails a check is closed. Anything in
