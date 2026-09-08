@@ -201,21 +201,34 @@
       });
   }
 
-  var widget = null;
+  var widgetId = null, pending = null;
+  function whenReady() {
+    return new Promise(function (resolve) {
+      (function poll(tries) {
+        if (window.turnstile && typeof turnstile.render === "function") { resolve(); return; }
+        if (tries > 50) { resolve(); return; }
+        setTimeout(function () { poll(tries + 1); }, 200);
+      })(0);
+    });
+  }
   function verify() {
-    return new Promise(function (resolve, reject) {
-      if (!window.turnstile) { reject(new Error("verification unavailable")); return; }
-      if (widget === null) {
-        widget = turnstile.render("#turnstile", {
-          sitekey: SITEKEY, size: "invisible", execution: "execute",
-          callback: function (token) { widget.done(token); },
-          "error-callback": function () { widget.fail(new Error("verification failed")); }
-        });
-        widget = { id: widget };
+    return whenReady().then(function () {
+      if (!window.turnstile || typeof turnstile.render !== "function") {
+        throw new Error("verification unavailable");
       }
-      widget.done = resolve; widget.fail = reject;
-      turnstile.reset(widget.id);
-      turnstile.execute(widget.id);
+      return new Promise(function (resolve, reject) {
+        pending = { resolve: resolve, reject: reject };
+        if (widgetId === null) {
+          widgetId = turnstile.render("#turnstile", {
+            sitekey: SITEKEY, execution: "execute",
+            callback: function (token) { if (pending) pending.resolve(token); },
+            "error-callback": function () { if (pending) pending.reject(new Error("verification failed")); }
+          });
+        } else {
+          turnstile.reset(widgetId);
+        }
+        turnstile.execute(widgetId);
+      });
     });
   }
 
