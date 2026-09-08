@@ -35,7 +35,7 @@
     -webkit-font-smoothing:antialiased}
   .caps{font-family:'Helvetica Neue',Arial,sans-serif;
     font-size:12px;letter-spacing:.1em}
-  .wrap{max-width:960px;margin:0 auto;padding:0 24px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
   .topbar{position:sticky;top:0;z-index:5;background:var(--paper)}
   .topbar .wrap{max-width:1000px;display:flex;align-items:center;
     justify-content:space-between;height:64px;gap:18px}
@@ -56,9 +56,15 @@
   .filters input{font:15px 'Helvetica Neue',Arial,sans-serif;
     padding:8px 12px;border:1px solid var(--line);border-radius:6px;
     background:var(--card);color:var(--ink);outline:none;width:150px}
-  .filters input#handle{width:220px}
   .filters input:focus{border-color:var(--ink)}
   .filters .count{color:var(--quiet);font-size:15px}
+  .who{margin-left:auto;display:none;align-items:center;gap:8px;
+    color:var(--quiet);font-size:15px}
+  .who.show{display:inline-flex}
+  .who button{background:none;border:0;padding:2px;cursor:pointer;
+    color:var(--quiet);display:inline-flex}
+  .who button:hover{color:var(--red)}
+  .who svg{width:15px;height:15px}
 
   .log{padding:22px 0 60px}
   .tablewrap{overflow-x:auto}
@@ -76,14 +82,14 @@
     line-height:1.3}
   td.flight a{color:var(--ink);text-decoration:none}
   td.flight a:hover{color:var(--red)}
-  td.answer{min-width:360px}
+  table.legs td.answer{white-space:normal;min-width:300px}
   td.answer form{display:flex;gap:8px;align-items:center}
   td.answer input{font:15px 'Helvetica Neue',Arial,sans-serif;
-    width:78px;padding:6px 10px;
-    border:1px solid var(--line);border-radius:6px;background:var(--card);
-    color:var(--ink);outline:none}
-  td.answer input.code{text-transform:uppercase}
-  td.answer input.why{width:170px;text-transform:none}
+    padding:6px 10px;border:1px solid var(--line);border-radius:6px;
+    background:var(--card);color:var(--ink);outline:none;min-width:0}
+  td.answer input.code{width:64px;flex:0 0 64px;text-transform:uppercase}
+  td.answer input.code::placeholder{text-transform:none}
+  td.answer input.why{flex:1 1 120px}
   td.answer input:focus{border-color:var(--ink)}
   td.answer button{font:14px 'Helvetica Neue',Arial,sans-serif;
     padding:7px 12px;border:1px solid var(--ink);border-radius:6px;
@@ -98,6 +104,26 @@
   .empty{padding:40px 0;color:var(--quiet)}
   .note{color:var(--quiet);font-size:14px;padding:32px 0 0;max-width:620px}
   .note a{color:var(--quiet)}
+
+  dialog{border:1px solid var(--line);border-radius:10px;background:var(--card);
+    color:var(--ink);padding:26px 28px;max-width:380px;width:calc(100% - 48px);
+    box-shadow:0 18px 50px rgba(34,31,26,.18)}
+  dialog::backdrop{background:rgba(34,31,26,.28)}
+  dialog h2{font-size:22px;font-weight:400;margin:0 0 8px}
+  dialog p{color:var(--quiet);font-size:15px;line-height:1.5;margin:0 0 16px}
+  dialog input{width:100%;font:16px 'Helvetica Neue',Arial,sans-serif;
+    padding:9px 12px;border:1px solid var(--line);border-radius:6px;
+    background:var(--paper);color:var(--ink);outline:none}
+  dialog input:focus{border-color:var(--ink)}
+  dialog .actions{display:flex;gap:10px;justify-content:flex-end;
+    align-items:center;margin-top:18px}
+  dialog button{font:14px 'Helvetica Neue',Arial,sans-serif;padding:8px 14px;
+    border-radius:6px;cursor:pointer;border:1px solid var(--line);
+    background:var(--paper);color:var(--ink)}
+  dialog button.primary{background:var(--ink);color:var(--paper);
+    border-color:var(--ink)}
+  dialog button.quiet{border:0;background:none;color:var(--quiet);
+    margin-right:auto;padding-left:0}
 </style>
 </head>
 <body>
@@ -121,8 +147,8 @@
       <div class="sub">Flights the network hears at one end only. The other end lies past the last receiver. If you know where a flight goes, type the airport and send it.</div>
       <div class="filters">
         <input id="airline" type="text" placeholder="Airline, e.g. SIA" maxlength="3" autocomplete="off" spellcheck="false">
-        <input id="handle" type="text" placeholder="Your name, if you want credit" maxlength="40" autocomplete="nickname" spellcheck="false">
         <span class="count" id="count"></span>
+        <span class="who" id="who"><span id="who-text"></span><button type="button" id="who-edit" aria-label="Change how you are credited" title="Change"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button></span>
       </div>
     </div>
     <div class="log">
@@ -135,6 +161,18 @@
       <div class="empty" id="empty" hidden></div>
       <button class="more" id="more" hidden>More</button>
       <div id="turnstile"></div>
+      <dialog id="namebox">
+        <form method="dialog">
+          <h2>Your name</h2>
+          <p>Answers that reach the catalog are credited to a name on the contributors page. Leave it empty to stay anonymous. You can change it any time.</p>
+          <input id="name-input" type="text" maxlength="40" placeholder="Name or handle" autocomplete="nickname" spellcheck="false">
+          <div class="actions">
+            <button type="button" class="quiet" id="name-clear" hidden>Forget my name</button>
+            <button type="button" id="name-anon">Stay anonymous</button>
+            <button type="button" class="primary" id="name-save">Use this name</button>
+          </div>
+        </form>
+      </dialog>
       <div class="note">Answers are checked against what was observed and reviewed before they appear on a flight's page. A route that observation later contradicts is withdrawn. Data ODbL · <a href="/network/contributors.html">Contributors</a> · <a href="https://github.com/flightportrait/network/blob/main/docs/contributions.md">How contributions work</a></div>
     </div>
   </div>
@@ -171,7 +209,7 @@
       "<td>" + missing + hint + "</td>" +
       "<td class='num'>" + esc(g.n_recent) + "</td>" +
       "<td>" + esc(g.last_seen) + "</td>" +
-      "<td class='answer'><form><input class='code' type='text' maxlength='4' placeholder='Airport' aria-label='Airport code' autocomplete='off' spellcheck='false'><input class='why' type='text' maxlength='280' placeholder='Note, optional' aria-label='Note'><button type='submit'>Send</button></form></td></tr>";
+      "<td class='answer'><form><input class='code' type='text' maxlength='4' placeholder='Code' aria-label='Airport code' autocomplete='off' spellcheck='false'><input class='why' type='text' maxlength='280' placeholder='Note, optional' aria-label='Note'><button type='submit'>Send</button></form></td></tr>";
   }
 
   function load(reset) {
@@ -241,8 +279,6 @@
     body[tr.dataset.side === "dest" ? "dest" : "origin"] = code;
     var why = form.querySelector("input.why").value.trim();
     if (why) body.note = why;
-    var who = el("handle").value.trim();
-    if (who) body.handle = who;
     var button = form.querySelector("button"), cell = tr.querySelector(".answer");
     button.disabled = true;
     function fail(msg) {
@@ -251,7 +287,10 @@
       note.className = "no"; note.textContent = msg;
       cell.appendChild(note);
     }
-    verify().then(function (token) {
+    (identity.set ? Promise.resolve() : askName()).then(function () {
+      if (identity.handle) body.handle = identity.handle;
+      return verify();
+    }).then(function (token) {
       body.turnstile = token;
       return fetch(DOOR + "/contributions", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -279,12 +318,56 @@
       load(true);
     }, 250);
   });
+  var identity = { set: false, handle: "" };
   try {
-    el("handle").value = localStorage.getItem("fp-handle") || "";
+    identity.set = localStorage.getItem("fp-handle-set") === "1";
+    identity.handle = localStorage.getItem("fp-handle") || "";
   } catch (e) {}
-  el("handle").addEventListener("change", function () {
-    try { localStorage.setItem("fp-handle", this.value.trim()); } catch (e) {}
+  function showWho() {
+    el("who").classList.toggle("show", identity.set);
+    el("who-text").textContent = identity.handle
+      ? "Contributing as " + identity.handle : "Contributing anonymously";
+  }
+  function remember(handle) {
+    identity.set = true; identity.handle = handle;
+    try {
+      localStorage.setItem("fp-handle-set", "1");
+      localStorage.setItem("fp-handle", handle);
+    } catch (e) {}
+    showWho();
+  }
+  var nameWaiting = null;
+  function release() {
+    if (nameWaiting) { var r = nameWaiting; nameWaiting = null; r(); }
+  }
+  function askName() {
+    return new Promise(function (resolve) {
+      nameWaiting = resolve;
+      el("name-input").value = identity.handle;
+      el("name-clear").hidden = !identity.handle;
+      el("namebox").showModal();
+      el("name-input").focus();
+    });
+  }
+  function settle(handle) {
+    remember(handle);
+    el("namebox").close();
+    release();
+  }
+  el("name-save").addEventListener("click", function () {
+    settle(el("name-input").value.trim());
   });
+  el("name-anon").addEventListener("click", function () { settle(""); });
+  el("name-clear").addEventListener("click", function () { settle(""); });
+  el("namebox").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); settle(el("name-input").value.trim()); }
+  });
+  el("namebox").addEventListener("cancel", function (e) {
+    e.preventDefault();
+    if (identity.set) { el("namebox").close(); release(); } else { settle(""); }
+  });
+  el("who-edit").addEventListener("click", function () { askName(); });
+  showWho();
   var q = new URLSearchParams(location.search).get("airline");
   if (q) { el("airline").value = q.toUpperCase(); state.airline = q.toUpperCase(); }
   load(true);
