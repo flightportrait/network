@@ -39,6 +39,10 @@ GAPS = {
     "QFA9": {"side": "dest", "known": "PER", "hint": None,
              "n_recent": 3, "last_seen": "2026-09-01",
              "last_lat": None, "last_lon": None, "last_trk": None},
+    # A registration flying as its own callsign is not a question.
+    "CFSUG": {"side": "dest", "known": "YEG", "hint": None,
+              "n_recent": 420, "last_seen": "2026-09-07",
+              "last_lat": None, "last_lon": None, "last_trk": None},
 }
 
 

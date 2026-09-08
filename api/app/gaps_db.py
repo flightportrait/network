@@ -8,7 +8,12 @@ reload-on-mtime posture as RouteBook."""
 import gzip
 import json
 import os
+import re
 import time
+
+# A route belongs to a flight number: airline prefix and a number. A
+# registration flying as its own callsign has nowhere to be asked about.
+FLIGHT_NUMBER = re.compile(r"^[A-Z]{3}\d{1,4}[A-Z]{0,2}$")
 
 
 class GapBook:
@@ -38,7 +43,8 @@ class GapBook:
                 data = json.load(fh)
             if isinstance(data, dict):
                 self._gaps = {k.strip().upper(): v for k, v in data.items()
-                              if isinstance(v, dict)}
+                              if isinstance(v, dict)
+                              and FLIGHT_NUMBER.match(k.strip().upper())}
                 # Most-seen first: the answer worth the most sits on top.
                 self._ordered = sorted(
                     self._gaps.items(),
