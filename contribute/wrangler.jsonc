@@ -1,0 +1,11 @@
+{
+  "name": "fp-contribute",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "routes": [{ "pattern": "contribute.flightportrait.com", "custom_domain": true }],
+  "vars": { "API": "https://data.flightportrait.com" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "fp-contribute", "database_id": "2ad55d8f-5e22-4cd2-99a5-f5a818e9b4a3" }
+  ],
+  "observability": { "enabled": true }
+}

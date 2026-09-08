@@ -20,6 +20,9 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F5F1E6">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="fp-door" content="https://contribute.flightportrait.com">
+<meta name="fp-turnstile" content="0x4AAAAAAEsZzYW2StzNWq-h">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <style>
   :root{
     --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
@@ -131,6 +134,7 @@
       </div>
       <div class="empty" id="empty" hidden></div>
       <button class="more" id="more" hidden>More</button>
+      <div id="turnstile"></div>
       <div class="note">Answers are checked against what was observed and reviewed before they appear on a flight's page. A route that observation later contradicts is withdrawn. Data ODbL · <a href="/network/contributors.html">Contributors</a> · <a href="https://github.com/flightportrait/network/blob/main/docs/contributions.md">How contributions work</a></div>
     </div>
   </div>
@@ -140,6 +144,8 @@
 (function () {
   "use strict";
   var API = window.FP_API || "https://data.flightportrait.com";
+  var DOOR = document.querySelector('meta[name="fp-door"]').content;
+  var SITEKEY = document.querySelector('meta[name="fp-turnstile"]').content;
   var PAGE = 50;
   var state = { offset: 0, total: 0, airline: "" };
   var apts = {};
@@ -195,6 +201,24 @@
       });
   }
 
+  var widget = null;
+  function verify() {
+    return new Promise(function (resolve, reject) {
+      if (!window.turnstile) { reject(new Error("verification unavailable")); return; }
+      if (widget === null) {
+        widget = turnstile.render("#turnstile", {
+          sitekey: SITEKEY, size: "invisible", execution: "execute",
+          callback: function (token) { widget.done(token); },
+          "error-callback": function () { widget.fail(new Error("verification failed")); }
+        });
+        widget = { id: widget };
+      }
+      widget.done = resolve; widget.fail = reject;
+      turnstile.reset(widget.id);
+      turnstile.execute(widget.id);
+    });
+  }
+
   el("rows").addEventListener("submit", function (e) {
     e.preventDefault();
     var form = e.target, tr = form.closest("tr");
@@ -206,26 +230,29 @@
     if (why) body.note = why;
     var who = el("handle").value.trim();
     if (who) body.handle = who;
-    form.querySelector("button").disabled = true;
-    fetch(API + "/v1/contributions", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+    var button = form.querySelector("button"), cell = tr.querySelector(".answer");
+    button.disabled = true;
+    function fail(msg) {
+      button.disabled = false;
+      var note = cell.querySelector(".no") || document.createElement("div");
+      note.className = "no"; note.textContent = msg;
+      cell.appendChild(note);
+    }
+    verify().then(function (token) {
+      body.turnstile = token;
+      return fetch(DOOR + "/contributions", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
     }).then(function (r) { return r.json().then(function (d) { return [r.status, d]; }); })
       .then(function (res) {
-        var status = res[0], d = res[1], cell = tr.querySelector(".answer");
+        var status = res[0], d = res[1];
         if (status === 202) {
-          var fails = Object.keys(d.checks).filter(function (k) { return d.checks[k] === "fail"; });
-          cell.innerHTML = fails.length
-            ? "<span class='held'>Received. It does not match what we observed, so it will be looked at closely.</span>"
-            : "<span class='done'>Thank you. " + esc(code) + " is in review.</span>";
+          cell.innerHTML = "<span class='done'>Thank you. " + esc(code) + " is being checked.</span>";
         } else {
-          cell.querySelector("button").disabled = false;
-          var msg = d && d.detail ? d.detail : "Not sent.";
-          var note = cell.querySelector(".no") || document.createElement("div");
-          note.className = "no"; note.textContent = msg;
-          cell.appendChild(note);
+          fail(d && d.detail ? d.detail : "Not sent.");
         }
-      }).catch(function () { form.querySelector("button").disabled = false; });
+      }).catch(function (err) { fail(err && err.message ? err.message : "Not sent."); });
   });
 
   el("more").addEventListener("click", function () { load(false); });

@@ -13,7 +13,8 @@ posture sours: DELETE WHERE source = X, re-derive, done.
 """
 import datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, JSON, String
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, JSON, \
+    String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -239,37 +240,68 @@ class RefImport(Base):
         DateTime(timezone=True), nullable=False, default=utcnow)
 
 
-class Contribution(Base):
-    """One community answer to a published gap, exactly as submitted,
-    with the checks the service ran against observation at the time.
-    Never served as fact: an approved contribution is copied into
-    RouteCatalog, and the row here stays as the audit trail."""
-    __tablename__ = "contributions"
+class Claim(Base):
+    """One distinct answer to an open question: this callsign flies this
+    route. Everyone who says so is an Endorsement beneath it; anonymous
+    repeats with nothing to add only raise anonymous_count. Never served
+    as fact: an approved claim is copied into RouteCatalog."""
+    __tablename__ = "claims"
+    __table_args__ = (UniqueConstraint("callsign", "origin", "dest",
+                                       name="uq_claims_route"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    kind: Mapped[str] = mapped_column(String(12), nullable=False)   # route
     callsign: Mapped[str] = mapped_column(String(12), index=True)
-    origin: Mapped[str | None] = mapped_column(String(4), nullable=True)
-    dest: Mapped[str | None] = mapped_column(String(4), nullable=True)
-    valid_from: Mapped[datetime.date | None] = mapped_column(
-        Date, nullable=True)
-    note: Mapped[str | None] = mapped_column(String(280), nullable=True)
-    # The name credited publicly, chosen by the contributor; contact
-    # stays private and is never served.
-    handle: Mapped[str | None] = mapped_column(String(40), nullable=True,
-                                               index=True)
-    contact: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    origin: Mapped[str] = mapped_column(String(4), nullable=False)
+    dest: Mapped[str] = mapped_column(String(4), nullable=False)
     # pending | approved | rejected
     status: Mapped[str] = mapped_column(String(12), nullable=False,
                                        default="pending", index=True)
-    # The vetting result: {"ok": bool, "checks": {name: pass|fail|skip}}.
+    # corroborated | contradicted | unverified | contested
+    verdict: Mapped[str | None] = mapped_column(String(14), nullable=True)
     checks: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    submitted_at: Mapped[datetime.datetime] = mapped_column(
+    anonymous_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                 default=0)
+    first_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False)
+    last_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False)
     reviewed_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+    # operator | verdict
+    reviewed_by: Mapped[str | None] = mapped_column(String(12), nullable=True)
     review_note: Mapped[str | None] = mapped_column(String(280),
                                                     nullable=True)
+
+
+class Endorsement(Base):
+    """A person behind a claim: the name they chose, their note, the key
+    they sent if any. contact never existed here by design."""
+    __tablename__ = "endorsements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    claim_id: Mapped[int] = mapped_column(ForeignKey("claims.id"),
+                                          index=True)
+    handle: Mapped[str | None] = mapped_column(String(40), nullable=True,
+                                               index=True)
+    note: Mapped[str | None] = mapped_column(String(280), nullable=True)
+    key_name: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    valid_from: Mapped[datetime.date | None] = mapped_column(
+        Date, nullable=True)
+    received_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False)
+    # The edge submission this came from; one endorsement per submission.
+    source_id: Mapped[int | None] = mapped_column(Integer, nullable=True,
+                                                  unique=True)
+
+
+class PullState(Base):
+    """Where the pull left off: the last edge submission id filed."""
+    __tablename__ = "pull_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cursor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    pulled_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
 
 
 class RouteCatalog(Base):
@@ -289,8 +321,8 @@ class RouteCatalog(Base):
                                                            nullable=True)
     source: Mapped[str] = mapped_column(String(12), nullable=False,
                                        default="community")
-    contribution_id: Mapped[int | None] = mapped_column(
-        ForeignKey("contributions.id"), nullable=True)
+    claim_id: Mapped[int | None] = mapped_column(ForeignKey("claims.id"),
+                                                 nullable=True)
     approved_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False)
     # Why a row closed: superseded, contradicted (by observation), withdrawn.

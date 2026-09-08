@@ -108,10 +108,16 @@ class Settings:
         "NETWORK_API_GAPS_PATH", "data/gaps.json.gz"))
     gaps_rate_limit: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_GAPS_RATE_LIMIT", 300))
-    # Contributions are writes from strangers: a small bucket, and every
-    # submission is reviewed before it can be served.
-    contribute_rate_limit: int = field(default_factory=lambda: _env_int(
-        "NETWORK_API_CONTRIBUTE_RATE_LIMIT", 30))
+    # The contribution door lives at the edge (contribute/); this service
+    # pulls from it. Unset = the pull command refuses to run.
+    contribute_pull_url: str = field(default_factory=lambda: _env(
+        "NETWORK_API_CONTRIBUTE_PULL_URL", ""))
+    contribute_pull_token: str = field(default_factory=lambda: _env(
+        "NETWORK_API_CONTRIBUTE_PULL_TOKEN", ""))
+    contribute_pending_alert: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_CONTRIBUTE_PENDING_ALERT", 500))
+    contribute_received_alert: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_CONTRIBUTE_RECEIVED_ALERT", 300))
     # Per-airframe flight logs (SQLite artifact, legs_db.py).
     legs_path: str = field(default_factory=lambda: _env(
         "NETWORK_API_LEGS_PATH", "data/legs.db"))

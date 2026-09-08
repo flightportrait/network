@@ -1,12 +1,15 @@
-"""Gaps, contributions, the catalog.
+"""Gaps, claims, the catalog.
 
-The network publishes what observation could not settle (gaps: one end
-of a callsign's route seen, the other never), takes answers through one
-narrow door, checks each against what was observed, and serves an
-answer only after the operator approves it into the catalog. Observation
-outranks the catalog whenever both speak; a catalog row that observation
-later contradicts is closed, and the question reopens.
+The network publishes what observation could not settle: callsigns
+whose route is known at one end only. Answers arrive at the edge door
+(contribute/), never here; this service pulls them, files each as a
+claim with the people behind it, checks the claim against what was
+observed, and serves it only once approved into the catalog. A claim
+the evidence corroborates approves itself; one the evidence contradicts
+rejects itself; the rest wait for the operator. Observation outranks
+the catalog whenever both speak.
 
+    python -m app.contributions pull            # file new submissions
     python -m app.contributions list            # pending, with checks
     python -m app.contributions show ID
     python -m app.contributions approve ID [--from YYYY-MM-DD] [--note ..]
@@ -15,23 +18,51 @@ later contradicts is closed, and the question reopens.
 """
 import argparse
 import datetime
+import json
 import math
+import re
 import sys
+import urllib.request
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_, select
 
 from . import openapi as spec
 from . import ratelimit
 from .db import get_session, make_sessionmaker
 from .errors import ApiError
-from .refdata_models import Contribution, RefAirport, RouteCatalog
+from .refdata_models import Claim, Endorsement, PullState, RefAirport, \
+    RouteCatalog
 
 router = APIRouter()
 CACHE = "public, s-maxage=600"
-CORRIDOR_DEG = 45          # how far off its last track a claimed end may lie
-AGREE_STATUSES = ("pending", "approved")
+CORRIDOR_DEG = 45
+ROTATION_TOLERANCE = 0.25
+ROTATION_FLOOR_KM = 400
+MIN_ROTATIONS = 2
+MAX_CLAIMS_PER_QUESTION = 3
+PURGE_AFTER_DAYS = 90
+PULL_PAGE = 500
+FLIGHT_NUMBER = re.compile(r"^([A-Z]{3})0*(\d+)[A-Z]{0,2}$")
+
+# Still-air range, km, by ICAO type designator: a claim beyond it is wrong.
+RANGE_KM = {
+    "A318": 5700, "A319": 6900, "A320": 6100, "A321": 5900, "A19N": 6900,
+    "A20N": 6300, "A21N": 7400, "A306": 7500, "A310": 9600, "A332": 13400,
+    "A333": 11700, "A338": 15000, "A339": 13300, "A342": 13800, "A343": 13500,
+    "A345": 16000, "A346": 14400, "A359": 15000, "A35K": 16000, "A388": 15000,
+    "B712": 3800, "B733": 4400, "B734": 4200, "B735": 4400, "B736": 5600,
+    "B737": 6300, "B738": 5700, "B739": 5900, "B37M": 7000, "B38M": 6500,
+    "B39M": 6500, "B3XM": 6100, "B744": 13400, "B748": 14300, "B752": 7200,
+    "B753": 6400, "B762": 7300, "B763": 11000, "B764": 10400, "B772": 9700,
+    "B773": 11000, "B77L": 15800, "B77W": 14000, "B788": 13600, "B789": 14000,
+    "B78X": 11900, "MD11": 12000, "MD82": 3800, "MD83": 4600, "MD88": 4100,
+    "E170": 3900, "E175": 4000, "E75L": 4000, "E190": 4500, "E195": 4200,
+    "E290": 5300, "E295": 4900, "CRJ2": 3000, "CRJ7": 3600, "CRJ9": 2900,
+    "CRJX": 3000, "AT72": 1500, "AT75": 1500, "AT76": 1500, "DH8D": 2000,
+    "DH8C": 1700, "DH8B": 1700, "DH8A": 1700, "BCS1": 6400, "BCS3": 6300,
+    "SU95": 4600, "C919": 5500,
+}
 
 
 # ---- lookups ------------------------------------------------------------
@@ -71,27 +102,50 @@ def _angle_between(a, b):
     return abs((a - b + 180) % 360 - 180)
 
 
-# ---- vetting ------------------------------------------------------------
+def _distance_km(lat1, lon1, lat2, lon2):
+    la1, la2 = math.radians(lat1), math.radians(lat2)
+    dl = math.radians(lon2 - lon1)
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) \
+        * math.sin(dl / 2) ** 2
+    return 2 * 6371 * math.asin(min(1.0, math.sqrt(h)))
 
-def vet(session, gap, callsign, origin, dest):
-    """Check one route answer against the gap it answers. Returns
-    (checks, airport_row): checks is {name: pass | fail | skip}. Nothing
-    here decides; the operator does, with these in front of them."""
-    checks = {}
+
+def _mirror_numbers(callsign):
+    """The flight numbers one apart: an outbound's return, usually."""
+    m = FLIGHT_NUMBER.match(callsign)
+    if not m:
+        return []
+    prefix, number = m.group(1), int(m.group(2))
+    return [prefix + str(n) for n in (number - 1, number + 1) if n > 0]
+
+
+# ---- checks -------------------------------------------------------------
+
+def check_claim(session, book, claim):
+    """Every test the evidence allows, as {name: pass | fail | skip} plus
+    the counts of people behind the claim. verdict() reads the set."""
+    gap = book.get(claim.callsign)
+    if gap is None:
+        return {"asked": "fail"}
+    checks = {"asked": "pass"}
     side = gap["side"]
-    claimed = dest if side == "dest" else origin
-    given_known = origin if side == "dest" else dest
-    checks["known_end"] = ("pass" if not given_known
-                           or given_known == gap["known"] else "fail")
+    claimed = claim.dest if side == "dest" else claim.origin
+    given_known = claim.origin if side == "dest" else claim.dest
+    checks["known_end"] = "pass" if given_known == gap["known"] else "fail"
     checks["not_same"] = "pass" if claimed != gap["known"] else "fail"
     airport = _airport(session, claimed)
+    known = _airport(session, gap["known"])
     checks["airport"] = ("pass" if airport is not None
                          and airport.role == "commercial" else "fail")
     hint = gap.get("hint")
-    if hint:
-        checks["observation"] = "pass" if hint == claimed else "fail"
-    else:
-        checks["observation"] = "skip"
+    checks["observation"] = ("pass" if hint == claimed else "fail") \
+        if hint else "skip"
+
+    have_geo = (airport is not None and known is not None
+                and airport.lat is not None and known.lat is not None)
+    distance = (_distance_km(known.lat, known.lon, airport.lat, airport.lon)
+                if have_geo else None)
+
     lat, lon, trk = gap.get("last_lat"), gap.get("last_lon"), gap.get("last_trk")
     if (side == "dest" and airport is not None and airport.lat is not None
             and lat is not None and lon is not None and trk is not None):
@@ -100,19 +154,206 @@ def vet(session, gap, callsign, origin, dest):
                               <= CORRIDOR_DEG else "fail")
     else:
         checks["corridor"] = "skip"
-    agree = session.execute(
-        select(func.count()).select_from(Contribution)
-        .where(Contribution.callsign == callsign,
-               Contribution.kind == "route",
-               Contribution.status.in_(AGREE_STATUSES),
-               Contribution.origin == origin,
-               Contribution.dest == dest)).scalar_one()
-    checks["agreeing"] = int(agree)
-    return checks, airport
+
+    est = gap.get("est_km")
+    if distance is not None and est and (gap.get("n_rot") or 0) >= MIN_ROTATIONS:
+        tolerance = max(ROTATION_FLOOR_KM, ROTATION_TOLERANCE * est)
+        checks["rotation"] = ("pass" if abs(distance - est) <= tolerance
+                              else "fail")
+    else:
+        checks["rotation"] = "skip"
+
+    reach = RANGE_KM.get(gap.get("type") or "")
+    if distance is not None and reach:
+        checks["type"] = "pass" if distance <= reach else "fail"
+    else:
+        checks["type"] = "skip"
+
+    checks["mirror"] = "skip"
+    for other in _mirror_numbers(claim.callsign):
+        mirror = book.get(other)
+        if not mirror or mirror["side"] == side or mirror["known"] != gap["known"]:
+            continue
+        current = catalog_current(session, other)
+        answer = ((current.origin if side == "dest" else current.dest)
+                  if current else mirror.get("hint"))
+        if answer:
+            checks["mirror"] = "pass" if answer == claimed else "fail"
+            break
+
+    checks["keyed"] = int(session.execute(
+        select(func.count(func.distinct(Endorsement.key_name)))
+        .where(Endorsement.claim_id == claim.id,
+               Endorsement.key_name.is_not(None))).scalar_one())
+    checks["named"] = int(session.execute(
+        select(func.count(func.distinct(Endorsement.handle)))
+        .where(Endorsement.claim_id == claim.id,
+               Endorsement.handle.is_not(None))).scalar_one())
+    checks["anonymous"] = int(claim.anonymous_count)
+    return checks
 
 
-def _ok(checks):
-    return not any(v == "fail" for v in checks.values())
+HARD = ("asked", "known_end", "not_same", "airport", "observation",
+        "corridor", "rotation", "type", "mirror")
+CORROBORATING = ("corridor", "rotation", "mirror")
+
+
+def verdict(checks):
+    if any(checks.get(name) == "fail" for name in HARD):
+        return "contradicted"
+    signals = sum(1 for name in CORROBORATING if checks.get(name) == "pass")
+    if checks.get("keyed", 0) >= 2:
+        signals += 1
+    return "corroborated" if signals >= 2 else "unverified"
+
+
+# ---- filing -------------------------------------------------------------
+
+def file_submission(session, book, sub, now=None):
+    """One edge submission into a claim and, when it says something,
+    an endorsement. Returns the claim, or None when dropped."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    callsign = (sub.get("callsign") or "").strip().upper()
+    gap = book.get(callsign)
+    if gap is None:
+        return None
+    side = gap["side"]
+    missing = _airport(session, sub.get("dest" if side == "dest" else "origin"))
+    if missing is None:
+        return None
+    code = missing.iata or missing.ident
+    origin, dest = (gap["known"], code) if side == "dest" else (code, gap["known"])
+    claim = session.execute(
+        select(Claim).where(Claim.callsign == callsign, Claim.origin == origin,
+                            Claim.dest == dest)).scalars().first()
+    if claim is None:
+        open_claims = session.execute(
+            select(func.count()).select_from(Claim)
+            .where(Claim.callsign == callsign,
+                   Claim.status != "rejected")).scalar_one()
+        if open_claims >= MAX_CLAIMS_PER_QUESTION:
+            for other in session.execute(
+                    select(Claim).where(Claim.callsign == callsign,
+                                        Claim.status == "pending")).scalars():
+                other.verdict = "contested"
+            return None
+        claim = Claim(callsign=callsign, origin=origin, dest=dest,
+                      status="pending", anonymous_count=0,
+                      first_at=now, last_at=now)
+        session.add(claim)
+        session.flush()
+    claim.last_at = now
+    handle, note, key = sub.get("handle"), sub.get("note"), sub.get("key_name")
+    valid_from = sub.get("valid_from")
+    if isinstance(valid_from, str):
+        try:
+            valid_from = datetime.date.fromisoformat(valid_from)
+        except ValueError:
+            valid_from = None
+    if handle or note or key:
+        session.add(Endorsement(
+            claim_id=claim.id, handle=handle, note=note, key_name=key,
+            valid_from=valid_from, received_at=now,
+            source_id=sub.get("id")))
+    else:
+        claim.anonymous_count += 1
+    session.flush()
+    return claim
+
+
+def evaluate(session, book, claim, now=None):
+    """Run the checks, record the verdict, act when the evidence is
+    decisive. Pending claims are evaluated on every pull, since the
+    artifact behind the checks refreshes nightly."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    claim.checks = check_claim(session, book, claim)
+    if claim.status != "pending" or claim.verdict == "contested":
+        return claim.status
+    claim.verdict = verdict(claim.checks)
+    if claim.verdict == "corroborated":
+        _approve(session, claim, now, by="verdict")
+    elif claim.verdict == "contradicted":
+        claim.status, claim.reviewed_at = "rejected", now
+        claim.reviewed_by = "verdict"
+    return claim.status
+
+
+def _approve(session, claim, now, by, valid_from=None, note=None):
+    start = valid_from
+    if start is None:
+        starts = [e.valid_from for e in session.execute(
+            select(Endorsement).where(Endorsement.claim_id == claim.id)
+        ).scalars() if e.valid_from]
+        start = min(starts) if starts else now.date()
+    for old in session.execute(
+            select(RouteCatalog).where(RouteCatalog.callsign == claim.callsign,
+                                       RouteCatalog.valid_to.is_(None))
+    ).scalars():
+        old.valid_to = start
+        old.closed_reason = "superseded"
+    session.add(RouteCatalog(
+        callsign=claim.callsign, origin=claim.origin, dest=claim.dest,
+        valid_from=start, source="community", claim_id=claim.id,
+        approved_at=now))
+    claim.status, claim.reviewed_at, claim.reviewed_by = "approved", now, by
+    claim.review_note = note
+
+
+# ---- pull ---------------------------------------------------------------
+
+def fetch_submissions(url, token, after, limit=PULL_PAGE):
+    req = urllib.request.Request(
+        "%s/pull?after=%d&limit=%d" % (url.rstrip("/"), after, limit),
+        headers={"Authorization": "Bearer " + token,
+                 "User-Agent": "flightportrait-network-api"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.load(resp).get("submissions", [])
+
+
+def pull(session, book, fetch, now=None):
+    """File everything new at the edge, evaluate every pending claim,
+    purge what is old and rejected. Returns the summary counts."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    state = session.get(PullState, 1)
+    if state is None:
+        state = PullState(id=1, cursor=0)
+        session.add(state)
+        session.flush()
+    counts = {"received": 0, "filed": 0, "dropped": 0}
+    while True:
+        batch = fetch(state.cursor)
+        for sub in batch:
+            counts["received"] += 1
+            if file_submission(session, book, sub, now) is None:
+                counts["dropped"] += 1
+            else:
+                counts["filed"] += 1
+            state.cursor = max(state.cursor, int(sub["id"]))
+        session.commit()
+        if len(batch) < PULL_PAGE:
+            break
+    state.pulled_at = now
+    counts.update({"approved": 0, "rejected": 0})
+    for claim in session.execute(
+            select(Claim).where(Claim.status == "pending")).scalars().all():
+        status = evaluate(session, book, claim, now)
+        if status in ("approved", "rejected"):
+            counts[status] += 1
+    cutoff = now - datetime.timedelta(days=PURGE_AFTER_DAYS)
+    stale = session.execute(
+        select(Claim).where(Claim.status == "rejected",
+                            Claim.reviewed_at < cutoff)).scalars().all()
+    for claim in stale:
+        for e in session.execute(select(Endorsement).where(
+                Endorsement.claim_id == claim.id)).scalars():
+            session.delete(e)
+        session.delete(claim)
+    counts["purged"] = len(stale)
+    counts["pending"] = session.execute(
+        select(func.count()).select_from(Claim)
+        .where(Claim.status == "pending")).scalar_one()
+    session.commit()
+    return counts
 
 
 # ---- routes -------------------------------------------------------------
@@ -123,20 +364,31 @@ def _gap_row(callsign, gap):
         "side": gap.get("side"),
         "known": gap.get("known"),
         "hint": gap.get("hint"),
+        "type": gap.get("type"),
         "n_recent": gap.get("n_recent"),
         "last_seen": gap.get("last_seen"),
         "last_heard": ({"lat": gap["last_lat"], "lon": gap["last_lon"],
                         "track": gap.get("last_trk")}
                        if gap.get("last_lat") is not None else None),
+        "rotation_km": (gap.get("est_km")
+                        if (gap.get("n_rot") or 0) >= MIN_ROTATIONS
+                        else None),
     }
+
+
+def _dark():
+    return ApiError(503, "artifact_unavailable",
+                    "the gaps artifact is not loaded",
+                    headers={"Retry-After": "300"})
 
 
 @router.get(
     "/v1/gaps", tags=["Contributions"], summary="Open questions",
     description="Callsigns whose route observation settled at one end "
                 "only, most-seen first. Each row says which end is "
-                "missing, which is known, and where the aircraft was "
-                "last heard. Answer one with POST /v1/contributions. "
+                "missing, which is known, where the aircraft was last "
+                "heard, and how far its rotation says the other end is. "
+                "Answers go to the contribution door, not this API. "
                 "Rate: 300 per 600 s (bucket `gaps`). Cache: 10 min edge.",
     operation_id="gaps",
     responses=spec.ok(spec.EX_GAPS, spec.R429, spec.R503,
@@ -154,9 +406,7 @@ def gaps(request: Request, response: Response,
                        settings.rate_window_s, bucket="gaps")
     book = request.app.state.gaps
     if not book.available():
-        raise ApiError(503, "artifact_unavailable",
-                       "the gaps artifact is not loaded",
-                       headers={"Retry-After": "300"})
+        raise _dark()
     rows, total = book.page(offset, limit,
                             airline=(airline or "").upper() or None,
                             side=side)
@@ -168,10 +418,10 @@ def gaps(request: Request, response: Response,
 
 @router.get(
     "/v1/gaps/{callsign}", tags=["Contributions"], summary="One question",
-    description="The open question for one callsign, with the catalog "
-                "answer in force if there is one. 404 when observation "
-                "has no question for it. Rate: 300 per 600 s (bucket "
-                "`gaps`). Cache: 10 min edge.",
+    description="The open question for one callsign, the answers on "
+                "file, and the catalog answer in force if there is one. "
+                "404 when observation has no question for it. Rate: 300 "
+                "per 600 s (bucket `gaps`). Cache: 10 min edge.",
     operation_id="gap",
     responses=spec.ok(spec.EX_GAP, spec.R404, spec.R422, spec.R429,
                       spec.R503, schema=spec.SCH_GAP),
@@ -187,9 +437,7 @@ def gap(callsign: spec.Callsign, request: Request, response: Response,
         raise ApiError(422, "invalid_request", "invalid callsign")
     book = request.app.state.gaps
     if not book.available():
-        raise ApiError(503, "artifact_unavailable",
-                       "the gaps artifact is not loaded",
-                       headers={"Retry-After": "300"})
+        raise _dark()
     found = book.get(callsign)
     if found is None:
         raise ApiError(404, "not_found", "no open question")
@@ -198,101 +446,21 @@ def gap(callsign: spec.Callsign, request: Request, response: Response,
     out["catalog"] = ({"origin": current.origin, "dest": current.dest,
                        "valid_from": str(current.valid_from)}
                       if current else None)
+    out["answers"] = [
+        {"origin": c.origin, "dest": c.dest, "status": c.status,
+         "verdict": c.verdict}
+        for c in session.execute(
+            select(Claim).where(Claim.callsign == callsign,
+                                Claim.status != "rejected")
+            .order_by(Claim.first_at)).scalars()]
     response.headers["Cache-Control"] = CACHE
     return out
 
 
-class RouteAnswer(BaseModel):
-    kind: str = Field("route", pattern="^route$")
-    callsign: str = Field(min_length=2, max_length=12)
-    origin: str | None = Field(None, min_length=3, max_length=4)
-    dest: str | None = Field(None, min_length=3, max_length=4)
-    valid_from: datetime.date | None = None
-    note: str | None = Field(None, max_length=280)
-    handle: str | None = Field(None, max_length=40)
-    contact: str | None = Field(None, max_length=120)
-
-    @field_validator("note", "handle", "contact")
-    @classmethod
-    def _trim(cls, v):
-        if v is None:
-            return v
-        v = " ".join(v.split())
-        return v or None
-
-    @field_validator("callsign", "origin", "dest")
-    @classmethod
-    def _upper(cls, v):
-        if v is None:
-            return v
-        v = v.strip().upper()
-        if not v.isalnum():
-            raise ValueError("letters and digits only")
-        return v
-
-
-@router.post(
-    "/v1/contributions", tags=["Contributions"], summary="Answer a question",
-    status_code=202,
-    description="Answer one open question: the callsign and the missing "
-                "airport (IATA or ICAO). The answer is checked against "
-                "what was observed and held for review; it is served "
-                "only once approved into the catalog. 422 when the "
-                "callsign has no open question or the airport is not a "
-                "commercial field. Rate: 30 per 600 s (bucket "
-                "`contribute`).",
-    operation_id="contribute",
-    responses=spec.ok(spec.EX_CONTRIBUTION, spec.R422, spec.R429, spec.R503,
-                      schema=spec.SCH_CONTRIBUTION, status=202),
-    openapi_extra=spec.STABLE,
-)
-def contribute(answer: RouteAnswer, request: Request, response: Response,
-               session=Depends(get_session)):
-    settings = request.app.state.settings
-    ratelimit.throttle(request, settings.contribute_rate_limit,
-                       settings.rate_window_s, bucket="contribute")
-    book = request.app.state.gaps
-    if not book.available():
-        raise ApiError(503, "artifact_unavailable",
-                       "the gaps artifact is not loaded",
-                       headers={"Retry-After": "300"})
-    found = book.get(answer.callsign)
-    if found is None:
-        raise ApiError(422, "invalid_request",
-                       "no open question for this callsign")
-    side = found["side"]
-    origin = answer.origin or (found["known"] if side == "dest" else None)
-    dest = answer.dest or (found["known"] if side == "origin" else None)
-    if not origin or not dest:
-        raise ApiError(422, "invalid_request",
-                       "the missing %s is required" % side)
-    checks, airport = vet(session, found, answer.callsign, origin, dest)
-    if checks["airport"] == "fail":
-        raise ApiError(422, "invalid_request",
-                       "%s is not a commercial airport we know"
-                       % (dest if side == "dest" else origin))
-    code = airport.iata or airport.ident        # the missing end, canonical
-    if side == "dest":
-        dest = code
-    else:
-        origin = code
-    row = Contribution(
-        kind="route", callsign=answer.callsign, origin=origin, dest=dest,
-        valid_from=answer.valid_from, note=answer.note,
-        handle=answer.handle, contact=answer.contact, status="pending",
-        checks={"ok": _ok(checks), "checks": checks},
-        submitted_at=datetime.datetime.now(datetime.timezone.utc))
-    session.add(row)
-    session.commit()
-    response.headers["Cache-Control"] = "no-store"
-    return {"id": row.id, "status": row.status, "callsign": row.callsign,
-            "origin": row.origin, "dest": row.dest, "checks": checks}
-
-
 @router.get(
     "/v1/contributors", tags=["Contributions"], summary="Contributors",
-    description="Who answered, by approved answers, most first. Only "
-                "answers that made it into the catalog count, and only "
+    description="Who answered, by approved claims they stood behind, "
+                "most first. Only claims in the catalog count, and only "
                 "contributors who gave a name. Rate: 300 per 600 s "
                 "(bucket `gaps`). Cache: 10 min edge.",
     operation_id="contributors",
@@ -306,16 +474,17 @@ def contributors(request: Request, response: Response,
     ratelimit.throttle(request, settings.gaps_rate_limit,
                        settings.rate_window_s, bucket="gaps")
     rows = session.execute(
-        select(Contribution.handle, func.count(),
-               func.max(Contribution.reviewed_at))
-        .where(Contribution.status == "approved",
-               Contribution.handle.is_not(None))
-        .group_by(Contribution.handle)
-        .order_by(func.count().desc(), func.max(Contribution.reviewed_at))
+        select(Endorsement.handle, func.count(func.distinct(Claim.id)),
+               func.max(Claim.reviewed_at))
+        .join(Claim, Claim.id == Endorsement.claim_id)
+        .where(Claim.status == "approved", Endorsement.handle.is_not(None))
+        .group_by(Endorsement.handle)
+        .order_by(func.count(func.distinct(Claim.id)).desc(),
+                  func.max(Claim.reviewed_at))
         .limit(200)).all()
     total = session.execute(
-        select(func.count()).select_from(Contribution)
-        .where(Contribution.status == "approved")).scalar_one()
+        select(func.count()).select_from(Claim)
+        .where(Claim.status == "approved")).scalar_one()
     response.headers["Cache-Control"] = CACHE
     return {"answers": int(total),
             "contributors": [{"handle": h, "answers": int(n),
@@ -326,44 +495,32 @@ def contributors(request: Request, response: Response,
 
 # ---- review -------------------------------------------------------------
 
-def approve(session, contribution_id, valid_from=None, note=None):
-    """Copy an answer into the catalog, closing whatever row it replaces."""
-    row = session.get(Contribution, contribution_id)
-    if row is None or row.status != "pending":
-        raise ValueError("no pending contribution %s" % contribution_id)
+def approve(session, claim_id, valid_from=None, note=None):
+    claim = session.get(Claim, claim_id)
+    if claim is None or claim.status != "pending":
+        raise ValueError("no pending claim %s" % claim_id)
     now = datetime.datetime.now(datetime.timezone.utc)
-    start = valid_from or row.valid_from or now.date()
-    for old in session.execute(
-            select(RouteCatalog).where(RouteCatalog.callsign == row.callsign,
-                                       RouteCatalog.valid_to.is_(None))
-    ).scalars():
-        old.valid_to = start
-        old.closed_reason = "superseded"
-    session.add(RouteCatalog(
-        callsign=row.callsign, origin=row.origin, dest=row.dest,
-        valid_from=start, source="community", contribution_id=row.id,
-        approved_at=now))
-    row.status, row.reviewed_at, row.review_note = "approved", now, note
+    _approve(session, claim, now, by="operator", valid_from=valid_from,
+             note=note)
     session.commit()
-    return row
+    return claim
 
 
-def reject(session, contribution_id, note=None):
-    row = session.get(Contribution, contribution_id)
-    if row is None or row.status != "pending":
-        raise ValueError("no pending contribution %s" % contribution_id)
-    row.status = "rejected"
-    row.reviewed_at = datetime.datetime.now(datetime.timezone.utc)
-    row.review_note = note
+def reject(session, claim_id, note=None):
+    claim = session.get(Claim, claim_id)
+    if claim is None or claim.status != "pending":
+        raise ValueError("no pending claim %s" % claim_id)
+    claim.status = "rejected"
+    claim.reviewed_at = datetime.datetime.now(datetime.timezone.utc)
+    claim.reviewed_by = "operator"
+    claim.review_note = note
     session.commit()
-    return row
+    return claim
 
 
 def reconcile(session, routes_book, today=None):
     """Close catalog rows observation has overtaken: the same route now
-    observed end to end (the row is no longer needed) or a different one
-    (the row was wrong, or the schedule moved). Returns (closed, reason)
-    pairs."""
+    observed end to end, or a different one. Returns (callsign, reason)."""
     today = today or datetime.date.today()
     closed = []
     for row in session.execute(
@@ -380,22 +537,28 @@ def reconcile(session, routes_book, today=None):
     return closed
 
 
-def _print_row(row):
-    checks = (row.checks or {}).get("checks", {})
-    print("#%-5d %-8s %s -> %s  %s  %s" % (
-        row.id, row.callsign, row.origin or "?", row.dest or "?",
-        row.status, row.submitted_at.strftime("%Y-%m-%d")))
-    print("       " + "  ".join("%s:%s" % kv for kv in checks.items()))
-    if row.note:
-        print("       note: %s" % row.note)
-    if row.handle or row.contact:
-        print("       from: %s" % " ".join(
-            x for x in (row.handle, row.contact) if x))
+def _print_claim(session, claim):
+    print("#%-5d %-8s %s -> %s  %s  %s  %s" % (
+        claim.id, claim.callsign, claim.origin, claim.dest, claim.status,
+        claim.verdict or "-", claim.first_at.strftime("%Y-%m-%d")))
+    print("       " + "  ".join("%s:%s" % kv
+                                for kv in (claim.checks or {}).items()))
+    for e in session.execute(select(Endorsement).where(
+            Endorsement.claim_id == claim.id).order_by(Endorsement.id)
+    ).scalars():
+        who = " ".join(x for x in (e.handle, e.key_name and "[%s]" % e.key_name)
+                       if x) or "anonymous"
+        print("       %s%s%s" % (who, ": " + e.note if e.note else "",
+                                 " from " + str(e.valid_from)
+                                 if e.valid_from else ""))
+    if claim.review_note:
+        print("       review: %s" % claim.review_note)
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("pull")
     sub.add_parser("list")
     p = sub.add_parser("show"); p.add_argument("id", type=int)
     p = sub.add_parser("approve"); p.add_argument("id", type=int)
@@ -406,30 +569,46 @@ def main(argv=None):
     sub.add_parser("reconcile")
     args = ap.parse_args(argv)
 
+    from .gaps_db import GapBook
     from .routes_db import RouteBook
     from .settings import Settings
     settings = Settings()
     session = make_sessionmaker(settings.database_url)()
     try:
-        if args.cmd == "list":
+        if args.cmd == "pull":
+            if not settings.contribute_pull_url \
+                    or not settings.contribute_pull_token:
+                sys.exit("contribute pull is not configured")
+            book = GapBook(settings.gaps_path)
+            if not book.available():
+                sys.exit("the gaps artifact is not loaded")
+            counts = pull(session, book, lambda after: fetch_submissions(
+                settings.contribute_pull_url, settings.contribute_pull_token,
+                after))
+            print("pull: " + ", ".join("%s %d" % kv for kv in counts.items()))
+            if counts["pending"] > settings.contribute_pending_alert \
+                    or counts["received"] > settings.contribute_received_alert:
+                sys.exit("contributions: pending %d, received %d"
+                         % (counts["pending"], counts["received"]))
+        elif args.cmd == "list":
             rows = session.execute(
-                select(Contribution).where(Contribution.status == "pending")
-                .order_by(Contribution.submitted_at)).scalars().all()
-            for row in rows:
-                _print_row(row)
+                select(Claim).where(Claim.status == "pending")
+                .order_by(Claim.verdict, Claim.first_at)).scalars().all()
+            for claim in rows:
+                _print_claim(session, claim)
             print("%d pending" % len(rows))
         elif args.cmd == "show":
-            row = session.get(Contribution, args.id)
-            if row is None:
-                sys.exit("no contribution %d" % args.id)
-            _print_row(row)
+            claim = session.get(Claim, args.id)
+            if claim is None:
+                sys.exit("no claim %d" % args.id)
+            _print_claim(session, claim)
         elif args.cmd == "approve":
-            row = approve(session, args.id, args.valid_from, args.note)
-            print("approved #%d %s %s -> %s" % (row.id, row.callsign,
-                                               row.origin, row.dest))
+            claim = approve(session, args.id, args.valid_from, args.note)
+            print("approved #%d %s %s -> %s" % (claim.id, claim.callsign,
+                                               claim.origin, claim.dest))
         elif args.cmd == "reject":
-            row = reject(session, args.id, args.note)
-            print("rejected #%d %s" % (row.id, row.callsign))
+            claim = reject(session, args.id, args.note)
+            print("rejected #%d %s" % (claim.id, claim.callsign))
         elif args.cmd == "reconcile":
             closed = reconcile(session, RouteBook(settings.routes_path))
             for callsign, reason in closed:

@@ -42,8 +42,9 @@ feeder IPs.
 
 Routes the network hears at one end only are listed at
 `/v1/gaps` and on the map's "Missing routes" page. Answers go through
-`POST /v1/contributions`, are checked against observation, and are
-served after review. See [docs/contributions.md](docs/contributions.md).
+the door in [contribute/](contribute/), are checked against
+observation, and are served once corroborated or reviewed. See
+[docs/contributions.md](docs/contributions.md).
 
 ## Licenses
 

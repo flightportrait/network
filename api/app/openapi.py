@@ -46,8 +46,10 @@ DESCRIPTION = (
     "observation. Likewise a flight's `route_source`: `observed` when "
     "both ends were seen, `observed+catalog` when the community supplied "
     "the end coverage never reached, `catalog` when it supplied both. "
-    "Catalog answers are reviewed before they are served, and observation "
-    "outranks them whenever it speaks.\n"
+    "Catalog answers are checked against observation and reviewed before "
+    "they are served, and observation outranks them whenever it speaks. "
+    "This API is read-only; answers go to the contribution door at "
+    "contribute.flightportrait.com.\n"
     "\n"
     "**Errors.** Every non-200 body is `{\"error\": <code>, \"detail\": "
     "<human text>}` with `Cache-Control: no-store`. 404 `not_found` / "
@@ -692,6 +694,8 @@ _SCH_GAP_ROW = _obj({
     "known": _t("string", "The settled end, IATA."),
     "hint": _t("string", "The missing end's leading code when observation "
                          "saw it too rarely to settle it.", nullable=True),
+    "type": _t("string", "Dominant aircraft type on the leg.",
+               nullable=True),
     "n_recent": _t("integer", "Sightings in the last 90 days."),
     "last_seen": _t("string", "Last date observed, YYYY-MM-DD."),
     "last_heard": {"description": "Where the most recent truncated leg "
@@ -701,6 +705,10 @@ _SCH_GAP_ROW = _obj({
                                    "lon": _t("number"),
                                    "track": _t("integer", nullable=True)}),
                              {"type": "null"}]},
+    "rotation_km": _t("integer", "How far the missing end is, from the "
+                                 "time the airframe takes to come back. "
+                                 "Null until a few rotations were seen.",
+                      nullable=True),
 })
 
 SCH_GAPS = _obj({
@@ -713,8 +721,10 @@ SCH_GAPS = _obj({
 EX_GAPS = {
     "total": 1, "offset": 0,
     "gaps": [{"callsign": "SIA842", "side": "dest", "known": "SIN",
-              "hint": None, "n_recent": 13, "last_seen": "2026-09-06",
-              "last_heard": {"lat": 12.41, "lon": 106.92, "track": 21}}],
+              "hint": None, "type": "B78X", "n_recent": 13,
+              "last_seen": "2026-09-06",
+              "last_heard": {"lat": 12.41, "lon": 106.92, "track": 21},
+              "rotation_km": 3150}],
     "coverage": "observed",
 }
 
@@ -724,15 +734,21 @@ SCH_GAP = _obj(dict(_SCH_GAP_ROW["properties"], **{
                                 "dest": _t("string"),
                                 "valid_from": _t("string")}),
                           {"type": "null"}]},
+    "answers": _arr(_obj({
+        "origin": _t("string"), "dest": _t("string"),
+        "status": _t("string", "pending or approved."),
+        "verdict": _t("string", "corroborated, contradicted, unverified, "
+                                "or contested.", nullable=True),
+    }), description="Answers on file, oldest first, rejected ones left out."),
 }))
 
-EX_GAP = dict(EX_GAPS["gaps"][0], catalog=None)
+EX_GAP = dict(EX_GAPS["gaps"][0], catalog=None, answers=[])
 
 SCH_CONTRIBUTORS = _obj({
-    "answers": _t("integer", "Approved answers, all contributors."),
+    "answers": _t("integer", "Approved claims, all contributors."),
     "contributors": _arr(_obj({
         "handle": _t("string"),
-        "answers": _t("integer", "Approved answers."),
+        "answers": _t("integer", "Approved claims stood behind."),
         "latest": _t("string", "Date of the latest, YYYY-MM-DD.",
                      nullable=True),
     }), description="Most answers first, top 200."),
@@ -742,33 +758,4 @@ EX_CONTRIBUTORS = {
     "answers": 41,
     "contributors": [{"handle": "spotter_sg", "answers": 23,
                       "latest": "2026-09-14"}],
-}
-
-SCH_CONTRIBUTION = _obj({
-    "id": _t("integer"),
-    "status": _t("string", "Always pending on submission.",
-                 const="pending"),
-    "callsign": _t("string"),
-    "origin": _t("string"),
-    "dest": _t("string"),
-    "checks": _obj({
-        "known_end": _t("string", "pass / fail: the end you gave for the "
-                                  "settled side matches observation."),
-        "not_same": _t("string"),
-        "airport": _t("string", "The missing end is a commercial airport "
-                                "we know."),
-        "observation": _t("string", "pass / fail / skip: agrees with the "
-                                    "rare observation of that end."),
-        "corridor": _t("string", "pass / fail / skip: the claimed end lies "
-                                 "along the track the aircraft was last "
-                                 "heard on."),
-        "agreeing": _t("integer", "Earlier answers that say the same."),
-    }),
-}, required=["id", "status", "callsign", "origin", "dest", "checks"])
-
-EX_CONTRIBUTION = {
-    "id": 17, "status": "pending", "callsign": "SIA842",
-    "origin": "SIN", "dest": "TFU",
-    "checks": {"known_end": "pass", "not_same": "pass", "airport": "pass",
-               "observation": "skip", "corridor": "pass", "agreeing": 0},
 }

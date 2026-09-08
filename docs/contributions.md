@@ -10,38 +10,43 @@ receiver stays half known. Those are the gaps, and they are public:
 
 ## Answering one
 
-`POST /v1/contributions` with the callsign and the missing airport
-(IATA or ICAO). The body is JSON:
+Answers go to the door, not to the data API, which is read-only:
 
-```json
-{"callsign": "SIA842", "dest": "TFU", "note": "daily, per the airline"}
+```
+POST https://contribute.flightportrait.com/contributions
+{"callsign": "SIA842", "dest": "TFU", "handle": "spotter_sg",
+ "note": "daily, per the airline", "turnstile": "<token>"}
 ```
 
-`handle` is the name you want credit under, listed at
-[flightportrait.com/network/contributors.html](https://flightportrait.com/network/contributors.html)
-and `GET /v1/contributors` once an answer is approved. `valid_from`
-(a date) marks a schedule change; `contact` is optional and never
-published. The reply says what was checked:
-
-| check | meaning |
-|---|---|
-| known_end | the end you gave for the settled side matches observation |
-| airport | the missing end is a commercial airport in the registry |
-| observation | agrees with the rare sighting of that end, when there was one |
-| corridor | lies along the track the aircraft was last heard on |
-| agreeing | earlier answers that say the same |
-
-An answer that fails a check is still recorded; it is simply looked at
-more closely. Nothing is served until the operator approves it.
+The page handles the Turnstile token. If you answer in volume, ask for
+a key and send it as `X-Contribute-Key` instead. `handle` is the name
+you want credit under; `valid_from` (a date) marks a schedule change.
+The reply is `202 {"id": .., "status": "received"}` once the callsign
+has an open question and the airport is a commercial field.
 
 ## What happens next
 
-An approved answer enters the catalog with the date it holds from.
-The flight's page then carries the route with `route_source`
-`observed+catalog` (one end observed, one from the catalog) or
-`catalog`. Observation always wins: when coverage reaches the far end
-and the archive settles the route itself, the catalog row closes, and
-if the two disagree the question reopens.
+The network files each answer as a claim, with the people behind it,
+and checks the claim against what was observed:
 
-Answers and catalog rows are open data under the same licence as
-everything else here, ODbL 1.0.
+| check | meaning |
+|---|---|
+| corridor | lies along the track the aircraft was last heard on |
+| rotation | matches how far the airframe's time away says the other end is |
+| type | within the aircraft type's range |
+| mirror | agrees with what is known about the return flight |
+| observation | agrees with the rare sighting of that end, when there was one |
+| keyed | distinct key holders who said the same |
+
+A claim with no failing check and two corroborating signals enters the
+catalog on its own. A claim that fails a check is closed. Anything in
+between waits for the operator. The flight's page then carries the
+route with `route_source` `observed+catalog` (one end observed, one
+from the catalog) or `catalog`. Observation always wins: when the
+archive settles the route itself, the catalog row closes, and if the
+two disagree the question reopens.
+
+Contributors who gave a name are listed at
+[flightportrait.com/network/contributors.html](https://flightportrait.com/network/contributors.html)
+and `GET /v1/contributors`. Answers and catalog rows are open data
+under the same licence as everything else here, ODbL 1.0.

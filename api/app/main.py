@@ -84,7 +84,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET"],
         allow_headers=["Content-Type"],
         max_age=600,
     )
