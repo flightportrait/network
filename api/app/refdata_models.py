@@ -254,6 +254,10 @@ class Contribution(Base):
     valid_from: Mapped[datetime.date | None] = mapped_column(
         Date, nullable=True)
     note: Mapped[str | None] = mapped_column(String(280), nullable=True)
+    # The name credited publicly, chosen by the contributor; contact
+    # stays private and is never served.
+    handle: Mapped[str | None] = mapped_column(String(40), nullable=True,
+                                               index=True)
     contact: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # pending | approved | rejected
     status: Mapped[str] = mapped_column(String(12), nullable=False,

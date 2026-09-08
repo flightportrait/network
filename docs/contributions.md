@@ -17,8 +17,11 @@ receiver stays half known. Those are the gaps, and they are public:
 {"callsign": "SIA842", "dest": "TFU", "note": "daily, per the airline"}
 ```
 
-`valid_from` (a date) marks a schedule change; `contact` is optional
-and never published. The reply says what was checked:
+`handle` is the name you want credit under, listed at
+[flightportrait.com/network/contributors.html](https://flightportrait.com/network/contributors.html)
+and `GET /v1/contributors` once an answer is approved. `valid_from`
+(a date) marks a schedule change; `contact` is optional and never
+published. The reply says what was checked:
 
 | check | meaning |
 |---|---|

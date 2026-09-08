@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Who filled the gaps: approved route answers by the name each
+     contributor chose. Only answers that entered the catalog count. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contributors · FlightPortrait network</title>
+<meta name="description" content="The people who told the network where its half-known flights go.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FlightPortrait network">
+<meta property="og:title" content="Contributors · FlightPortrait network">
+<meta property="og:description" content="The people who told the network where its half-known flights go.">
+<meta property="og:url" content="https://flightportrait.com/network/contributors.html">
+<meta property="og:image" content="https://flightportrait.com/og-network.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#F5F1E6">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
+    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
+    --card:#FAF7EE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);overflow-x:hidden;
+    font:17px/1.6 Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px}
+  .topbar{position:sticky;top:0;z-index:5;background:var(--paper)}
+  .topbar .wrap{max-width:1000px;display:flex;align-items:center;
+    justify-content:space-between;height:64px;gap:18px}
+  .wordmark{display:flex;align-items:center;gap:10px;text-decoration:none;
+    color:var(--ink);font-size:17px}
+  .wordmark img{width:24px;height:24px;display:block;border-radius:5px}
+  .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
+  .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
+    white-space:nowrap}
+  .topnav a:hover{color:var(--red)}
+  main a{color:var(--ink)}
+
+  .head{padding:48px 0 0}
+  h1{font-size:44px;line-height:1.1;font-weight:400}
+  .sub{font-size:18px;color:var(--quiet);margin-top:4px;max-width:620px}
+  .stat{padding:26px 0 0}
+  .stat .n{font-size:28px;line-height:1;display:block}
+  .stat .caps{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;
+    letter-spacing:.1em;color:var(--quiet);display:block;margin-top:6px}
+
+  .log{padding:22px 0 60px;max-width:560px}
+  table.legs{width:100%;border-collapse:collapse;
+    font-variant-numeric:tabular-nums;font-size:16px}
+  table.legs th{text-align:left;font-weight:400;color:var(--quiet);
+    padding:8px 12px 8px 0;border-bottom:1px solid var(--ink);
+    white-space:nowrap}
+  table.legs td{padding:10px 12px 10px 0;vertical-align:top;
+    border-bottom:1px solid rgba(34,31,26,.08);white-space:nowrap}
+  table.legs th.num,table.legs td.num{text-align:right}
+  table.legs th.num+th,table.legs td.num+td{padding-left:18px}
+  table.legs th:last-child,table.legs td:last-child{padding-right:0}
+  td.rank{color:var(--quiet);width:2.5em}
+  td.when{color:var(--quiet)}
+  .empty{padding:40px 0;color:var(--quiet)}
+  .note{color:var(--quiet);font-size:14px;padding:32px 0 0;max-width:620px}
+  .note a{color:var(--quiet)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span style="color:var(--quiet)">network</span></a>
+    <nav class="topnav" aria-label="Network">
+      <a href="/network/">Live map</a>
+      <a href="/network/?mode=airlines">Airlines</a>
+      <a href="/network/search.html">Search</a>
+      <a href="https://docs.flightportrait.com">Docs</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="head">
+      <h1>Contributors.</h1>
+      <div class="sub">The people who told the network where its half-known flights go. An answer counts once it is checked, reviewed, and in the catalog.</div>
+      <div class="stat"><span class="n" id="answers">&ndash;</span><span class="caps">answers in the catalog</span></div>
+    </div>
+    <div class="log">
+      <table class="legs" id="table" hidden>
+        <thead><tr><th></th><th>Name</th><th class="num">Answers</th><th>Latest</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden></div>
+      <div class="note">Names are the ones contributors chose. <a href="/network/gaps.html">See what is still missing</a>.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var API = window.FP_API || "https://data.flightportrait.com";
+  function el(id) { return document.getElementById(id); }
+  function esc(x) {
+    return String(x == null ? "" : x).replace(/[&<>"']/g, function (c) {
+      return "&#" + c.charCodeAt(0) + ";";
+    });
+  }
+  fetch(API + "/v1/contributors").then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d) {
+        el("empty").hidden = false;
+        el("empty").textContent = "The list is not available right now.";
+        return;
+      }
+      el("answers").textContent = d.answers.toLocaleString("en-US");
+      if (!d.contributors.length) {
+        el("empty").hidden = false;
+        el("empty").textContent = "No one yet. The first answers are still in review.";
+        return;
+      }
+      el("table").hidden = false;
+      el("rows").innerHTML = d.contributors.map(function (c, i) {
+        return "<tr><td class='rank'>" + (i + 1) + "</td><td>" + esc(c.handle) +
+          "</td><td class='num'>" + esc(c.answers) + "</td><td class='when'>" +
+          esc(c.latest || "") + "</td></tr>";
+      }).join("");
+    }).catch(function () {
+      el("empty").hidden = false;
+      el("empty").textContent = "The list is not available right now.";
+    });
+})();
+</script>
+</body>
+</html>

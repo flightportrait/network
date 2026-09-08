@@ -136,6 +136,7 @@ OPENAPI_PATHS = {
     "/v1/flights/{callsign}",
     "/v1/airports/{code}",
     "/v1/gaps", "/v1/gaps/{callsign}", "/v1/contributions",
+    "/v1/contributors",
     "/v1/stations", "/v1/stations/{station_uuid}",
     "/v1/airlines",
     "/v1/airlines/{icao}",
@@ -164,6 +165,7 @@ STABLE_PATHS = {
     "/v2/point/{lat}/{lon}/{radius}", "/v1/airframes/{hex}",
     "/v1/flights/{callsign}", "/v1/airports/{code}",
     "/v1/gaps", "/v1/gaps/{callsign}", "/v1/contributions",
+    "/v1/contributors",
     "/v1/stations", "/v1/stations/{station_uuid}",
     "/v1/airlines", "/v1/airlines/{icao}", "/v1/types/{designator}",
 }

@@ -250,3 +250,33 @@ def test_rejection_keeps_the_record_and_serves_nothing(ctx, tmp_path):
     finally:
         session.close()
     assert client.get("/v1/flights/QFA9").status_code == 404
+
+
+def test_contributors_count_approved_answers_by_name(ctx, tmp_path):
+    client, _, sm = _setup(ctx, tmp_path)
+    ids = []
+    for cs, dest, handle in (("SIA842", "TFU", "  spotter  sg "),
+                             ("SIA843", None, "spotter sg"),
+                             ("QFA9", "SIN", None)):
+        body = {"callsign": cs, "handle": handle,
+                "note": "  per the  timetable "}
+        if dest:
+            body["dest"] = dest
+        else:
+            body["origin"] = "TFU"
+        r = client.post("/v1/contributions", json=body)
+        assert r.status_code == 202, r.json()
+        ids.append(r.json()["id"])
+    session = sm()
+    try:
+        assert session.get(Contribution, ids[0]).handle == "spotter sg"
+        assert session.get(Contribution, ids[0]).note == "per the timetable"
+        contributions.approve(session, ids[0])
+        contributions.approve(session, ids[1])
+        contributions.approve(session, ids[2])
+    finally:
+        session.close()
+    body = client.get("/v1/contributors").json()
+    assert body["answers"] == 3
+    assert body["contributors"] == [{"handle": "spotter sg", "answers": 2,
+                                     "latest": str(datetime.date.today())}]

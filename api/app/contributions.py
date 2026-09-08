@@ -209,7 +209,16 @@ class RouteAnswer(BaseModel):
     dest: str | None = Field(None, min_length=3, max_length=4)
     valid_from: datetime.date | None = None
     note: str | None = Field(None, max_length=280)
+    handle: str | None = Field(None, max_length=40)
     contact: str | None = Field(None, max_length=120)
+
+    @field_validator("note", "handle", "contact")
+    @classmethod
+    def _trim(cls, v):
+        if v is None:
+            return v
+        v = " ".join(v.split())
+        return v or None
 
     @field_validator("callsign", "origin", "dest")
     @classmethod
@@ -270,7 +279,7 @@ def contribute(answer: RouteAnswer, request: Request, response: Response,
     row = Contribution(
         kind="route", callsign=answer.callsign, origin=origin, dest=dest,
         valid_from=answer.valid_from, note=answer.note,
-        contact=answer.contact, status="pending",
+        handle=answer.handle, contact=answer.contact, status="pending",
         checks={"ok": _ok(checks), "checks": checks},
         submitted_at=datetime.datetime.now(datetime.timezone.utc))
     session.add(row)
@@ -278,6 +287,41 @@ def contribute(answer: RouteAnswer, request: Request, response: Response,
     response.headers["Cache-Control"] = "no-store"
     return {"id": row.id, "status": row.status, "callsign": row.callsign,
             "origin": row.origin, "dest": row.dest, "checks": checks}
+
+
+@router.get(
+    "/v1/contributors", tags=["Contributions"], summary="Contributors",
+    description="Who answered, by approved answers, most first. Only "
+                "answers that made it into the catalog count, and only "
+                "contributors who gave a name. Rate: 300 per 600 s "
+                "(bucket `gaps`). Cache: 10 min edge.",
+    operation_id="contributors",
+    responses=spec.ok(spec.EX_CONTRIBUTORS, spec.R429,
+                      schema=spec.SCH_CONTRIBUTORS),
+    openapi_extra=spec.STABLE,
+)
+def contributors(request: Request, response: Response,
+                 session=Depends(get_session)):
+    settings = request.app.state.settings
+    ratelimit.throttle(request, settings.gaps_rate_limit,
+                       settings.rate_window_s, bucket="gaps")
+    rows = session.execute(
+        select(Contribution.handle, func.count(),
+               func.max(Contribution.reviewed_at))
+        .where(Contribution.status == "approved",
+               Contribution.handle.is_not(None))
+        .group_by(Contribution.handle)
+        .order_by(func.count().desc(), func.max(Contribution.reviewed_at))
+        .limit(200)).all()
+    total = session.execute(
+        select(func.count()).select_from(Contribution)
+        .where(Contribution.status == "approved")).scalar_one()
+    response.headers["Cache-Control"] = CACHE
+    return {"answers": int(total),
+            "contributors": [{"handle": h, "answers": int(n),
+                              "latest": latest.date().isoformat()
+                              if latest else None}
+                             for h, n, latest in rows]}
 
 
 # ---- review -------------------------------------------------------------
@@ -344,8 +388,9 @@ def _print_row(row):
     print("       " + "  ".join("%s:%s" % kv for kv in checks.items()))
     if row.note:
         print("       note: %s" % row.note)
-    if row.contact:
-        print("       from: %s" % row.contact)
+    if row.handle or row.contact:
+        print("       from: %s" % " ".join(
+            x for x in (row.handle, row.contact) if x))
 
 
 def main(argv=None):

@@ -728,6 +728,22 @@ SCH_GAP = _obj(dict(_SCH_GAP_ROW["properties"], **{
 
 EX_GAP = dict(EX_GAPS["gaps"][0], catalog=None)
 
+SCH_CONTRIBUTORS = _obj({
+    "answers": _t("integer", "Approved answers, all contributors."),
+    "contributors": _arr(_obj({
+        "handle": _t("string"),
+        "answers": _t("integer", "Approved answers."),
+        "latest": _t("string", "Date of the latest, YYYY-MM-DD.",
+                     nullable=True),
+    }), description="Most answers first, top 200."),
+}, required=["answers", "contributors"])
+
+EX_CONTRIBUTORS = {
+    "answers": 41,
+    "contributors": [{"handle": "spotter_sg", "answers": 23,
+                      "latest": "2026-09-14"}],
+}
+
 SCH_CONTRIBUTION = _obj({
     "id": _t("integer"),
     "status": _t("string", "Always pending on submission.",
