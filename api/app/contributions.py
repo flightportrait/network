@@ -77,6 +77,10 @@ def _airport(session, code):
         .order_by(RefAirport.iata.is_(None))).scalars().first()
 
 
+def catalog_route(row):
+    return [row.origin, *(row.via or []), row.dest]
+
+
 def catalog_current(session, callsign, today=None):
     """The catalog row in force for a callsign, or None."""
     today = today or datetime.date.today()
@@ -271,14 +275,22 @@ def evaluate(session, book, claim, now=None):
         return claim.status
     claim.verdict = verdict(claim.checks)
     if claim.verdict == "corroborated":
-        _approve(session, claim, now, by="verdict")
+        _approve(session, book, claim, now, by="verdict")
     elif claim.verdict == "contradicted":
         claim.status, claim.reviewed_at = "rejected", now
         claim.reviewed_by = "verdict"
     return claim.status
 
 
-def _approve(session, claim, now, by, valid_from=None, note=None):
+def _approve(session, book, claim, now, by, valid_from=None, note=None):
+    gap = book.get(claim.callsign) or {}
+    chain = gap.get("chain") or []
+    origin, via, dest = claim.origin, [], claim.dest
+    if chain:
+        if gap.get("side") == "origin":
+            via, dest = chain[:-1], chain[-1]
+        else:
+            origin, via = chain[0], chain[1:]
     start = valid_from
     if start is None:
         starts = [e.valid_from for e in session.execute(
@@ -292,7 +304,7 @@ def _approve(session, claim, now, by, valid_from=None, note=None):
         old.valid_to = start
         old.closed_reason = "superseded"
     session.add(RouteCatalog(
-        callsign=claim.callsign, origin=claim.origin, dest=claim.dest,
+        callsign=claim.callsign, origin=origin, dest=dest, via=via or None,
         valid_from=start, source="community", claim_id=claim.id,
         approved_at=now))
     claim.status, claim.reviewed_at, claim.reviewed_by = "approved", now, by
@@ -364,6 +376,7 @@ def _gap_row(callsign, gap):
         "side": gap.get("side"),
         "known": gap.get("known"),
         "hint": gap.get("hint"),
+        "chain": gap.get("chain"),
         "type": gap.get("type"),
         "n_recent": gap.get("n_recent"),
         "last_seen": gap.get("last_seen"),
@@ -443,7 +456,7 @@ def gap(callsign: spec.Callsign, request: Request, response: Response,
         raise ApiError(404, "not_found", "no open question")
     out = _gap_row(callsign, found)
     current = catalog_current(session, callsign)
-    out["catalog"] = ({"origin": current.origin, "dest": current.dest,
+    out["catalog"] = ({"route": catalog_route(current),
                        "valid_from": str(current.valid_from)}
                       if current else None)
     out["answers"] = [
@@ -495,12 +508,12 @@ def contributors(request: Request, response: Response,
 
 # ---- review -------------------------------------------------------------
 
-def approve(session, claim_id, valid_from=None, note=None):
+def approve(session, book, claim_id, valid_from=None, note=None):
     claim = session.get(Claim, claim_id)
     if claim is None or claim.status != "pending":
         raise ValueError("no pending claim %s" % claim_id)
     now = datetime.datetime.now(datetime.timezone.utc)
-    _approve(session, claim, now, by="operator", valid_from=valid_from,
+    _approve(session, book, claim, now, by="operator", valid_from=valid_from,
              note=note)
     session.commit()
     return claim
@@ -529,7 +542,7 @@ def reconcile(session, routes_book, today=None):
         observed = routes_book.get(row.callsign)
         if not observed:
             continue
-        same = observed[0] == row.origin and observed[-1] == row.dest
+        same = observed == catalog_route(row)
         row.valid_to = today
         row.closed_reason = "observed" if same else "contradicted"
         closed.append((row.callsign, row.closed_reason))
@@ -603,7 +616,8 @@ def main(argv=None):
                 sys.exit("no claim %d" % args.id)
             _print_claim(session, claim)
         elif args.cmd == "approve":
-            claim = approve(session, args.id, args.valid_from, args.note)
+            claim = approve(session, GapBook(settings.gaps_path), args.id,
+                            args.valid_from, args.note)
             print("approved #%d %s %s -> %s" % (claim.id, claim.callsign,
                                                claim.origin, claim.dest))
         elif args.cmd == "reject":

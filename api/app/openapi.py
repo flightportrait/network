@@ -694,6 +694,11 @@ _SCH_GAP_ROW = _obj({
     "known": _t("string", "The settled end, IATA."),
     "hint": _t("string", "The missing end's leading code when observation "
                          "saw it too rarely to settle it.", nullable=True),
+    "chain": {"description": "Every known stop in order when the callsign "
+                             "is a chain with one end unseen; the missing "
+                             "end goes before or after it. Null for a "
+                             "single leg.",
+              "oneOf": [_arr(_t("string")), {"type": "null"}]},
     "type": _t("string", "Dominant aircraft type on the leg.",
                nullable=True),
     "n_recent": _t("integer", "Sightings in the last 90 days."),
@@ -721,7 +726,7 @@ SCH_GAPS = _obj({
 EX_GAPS = {
     "total": 1, "offset": 0,
     "gaps": [{"callsign": "SIA842", "side": "dest", "known": "SIN",
-              "hint": None, "type": "B78X", "n_recent": 13,
+              "hint": None, "chain": None, "type": "B78X", "n_recent": 13,
               "last_seen": "2026-09-06",
               "last_heard": {"lat": 12.41, "lon": 106.92, "track": 21},
               "rotation_km": 3150}],
@@ -729,9 +734,9 @@ EX_GAPS = {
 }
 
 SCH_GAP = _obj(dict(_SCH_GAP_ROW["properties"], **{
-    "catalog": {"description": "The community answer in force, if any.",
-                "oneOf": [_obj({"origin": _t("string"),
-                                "dest": _t("string"),
+    "catalog": {"description": "The community answer in force, if any: "
+                               "the whole route, IATA.",
+                "oneOf": [_obj({"route": _arr(_t("string")),
                                 "valid_from": _t("string")}),
                           {"type": "null"}]},
     "answers": _arr(_obj({

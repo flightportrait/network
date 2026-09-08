@@ -211,9 +211,11 @@
       (g.hint ? "<span class='city'>perhaps " + esc(g.hint) + "</span>"
               : "<span class='city'>" + (g.side === "dest" ? "destination" : "origin") + "</span>") +
       "</span>";
-    var route = g.side === "dest"
-      ? known + "<span class='arrow'>&rarr;</span>" + blank
-      : blank + "<span class='arrow'>&rarr;</span>" + known;
+    var arrow = "<span class='arrow'>&rarr;</span>";
+    var stops = (g.chain || [g.known]).map(function (c) {
+      return "<span class='leg'>" + place(c) + "</span>";
+    }).join(arrow);
+    var route = g.side === "dest" ? stops + arrow + blank : blank + arrow + stops;
     return "<tr data-cs='" + esc(g.callsign) + "' data-side='" + esc(g.side) + "'>" +
       "<td class='flight'><a href='/network/flight.html?callsign=" + encodeURIComponent(g.callsign) + "'>" + esc(g.callsign) + "</a></td>" +
       "<td class='route'>" + route + "</td>" +

@@ -28,6 +28,12 @@ AIRPORTS_CSV = (
     '"GB-ENG","London","yes","EGLL","LHR","EGLL",,,,\n'
     '6,"RJAA","large_airport","Narita",35.76,140.39,141,"AS","JP","JP-12",'
     '"Narita","yes","RJAA","NRT","RJAA",,,,\n'
+    '7,"SBGR","large_airport","Guarulhos",-23.43,-46.47,2461,"SA","BR",'
+    '"BR-SP","São Paulo","yes","SBGR","GRU","SBGR",,,,\n'
+    '8,"SAEZ","large_airport","Ezeiza",-34.82,-58.54,67,"SA","AR","AR-B",'
+    '"Buenos Aires","yes","SAEZ","EZE","SAEZ",,,,\n'
+    '9,"HAAB","large_airport","Bole",8.98,38.8,7625,"AF","ET","ET-AA",'
+    '"Addis Ababa","yes","HAAB","ADD","HAAB",,,,\n'
 )
 
 # SIA842 leaves SIN daily and is last heard over Vietnam heading north,
@@ -48,6 +54,11 @@ GAPS = {
              "est_km": None, "n_rot": 0},
     "CFSUG": {"side": "dest", "known": "SIN", "hint": None, "type": None,
               "n_recent": 420, "last_seen": "2026-09-07"},
+    # ADD->GRU->EZE with Addis unseen: the origin is asked, the chain known.
+    "ETH506": {"side": "origin", "known": "GRU", "hint": None,
+               "chain": ["GRU", "EZE"], "type": "A359", "n_recent": 28,
+               "last_seen": "2026-09-06", "last_lat": None, "last_lon": None,
+               "last_trk": None, "est_km": None, "n_rot": 0},
 }
 
 
@@ -109,13 +120,14 @@ def test_airport_roles_from_the_registry(ctx, tmp_path):
 def test_gaps_listed_most_seen_first(ctx, tmp_path):
     client, _, _ = _setup(ctx, tmp_path)
     body = client.get("/v1/gaps").json()
-    assert body["total"] == 3                       # CFSUG is not a flight
-    assert [g["callsign"] for g in body["gaps"]] == ["SIA842", "SIA843",
-                                                     "QFA9"]
-    first = body["gaps"][0]
+    assert body["total"] == 4                       # CFSUG is not a flight
+    assert [g["callsign"] for g in body["gaps"]] == ["ETH506", "SIA842",
+                                                     "SIA843", "QFA9"]
+    assert body["gaps"][0]["chain"] == ["GRU", "EZE"]
+    first = body["gaps"][1]
     assert first["last_heard"] == {"lat": 12.41, "lon": 106.92, "track": 21}
     assert first["rotation_km"] == 3150 and first["type"] == "B78X"
-    assert body["gaps"][2]["last_heard"] is None
+    assert body["gaps"][3]["last_heard"] is None
     assert client.get("/v1/gaps?airline=QFA").json()["total"] == 1
     one = client.get("/v1/gaps/sia842").json()
     assert one["catalog"] is None and one["answers"] == []
@@ -161,7 +173,7 @@ def test_corroborated_claim_approves_itself(ctx, tmp_path):
     assert body["route"] == ["SIN", "TFU"]
     assert body["route_source"] == "observed+catalog"
     one = client.get("/v1/gaps/SIA842").json()
-    assert one["catalog"]["dest"] == "TFU"
+    assert one["catalog"]["route"] == ["SIN", "TFU"]
     assert one["answers"] == [{"origin": "SIN", "dest": "TFU",
                                "status": "approved",
                                "verdict": "corroborated"}]
@@ -199,7 +211,8 @@ def test_unverified_claim_waits_for_the_operator(ctx, tmp_path):
         assert (claim.status, claim.verdict) == ("pending", "unverified")
         assert claim.anonymous_count == 1
         assert session.query(Endorsement).count() == 0
-        contributions.approve(session, claim.id, note="checked the timetable")
+        contributions.approve(session, app.state.gaps, claim.id,
+                              note="checked the timetable")
         assert contributions.catalog_current(session, "QFA9").dest == "SIN"
     finally:
         session.close()
@@ -299,8 +312,8 @@ def test_supersession_is_dated(ctx, tmp_path):
     session = sm()
     try:
         first, second = session.query(Claim).order_by(Claim.id).all()
-        contributions.approve(session, first.id)
-        contributions.approve(session, second.id)
+        contributions.approve(session, app.state.gaps, first.id)
+        contributions.approve(session, app.state.gaps, second.id)
         rows = session.query(RouteCatalog).order_by(RouteCatalog.id).all()
         assert rows[0].valid_to == datetime.date(2026, 10, 1)
         assert rows[0].closed_reason == "superseded"
@@ -329,3 +342,26 @@ def test_rejected_claims_are_purged_after_ninety_days(ctx, tmp_path):
         assert session.query(Endorsement).count() == 0
     finally:
         session.close()
+
+
+def test_open_chain_answer_serves_the_whole_route(ctx, tmp_path):
+    """ETH506 asked for its origin; the answer ADD makes the catalog
+    route ADD->GRU->EZE, stops included, and the flight page says so."""
+    client, app, sm = _setup(ctx, tmp_path)
+    counts = _pull(sm, app, [_sub(1, "ETH506", origin="ADD", handle="x")])
+    assert counts["pending"] == 1
+    session = sm()
+    try:
+        claim = session.query(Claim).one()
+        assert (claim.origin, claim.dest) == ("ADD", "GRU")
+        assert claim.checks["known_end"] == "pass"
+        contributions.approve(session, app.state.gaps, claim.id)
+        current = contributions.catalog_current(session, "ETH506")
+        assert contributions.catalog_route(current) == ["ADD", "GRU", "EZE"]
+    finally:
+        session.close()
+    body = client.get("/v1/flights/ETH506").json()
+    assert body["route"] == ["ADD", "GRU", "EZE"]
+    assert body["route_source"] == "observed+catalog"
+    assert client.get("/v1/gaps/ETH506").json()["catalog"]["route"] == \
+        ["ADD", "GRU", "EZE"]

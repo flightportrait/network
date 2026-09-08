@@ -19,7 +19,7 @@ from . import openapi as spec
 from . import ratelimit
 from .db import get_session
 from .errors import ApiError
-from .contributions import catalog_current
+from .contributions import catalog_current, catalog_route
 from .refdata_models import RefAirframe, RefAirline, RefAirport, RefSchedule, \
     RefType
 from .routes_refdata import _hhmm, _memberships_by_airline, _serialize_airline
@@ -138,7 +138,7 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
         # Observation first; the community catalog only where it is silent.
         current = catalog_current(session, callsign)
         if current is not None:
-            route = [current.origin, current.dest]
+            route = catalog_route(current)
             question = request.app.state.gaps.get(callsign)
             route_source = ("observed+catalog"
                             if question and question.get("known") in route

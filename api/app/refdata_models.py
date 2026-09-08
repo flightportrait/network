@@ -315,6 +315,8 @@ class RouteCatalog(Base):
     callsign: Mapped[str] = mapped_column(String(12), index=True)
     origin: Mapped[str] = mapped_column(String(4), nullable=False)
     dest: Mapped[str] = mapped_column(String(4), nullable=False)
+    # Stops between the ends when the callsign is a chain.
+    via: Mapped[list | None] = mapped_column(JSON, nullable=True)
     valid_from: Mapped[datetime.date] = mapped_column(Date, nullable=False)
     # Open (null) while current; the date it stopped being true otherwise.
     valid_to: Mapped[datetime.date | None] = mapped_column(Date,
