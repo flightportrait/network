@@ -155,6 +155,9 @@ export default {
     if (pathname === "/contributions" && request.method === "POST") return contribute(request, env);
     if (pathname === "/pull" && request.method === "GET") return pull(request, env);
     if (pathname === "/healthz") return reply(200, { ok: true });
+    if (pathname === "/" && request.method === "GET") {
+      return Response.redirect("https://flightportrait.com/network/gaps.html", 302);
+    }
     return refuse(404, "not_found", "no such path");
   },
 };
