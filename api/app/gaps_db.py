@@ -67,13 +67,16 @@ class GapBook:
         return len(self._gaps)
 
     def page(self, offset: int, limit: int, airline: str | None = None,
-             side: str | None = None) -> tuple[list[tuple[str, dict]], int]:
-        """(rows, total) for one page, optionally one airline prefix or
-        one missing side."""
+             side: str | None = None,
+             exclude: set | None = None) -> tuple[list[tuple[str, dict]], int]:
+        """(rows, total) for one page, optionally one airline prefix,
+        one missing side, and without the callsigns in exclude."""
         self._maybe_load()
         rows = self._ordered
         if airline:
             rows = [kv for kv in rows if kv[0].startswith(airline)]
         if side:
             rows = [kv for kv in rows if kv[1].get("side") == side]
+        if exclude:
+            rows = [kv for kv in rows if kv[0] not in exclude]
         return rows[offset:offset + limit], len(rows)

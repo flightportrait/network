@@ -14,6 +14,7 @@ the catalog whenever both speak.
     python -m app.contributions show ID
     python -m app.contributions approve ID [--from YYYY-MM-DD] [--note ..]
     python -m app.contributions reject ID [--note ..]
+    python -m app.contributions withdraw ID [--note ..]   # undo an approval
     python -m app.contributions reconcile       # close rows observation overtook
     python -m app.contributions propose         # file what the evidence points at
 """
@@ -532,9 +533,11 @@ def gaps(request: Request, response: Response,
     book = request.app.state.gaps
     if not book.available():
         raise _dark()
+    answered = {cs for (cs,) in session.execute(
+        select(RouteCatalog.callsign).where(RouteCatalog.valid_to.is_(None)))}
     rows, total = book.page(offset, limit,
                             airline=(airline or "").upper() or None,
-                            side=side)
+                            side=side, exclude=answered)
     airports, network = _indexes(request)
     out = []
     for cs, g in rows:
@@ -659,6 +662,25 @@ def reject(session, claim_id, note=None):
     return claim
 
 
+def withdraw(session, claim_id, note=None):
+    """Undo an approval: the catalog row closes today as withdrawn and
+    the claim is rejected, so the question reopens."""
+    claim = session.get(Claim, claim_id)
+    if claim is None or claim.status != "approved":
+        raise ValueError("no approved claim %s" % claim_id)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for row in session.execute(
+            select(RouteCatalog).where(RouteCatalog.claim_id == claim.id,
+                                       RouteCatalog.valid_to.is_(None))
+    ).scalars():
+        row.valid_to = now.date()
+        row.closed_reason = "withdrawn"
+    claim.status, claim.reviewed_at = "rejected", now
+    claim.reviewed_by, claim.review_note = "operator", note
+    session.commit()
+    return claim
+
+
 def reconcile(session, routes_book, today=None):
     """Close catalog rows observation has overtaken: the same route now
     observed end to end, or a different one. Returns (callsign, reason)."""
@@ -700,13 +722,16 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("pull")
-    sub.add_parser("list")
     p = sub.add_parser("show"); p.add_argument("id", type=int)
     p = sub.add_parser("approve"); p.add_argument("id", type=int)
     p.add_argument("--from", dest="valid_from", type=datetime.date.fromisoformat)
     p.add_argument("--note")
     p = sub.add_parser("reject"); p.add_argument("id", type=int)
     p.add_argument("--note")
+    p = sub.add_parser("withdraw"); p.add_argument("id", type=int)
+    p.add_argument("--note")
+    p = sub.add_parser("list"); p.add_argument("--approved", action="store_true",
+                                               help="recent approvals instead")
     sub.add_parser("reconcile")
     sub.add_parser("propose")
     args = ap.parse_args(argv)
@@ -733,12 +758,18 @@ def main(argv=None):
                 sys.exit("contributions: pending %d, received %d"
                          % (counts["pending"], counts["received"]))
         elif args.cmd == "list":
-            rows = session.execute(
-                select(Claim).where(Claim.status == "pending")
-                .order_by(Claim.verdict, Claim.first_at)).scalars().all()
+            if args.approved:
+                rows = session.execute(
+                    select(Claim).where(Claim.status == "approved")
+                    .order_by(Claim.reviewed_at.desc()).limit(40)
+                ).scalars().all()
+            else:
+                rows = session.execute(
+                    select(Claim).where(Claim.status == "pending")
+                    .order_by(Claim.verdict, Claim.first_at)).scalars().all()
             for claim in rows:
                 _print_claim(session, claim)
-            print("%d pending" % len(rows))
+            print("%d %s" % (len(rows), "shown" if args.approved else "pending"))
         elif args.cmd == "show":
             claim = session.get(Claim, args.id)
             if claim is None:
@@ -752,6 +783,9 @@ def main(argv=None):
         elif args.cmd == "reject":
             claim = reject(session, args.id, args.note)
             print("rejected #%d %s" % (claim.id, claim.callsign))
+        elif args.cmd == "withdraw":
+            claim = withdraw(session, args.id, args.note)
+            print("withdrawn #%d %s" % (claim.id, claim.callsign))
         elif args.cmd == "reconcile":
             closed = reconcile(session, RouteBook(settings.routes_path))
             for callsign, reason in closed:

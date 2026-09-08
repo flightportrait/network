@@ -408,3 +408,22 @@ def test_propose_files_the_sole_airport_the_airline_flies_to(ctx, tmp_path):
         session.close()
     assert client.get("/v1/flights/SIA842").json()["route"] == ["SIN", "TFU"]
     assert client.get("/v1/contributors").json()["contributors"] == []
+
+
+def test_answered_questions_leave_the_list_and_can_be_withdrawn(ctx, tmp_path):
+    client, app, sm = _setup(ctx, tmp_path)
+    session = sm()
+    try:
+        contributions.propose(session, app.state.gaps, app.state.routes)
+        assert client.get("/v1/gaps").json()["total"] == 3       # SIA842 answered
+        assert "SIA842" not in [g["callsign"] for g in
+                                client.get("/v1/gaps").json()["gaps"]]
+        claim = session.query(Claim).one()
+        contributions.withdraw(session, claim.id, note="looked wrong")
+        assert claim.status == "rejected"
+        row = session.query(RouteCatalog).one()
+        assert row.closed_reason == "withdrawn" and row.valid_to is not None
+    finally:
+        session.close()
+    assert client.get("/v1/gaps").json()["total"] == 4
+    assert client.get("/v1/flights/SIA842").status_code == 404
