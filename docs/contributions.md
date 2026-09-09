@@ -41,9 +41,16 @@ seen flying there. Pick one, or type another.
 | type | within the aircraft type's range |
 | mirror | agrees with what is known about the return flight |
 | observation | agrees with the rare sighting of that end, when there was one |
+| log | the airframe log has seen this pair under this flight number |
 | unique | the one airport the airline flies to that fits every filter |
 | network | the airline is seen flying there elsewhere |
 | keyed | distinct key holders who said the same |
+
+A claim that is impossible on its face, no such question, the wrong
+known end, not a commercial airport, beyond the aircraft's range, is
+closed on its own. A claim with two agreeing signals and none
+disagreeing enters the catalog on its own. Everything else, including
+any claim some evidence disagrees with, waits for a person.
 
 When the filters leave exactly one airport the airline flies to, the
 network files that answer itself each night and judges it like any

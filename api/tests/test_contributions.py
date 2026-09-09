@@ -3,6 +3,7 @@ the catalog served after approval."""
 import datetime
 import gzip
 import json
+import sqlite3
 
 from app import contributions, refdata_ingest
 from app.gaps_db import GapBook
@@ -192,22 +193,103 @@ def test_corroborated_claim_approves_itself(ctx, tmp_path):
          "latest": str(datetime.date.today())}]
 
 
-def test_contradicted_claim_rejects_itself(ctx, tmp_path):
+def test_disagreeing_evidence_holds_a_claim_for_a_person(ctx, tmp_path):
     """London is behind the aircraft and three times the rotation's
-    distance."""
+    distance: the evidence disagrees, so the claim waits, but only a
+    person closes it."""
     client, app, sm = _setup(ctx, tmp_path)
     counts = _pull(sm, app, [_sub(1, "SIA842", dest="LHR", handle="x")])
-    assert counts["rejected"] == 1
+    assert counts["rejected"] == 0 and counts["pending"] == 1
     session = sm()
     try:
         claim = session.query(Claim).one()
-        assert (claim.status, claim.verdict) == ("rejected", "contradicted")
+        assert (claim.status, claim.verdict) == ("pending", "unverified")
         assert claim.checks["corridor"] == "fail"
         assert claim.checks["rotation"] == "fail"
         assert session.query(RouteCatalog).count() == 0
     finally:
         session.close()
     assert client.get("/v1/flights/SIA842").status_code == 404
+
+
+def test_impossible_claim_rejects_itself(ctx, tmp_path):
+    """São Paulo is beyond a 787-10's range from Singapore."""
+    client, app, sm = _setup(ctx, tmp_path)
+    counts = _pull(sm, app, [_sub(1, "SIA842", dest="GRU", handle="x")])
+    assert counts["rejected"] == 1
+    session = sm()
+    try:
+        claim = session.query(Claim).one()
+        assert (claim.status, claim.verdict) == ("rejected", "contradicted")
+        assert claim.checks["type"] == "fail"
+    finally:
+        session.close()
+
+
+def _legs_file(path, rows):
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE legs (hex TEXT, reg TEXT, type TEXT,"
+                 " callsign TEXT, date TEXT, org TEXT, dst TEXT,"
+                 " dep_ts INT, arr_ts INT, max_alt INT)")
+    conn.execute("CREATE TABLE meta (key TEXT, value TEXT)")
+    conn.execute("INSERT INTO meta VALUES ('window_days', '60')")
+    conn.executemany("INSERT INTO legs VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+    conn.commit()
+    conn.close()
+
+
+def test_the_flight_log_corroborates_what_derivation_left_muddy(ctx, tmp_path):
+    """QFA9 has no rotation and no heading, but the airframe log has
+    seen PER->SIN under this callsign five times: with one keyed voice
+    and the log agreeing, the claim still waits; with the log and a
+    second keyed voice it approves itself."""
+    client, app, sm = _setup(ctx, tmp_path)
+    _legs_file(tmp_path / "legs.db", [
+        ("7c6b%02x" % i, None, "B789", "QFA9", "2026-09-0%d" % (i + 1),
+         "PER", "SIN", 1789800000 + i * 86400, 1789820000 + i * 86400, 39000)
+        for i in range(5)])
+    app.state.legs = LegBook(str(tmp_path / "legs.db"))
+    session = sm()
+    try:
+        pages = [[_sub(1, "QFA9", dest="SIN", key_name="alice")]]
+        counts = contributions.pull(
+            session, app.state.gaps,
+            lambda after: pages.pop(0) if pages else [],
+            routes=app.state.routes, legs=app.state.legs)
+        claim = session.query(Claim).one()
+        assert claim.checks["log"] == "pass"
+        assert (claim.status, claim.verdict) == ("pending", "unverified")
+        pages = [[_sub(2, "QFA9", dest="SIN", key_name="bob")]]
+        counts = contributions.pull(
+            session, app.state.gaps,
+            lambda after: [x for x in pages.pop(0) if x["id"] > after]
+            if pages else [],
+            routes=app.state.routes, legs=app.state.legs)
+        assert counts["approved"] == 1
+        assert session.query(Claim).one().status == "approved"
+    finally:
+        session.close()
+
+
+def test_the_flight_log_can_disagree(ctx, tmp_path):
+    client, app, sm = _setup(ctx, tmp_path)
+    _legs_file(tmp_path / "legs.db", [
+        ("7c6b%02x" % i, None, "B789", "QFA9", "2026-08-%02d" % (i + 1),
+         "PER", "LHR", 1789800000 + i * 86400, 1789820000 + i * 86400, 39000)
+        for i in range(12)])
+    app.state.legs = LegBook(str(tmp_path / "legs.db"))
+    session = sm()
+    try:
+        pages = [[_sub(1, "QFA9", dest="SIN", key_name="alice"),
+                  _sub(2, "QFA9", dest="SIN", key_name="bob")]]
+        contributions.pull(session, app.state.gaps,
+                           lambda after: pages.pop(0) if pages else [],
+                           routes=app.state.routes, legs=app.state.legs)
+        claim = session.query(Claim).one()
+        assert claim.checks["log"] == "fail"
+        assert (claim.status, claim.verdict) == ("pending", "unverified")
+    finally:
+        session.close()
 
 
 def test_unverified_claim_waits_for_the_operator(ctx, tmp_path):
@@ -249,13 +331,15 @@ def test_two_keys_count_as_a_signal(ctx, tmp_path):
         session.close()
 
 
-def test_mirror_and_hint_disagreement_contradicts(ctx, tmp_path):
+def test_a_rare_sighting_that_disagrees_holds_the_claim(ctx, tmp_path):
     client, app, sm = _setup(ctx, tmp_path)
     counts = _pull(sm, app, [_sub(1, "SIA843", origin="PER", handle="x")])
-    assert counts["rejected"] == 1
+    assert counts["rejected"] == 0 and counts["pending"] == 1
     session = sm()
     try:
-        assert session.query(Claim).one().checks["observation"] == "fail"
+        claim = session.query(Claim).one()
+        assert claim.checks["observation"] == "fail"
+        assert claim.verdict == "unverified"
     finally:
         session.close()
 
@@ -338,7 +422,7 @@ def test_supersession_is_dated(ctx, tmp_path):
 
 def test_rejected_claims_are_purged_after_ninety_days(ctx, tmp_path):
     client, app, sm = _setup(ctx, tmp_path)
-    _pull(sm, app, [_sub(1, "SIA842", dest="LHR", handle="x")])
+    _pull(sm, app, [_sub(1, "SIA842", dest="GRU", handle="x")])
     session = sm()
     try:
         claim = session.query(Claim).one()

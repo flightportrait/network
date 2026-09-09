@@ -193,7 +193,8 @@ def unique_candidate(session, airports, network, gap, callsign):
 
 # ---- checks -------------------------------------------------------------
 
-def check_claim(session, book, claim, airports=None, network=None):
+def check_claim(session, book, claim, airports=None, network=None,
+                legs=None):
     """Every test the evidence allows, as {name: pass | fail | skip} plus
     the counts of people behind the claim. verdict() reads the set."""
     gap = book.get(claim.callsign)
@@ -253,6 +254,21 @@ def check_claim(session, book, claim, airports=None, network=None):
             checks["mirror"] = "pass" if answer == claimed else "fail"
             break
 
+    checks["log"] = "skip"
+    log = legs.flight(claim.callsign) if legs is not None and legs.available() \
+        else None
+    if log:
+        pair = (gap["known"], claimed) if side == "dest" else (claimed, gap["known"])
+        seen = sum(l["flights"] for l in log["legs"]
+                   if (l["org"], l["dst"]) == pair)
+        elsewhere = sum(l["flights"] for l in log["legs"]
+                        if (l["org"], l["dst"]) != pair
+                        and gap["known"] in (l["org"], l["dst"]))
+        if seen >= LOG_MIN_FLIGHTS:
+            checks["log"] = "pass"
+        elif elsewhere >= LOG_ELSEWHERE_FLIGHTS:
+            checks["log"] = "fail"
+
     checks["unique"] = "skip"
     if airports is not None and network is not None:
         sole = unique_candidate(session, airports, network, gap, claim.callsign)
@@ -274,15 +290,22 @@ def check_claim(session, book, claim, airports=None, network=None):
     return checks
 
 
-HARD = ("asked", "known_end", "not_same", "airport", "observation",
-        "corridor", "rotation", "type", "mirror")
-CORROBORATING = ("corridor", "rotation", "mirror", "unique")
+# Impossible on its face: no such question, wrong known end, an airport
+# that is not one, a distance the aircraft cannot fly.
+HARD = ("asked", "known_end", "not_same", "airport", "type")
+# Evidence that can agree or disagree; a disagreement is a reason for a
+# person to look, never a rejection on its own.
+SOFT = ("corridor", "rotation", "mirror", "observation", "unique", "log")
+LOG_MIN_FLIGHTS = 2
+LOG_ELSEWHERE_FLIGHTS = 10
 
 
 def verdict(checks):
     if any(checks.get(name) == "fail" for name in HARD):
         return "contradicted"
-    signals = sum(1 for name in CORROBORATING if checks.get(name) == "pass")
+    if any(checks.get(name) == "fail" for name in SOFT):
+        return "unverified"
+    signals = sum(1 for name in SOFT if checks.get(name) == "pass")
     if checks.get("keyed", 0) >= 2:
         signals += 1
     return "corroborated" if signals >= 2 else "unverified"
@@ -342,12 +365,13 @@ def file_submission(session, book, sub, now=None):
     return claim
 
 
-def evaluate(session, book, claim, now=None, airports=None, network=None):
+def evaluate(session, book, claim, now=None, airports=None, network=None,
+             legs=None):
     """Run the checks, record the verdict, act when the evidence is
     decisive. Pending claims are evaluated on every pull, since the
     artifact behind the checks refreshes nightly."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
-    claim.checks = check_claim(session, book, claim, airports, network)
+    claim.checks = check_claim(session, book, claim, airports, network, legs)
     if claim.status != "pending" or claim.verdict == "contested":
         return claim.status
     claim.verdict = verdict(claim.checks)
@@ -399,7 +423,7 @@ def fetch_submissions(url, token, after, limit=PULL_PAGE):
         return json.load(resp).get("submissions", [])
 
 
-def pull(session, book, fetch, now=None, routes=None):
+def pull(session, book, fetch, now=None, routes=None, legs=None):
     """File everything new at the edge, evaluate every pending claim,
     purge what is old and rejected. Returns the summary counts."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
@@ -427,7 +451,7 @@ def pull(session, book, fetch, now=None, routes=None):
     counts.update({"approved": 0, "rejected": 0})
     for claim in session.execute(
             select(Claim).where(Claim.status == "pending")).scalars().all():
-        status = evaluate(session, book, claim, now, airports, network)
+        status = evaluate(session, book, claim, now, airports, network, legs)
         if status in ("approved", "rejected"):
             counts[status] += 1
     cutoff = now - datetime.timedelta(days=PURGE_AFTER_DAYS)
@@ -447,7 +471,7 @@ def pull(session, book, fetch, now=None, routes=None):
     return counts
 
 
-def propose(session, book, routes, now=None):
+def propose(session, book, routes, now=None, legs=None):
     """Where the evidence leaves exactly one airport the airline flies
     to, file that as a claim and judge it like any other. Returns
     (filed, approved). Questions with an open or approved claim, or too
@@ -472,7 +496,8 @@ def propose(session, book, routes, now=None):
         if claim is None:
             continue
         filed += 1
-        if evaluate(session, book, claim, now, airports, network) == "approved":
+        if evaluate(session, book, claim, now, airports, network,
+                    legs) == "approved":
             approved += 1
         if filed % 200 == 0:
             session.commit()
@@ -737,6 +762,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     from .gaps_db import GapBook
+    from .legs_db import LegBook
     from .routes_db import RouteBook
     from .settings import Settings
     settings = Settings()
@@ -751,7 +777,8 @@ def main(argv=None):
                 sys.exit("the gaps artifact is not loaded")
             counts = pull(session, book, lambda after: fetch_submissions(
                 settings.contribute_pull_url, settings.contribute_pull_token,
-                after), routes=RouteBook(settings.routes_path))
+                after), routes=RouteBook(settings.routes_path),
+                legs=LegBook(settings.legs_path))
             print("pull: " + ", ".join("%s %d" % kv for kv in counts.items()))
             if counts["pending"] > settings.contribute_pending_alert \
                     or counts["received"] > settings.contribute_received_alert:
@@ -796,7 +823,8 @@ def main(argv=None):
             if not book.available():
                 sys.exit("the gaps artifact is not loaded")
             filed, approved = propose(session, book,
-                                      RouteBook(settings.routes_path))
+                                      RouteBook(settings.routes_path),
+                                      legs=LegBook(settings.legs_path))
             print("propose: filed %d, approved %d" % (filed, approved))
     finally:
         session.close()
