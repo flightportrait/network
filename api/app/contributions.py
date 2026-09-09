@@ -304,15 +304,26 @@ LOG_ELSEWHERE_FLIGHTS = 10
 LOG_RECENT_DAYS = 90
 
 
+def weighed(checks):
+    """The checks as the verdict reads them. The log saw the pair flown;
+    the rotation is an inference that assumes the airframe turns
+    straight back, which spoke-to-hub flights rarely do. Observation
+    outranks the inference."""
+    checks = dict(checks or {})
+    if checks.get("log") == "pass" and checks.get("rotation") == "fail":
+        checks["rotation"] = "skip"
+    return checks
+
+
+def disagrees(checks):
+    checks = weighed(checks)
+    return any(checks.get(name) == "fail" for name in HARD + SOFT)
+
+
 def verdict(checks):
     if any(checks.get(name) == "fail" for name in HARD):
         return "contradicted"
-    checks = dict(checks)
-    if checks.get("log") == "pass" and checks.get("rotation") == "fail":
-        # The log saw the pair flown; the rotation is an inference that
-        # assumes the airframe turns straight back, which spoke-to-hub
-        # flights rarely do. Observation outranks the inference.
-        checks["rotation"] = "skip"
+    checks = weighed(checks)
     if any(checks.get(name) == "fail" for name in SOFT):
         return "unverified"
     signals = sum(1 for name in SOFT if checks.get(name) == "pass")
@@ -696,9 +707,7 @@ def approve_clean(session, book, contributor, note=None):
                    or_(Endorsement.key_name == contributor,
                        Endorsement.handle == contributor))
             .distinct()).scalars().all():
-        checks = claim.checks or {}
-        if claim.verdict == "contested" or \
-                any(v == "fail" for v in checks.values()):
+        if claim.verdict == "contested" or disagrees(claim.checks):
             continue
         _approve(session, book, claim, now, by="operator", note=note)
         done.append(claim)
