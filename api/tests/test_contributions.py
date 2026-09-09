@@ -226,6 +226,9 @@ def test_impossible_claim_rejects_itself(ctx, tmp_path):
         session.close()
 
 
+RECENT = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
+
+
 def _legs_file(path, rows):
     conn = sqlite3.connect(path)
     conn.execute("CREATE TABLE legs (hex TEXT, reg TEXT, type TEXT,"
@@ -245,7 +248,7 @@ def test_the_flight_log_corroborates_what_derivation_left_muddy(ctx, tmp_path):
     second keyed voice it approves itself."""
     client, app, sm = _setup(ctx, tmp_path)
     _legs_file(tmp_path / "legs.db", [
-        ("7c6b%02x" % i, None, "B789", "QFA9", "2026-09-0%d" % (i + 1),
+        ("7c6b%02x" % i, None, "B789", "QFA9", RECENT,
          "PER", "SIN", 1789800000 + i * 86400, 1789820000 + i * 86400, 39000)
         for i in range(5)])
     app.state.legs = LegBook(str(tmp_path / "legs.db"))
@@ -274,7 +277,7 @@ def test_the_flight_log_corroborates_what_derivation_left_muddy(ctx, tmp_path):
 def test_the_flight_log_can_disagree(ctx, tmp_path):
     client, app, sm = _setup(ctx, tmp_path)
     _legs_file(tmp_path / "legs.db", [
-        ("7c6b%02x" % i, None, "B789", "QFA9", "2026-08-%02d" % (i + 1),
+        ("7c6b%02x" % i, None, "B789", "QFA9", RECENT,
          "PER", "LHR", 1789800000 + i * 86400, 1789820000 + i * 86400, 39000)
         for i in range(12)])
     app.state.legs = LegBook(str(tmp_path / "legs.db"))
@@ -511,3 +514,46 @@ def test_answered_questions_leave_the_list_and_can_be_withdrawn(ctx, tmp_path):
         session.close()
     assert client.get("/v1/gaps").json()["total"] == 4
     assert client.get("/v1/flights/SIA842").status_code == 404
+
+
+def test_the_log_outranks_the_rotation_and_old_sightings_do_not_count(ctx, tmp_path):
+    """SIA842 to London: the rotation says far too far, but the log saw
+    SIN->LHR under this number last week. The rotation is set aside and
+    the claim waits on one signal; with a second keyed voice it passes.
+    A log whose sightings are a year old says nothing."""
+    client, app, sm = _setup(ctx, tmp_path)
+    _legs_file(tmp_path / "legs.db", [
+        ("76cc6%x" % i, None, "B78X", "SIA842", RECENT if i < 3 else "2025-06-01",
+         "SIN", "LHR", 1789800000 + i * 86400, 1789820000 + i * 86400, 39000)
+        for i in range(6)])
+    app.state.legs = LegBook(str(tmp_path / "legs.db"))
+    session = sm()
+    try:
+        pages = [[_sub(1, "SIA842", dest="LHR", key_name="alice")]]
+        contributions.pull(session, app.state.gaps,
+                           lambda after: pages.pop(0) if pages else [],
+                           routes=app.state.routes, legs=app.state.legs)
+        claim = session.query(Claim).one()
+        assert claim.checks["rotation"] == "fail"
+        assert claim.checks["log"] == "pass"
+        assert claim.checks["corridor"] == "fail"       # London is behind it
+        assert (claim.status, claim.verdict) == ("pending", "unverified")
+        done = contributions.approve_clean(session, app.state.gaps, "alice")
+        assert done == []                                # corridor disagrees
+    finally:
+        session.close()
+
+
+def test_bulk_approve_takes_only_clean_claims(ctx, tmp_path):
+    client, app, sm = _setup(ctx, tmp_path)
+    _pull(sm, app, [_sub(1, "QFA9", dest="SIN", key_name="martin"),
+                    _sub(2, "SIA843", origin="PER", key_name="martin")])
+    session = sm()
+    try:
+        done = contributions.approve_clean(session, app.state.gaps, "martin",
+                                           note="trusted")
+        assert [c.callsign for c in done] == ["QFA9"]  # SIA843: hint disagrees
+        assert session.get(Claim, done[0].id).reviewed_by == "operator"
+    finally:
+        session.close()
+    assert client.get("/v1/flights/QFA9").json()["route"] == ["PER", "SIN"]

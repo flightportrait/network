@@ -259,11 +259,14 @@ def check_claim(session, book, claim, airports=None, network=None,
         else None
     if log:
         pair = (gap["known"], claimed) if side == "dest" else (claimed, gap["known"])
+        cutoff = (datetime.date.today()
+                  - datetime.timedelta(days=LOG_RECENT_DAYS)).isoformat()
         seen = sum(l["flights"] for l in log["legs"]
-                   if (l["org"], l["dst"]) == pair)
+                   if (l["org"], l["dst"]) == pair and l["last"] >= cutoff)
         elsewhere = sum(l["flights"] for l in log["legs"]
                         if (l["org"], l["dst"]) != pair
-                        and gap["known"] in (l["org"], l["dst"]))
+                        and gap["known"] in (l["org"], l["dst"])
+                        and l["last"] >= cutoff)
         if seen >= LOG_MIN_FLIGHTS:
             checks["log"] = "pass"
         elif elsewhere >= LOG_ELSEWHERE_FLIGHTS:
@@ -298,11 +301,18 @@ HARD = ("asked", "known_end", "not_same", "airport", "type")
 SOFT = ("corridor", "rotation", "mirror", "observation", "unique", "log")
 LOG_MIN_FLIGHTS = 2
 LOG_ELSEWHERE_FLIGHTS = 10
+LOG_RECENT_DAYS = 90
 
 
 def verdict(checks):
     if any(checks.get(name) == "fail" for name in HARD):
         return "contradicted"
+    checks = dict(checks)
+    if checks.get("log") == "pass" and checks.get("rotation") == "fail":
+        # The log saw the pair flown; the rotation is an inference that
+        # assumes the airframe turns straight back, which spoke-to-hub
+        # flights rarely do. Observation outranks the inference.
+        checks["rotation"] = "skip"
     if any(checks.get(name) == "fail" for name in SOFT):
         return "unverified"
     signals = sum(1 for name in SOFT if checks.get(name) == "pass")
@@ -675,6 +685,27 @@ def approve(session, book, claim_id, valid_from=None, note=None):
     return claim
 
 
+def approve_clean(session, book, contributor, note=None):
+    """Approve every pending claim a named contributor stands behind
+    that no check disagrees with. Returns the claims approved."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    done = []
+    for claim in session.execute(
+            select(Claim).join(Endorsement, Endorsement.claim_id == Claim.id)
+            .where(Claim.status == "pending",
+                   or_(Endorsement.key_name == contributor,
+                       Endorsement.handle == contributor))
+            .distinct()).scalars().all():
+        checks = claim.checks or {}
+        if claim.verdict == "contested" or \
+                any(v == "fail" for v in checks.values()):
+            continue
+        _approve(session, book, claim, now, by="operator", note=note)
+        done.append(claim)
+    session.commit()
+    return done
+
+
 def reject(session, claim_id, note=None):
     claim = session.get(Claim, claim_id)
     if claim is None or claim.status != "pending":
@@ -748,9 +779,12 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("pull")
     p = sub.add_parser("show"); p.add_argument("id", type=int)
-    p = sub.add_parser("approve"); p.add_argument("id", type=int)
+    p = sub.add_parser("approve"); p.add_argument("id", type=int, nargs="?")
     p.add_argument("--from", dest="valid_from", type=datetime.date.fromisoformat)
     p.add_argument("--note")
+    p.add_argument("--contributor",
+                   help="instead of one id: every pending claim this "
+                        "contributor stands behind that nothing disagrees with")
     p = sub.add_parser("reject"); p.add_argument("id", type=int)
     p.add_argument("--note")
     p = sub.add_parser("withdraw"); p.add_argument("id", type=int)
@@ -803,10 +837,20 @@ def main(argv=None):
                 sys.exit("no claim %d" % args.id)
             _print_claim(session, claim)
         elif args.cmd == "approve":
-            claim = approve(session, GapBook(settings.gaps_path), args.id,
-                            args.valid_from, args.note)
-            print("approved #%d %s %s -> %s" % (claim.id, claim.callsign,
-                                               claim.origin, claim.dest))
+            book = GapBook(settings.gaps_path)
+            if args.contributor:
+                done = approve_clean(session, book, args.contributor, args.note)
+                for claim in done:
+                    print("approved #%d %s %s -> %s" % (
+                        claim.id, claim.callsign, claim.origin, claim.dest))
+                print("%d approved for %s" % (len(done), args.contributor))
+            elif args.id is None:
+                ap.error("an id or --contributor")
+            else:
+                claim = approve(session, book, args.id, args.valid_from,
+                                args.note)
+                print("approved #%d %s %s -> %s" % (
+                    claim.id, claim.callsign, claim.origin, claim.dest))
         elif args.cmd == "reject":
             claim = reject(session, args.id, args.note)
             print("rejected #%d %s" % (claim.id, claim.callsign))
