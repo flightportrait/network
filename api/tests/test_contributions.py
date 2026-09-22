@@ -190,7 +190,7 @@ def test_corroborated_claim_approves_itself(ctx, tmp_path):
                                "verdict": "corroborated"}]
     assert client.get("/v1/contributors").json()["contributors"] == [
         {"handle": "spotter sg", "answers": 1,
-         "latest": str(datetime.date.today())}]
+         "latest": datetime.datetime.now(datetime.timezone.utc).date().isoformat()}]
 
 
 def test_disagreeing_evidence_holds_a_claim_for_a_person(ctx, tmp_path):
