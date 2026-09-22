@@ -257,6 +257,8 @@ def test_stream_sends_the_box_then_only_changes(ctx):
         moved = dict(sin, seen=3.1, seen_pos=3.5)
         app.state.snapshot = build_snapshot(
             {"now": t0 + 5, "aircraft": [moved, gva]}, settings.max_aircraft)
+        beat = ws.receive_json()
+        assert beat == {"t": t0 + 5}            # a heartbeat, no aircraft
         # a real move, and Geneva enters the box while Singapore leaves
         app.state.snapshot = build_snapshot(
             {"now": t0 + 10, "aircraft": [dict(sin, lat=1.4)]},

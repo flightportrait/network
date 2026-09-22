@@ -2059,6 +2059,7 @@
     if (map.getLayer("selected-ring")) {
       map.setFilter("selected-ring", ["==", ["get", "hex"], "___none___"]);
     }
+    state.trailPts = null;
     map.getSource("trail").setData(
       { type: "FeatureCollection", features: [] });
     drawRouteLine([]);
@@ -2081,9 +2082,11 @@
     var typeName = (a.t && typeNames[a.t] && typeNames[a.t][0]) || a.t;
     var sub = [typeName, a.r].filter(Boolean).map(esc).join(" · ");
     // a position older than half a minute explains a frozen icon
-    if (a.seen_pos != null && a.seen_pos >= 30) {
+    var posAge = a.seen_pos != null
+      ? a.seen_pos + (Date.now() - (a._heard || state.fetchedAt)) / 1000 : null;
+    if (posAge != null && posAge >= 30) {
       sub += (sub ? " · " : "") + "<span class='stale'>position " +
-        Math.round(a.seen_pos) + " s old</span>";
+        Math.round(posAge) + " s old</span>";
     }
     el("d-sub").innerHTML = sub;
     // the operator, when the callsign says who it is
@@ -2142,22 +2145,39 @@
       return r.json();
     }).then(function (d) {
       if (d.hex !== state.selected) return;
-      // one feature per segment so the color can follow the altitude
-      var feats = [];
-      for (var i = 1; i < d.points.length; i++) {
-        var a = d.points[i - 1], b = d.points[i];
-        var alt = typeof b[3] === "number" ? b[3]
-          : (typeof a[3] === "number" ? a[3] : 0);
-        feats.push({ type: "Feature", properties: { alt: alt },
-          geometry: { type: "LineString",
-            coordinates: [[a[2], a[1]], [b[2], b[1]]] } });
-      }
-      map.getSource("trail").setData(
-        { type: "FeatureCollection", features: feats });
+      state.trailPts = d.points || [];
+      drawTrail();
     }).catch(function () {
-      map.getSource("trail").setData(
-        { type: "FeatureCollection", features: [] });
+      state.trailPts = [];
+      drawTrail();
     });
+  }
+  // The trace as heard, plus a live head from its last point to where
+  // the sprite is now, so the line reaches the gliding aircraft.
+  // Redrawn every second while an aircraft is selected.
+  function drawTrail() {
+    if (!map.getSource("trail")) return;
+    var pts = state.trailPts || [];
+    var feats = [];
+    for (var i = 1; i < pts.length; i++) {
+      var a = pts[i - 1], b = pts[i];
+      var alt = typeof b[3] === "number" ? b[3]
+        : (typeof a[3] === "number" ? a[3] : 0);
+      feats.push({ type: "Feature", properties: { alt: alt },
+        geometry: { type: "LineString",
+          coordinates: [[a[2], a[1]], [b[2], b[1]]] } });
+    }
+    var sel = state.selected && findAircraft(state.selected);
+    if (sel && sel.lat != null && pts.length) {
+      var last = pts[pts.length - 1];
+      var head = projected(sel);
+      var altH = typeof last[3] === "number" ? last[3] : 0;
+      feats.push({ type: "Feature", properties: { alt: altH },
+        geometry: { type: "LineString",
+          coordinates: [[last[2], last[1]], head] } });
+    }
+    map.getSource("trail").setData(
+      { type: "FeatureCollection", features: feats });
   }
 
   // ---- motion ---------------------------------------------------------
@@ -2498,6 +2518,7 @@
   // user's finger.
   (function tick() {
     if (!reducedMotion) pushPositions();
+    if (state.selected && state.trailPts) drawTrail();
     var n = state.drawn || 0;
     setTimeout(tick, n > 3000 ? 3000 : n > 1200 ? 2000 : 1000);
   })();
@@ -2616,6 +2637,11 @@
       var m;
       try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.stale) { setStatus(false, "network stale"); return; }
+      if (!m.full && !m.upd && !m.del) {      // heartbeat: the sky was heard
+        state.generatedAt = m.t || state.generatedAt;
+        setStatus(true, "live");
+        return;
+      }
       if (m.full) stream.byHex = {};
       var now = Date.now();
       (m.upd || []).forEach(function (a) {

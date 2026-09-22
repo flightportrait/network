@@ -313,6 +313,9 @@ async def stream(ws: WebSocket):
                 if full:
                     out["full"] = True
                 await ws.send_json(out)
+            else:
+                # nothing moved: still say the sky was heard
+                await ws.send_json({"t": snap.generated_at})
     except WebSocketDisconnect:
         pass
     finally:

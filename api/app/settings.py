@@ -61,8 +61,10 @@ class Settings:
 
     # Pollers. The snapshot poll is the ONLY steady load this API puts on
     # readsb, independent of public traffic — that is the point.
+    # readsb rewrites aircraft.json every second; two seconds keeps the
+    # stream's "last heard" within a breath of the sky.
     snapshot_poll_s: float = field(default_factory=lambda: _env_float(
-        "NETWORK_API_SNAPSHOT_POLL_S", 5.0))
+        "NETWORK_API_SNAPSHOT_POLL_S", 2.0))
     station_poll_s: float = field(default_factory=lambda: _env_float(
         "NETWORK_API_STATION_POLL_S", 15.0))
     receivers_poll_s: float = field(default_factory=lambda: _env_float(
