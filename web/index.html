@@ -2226,7 +2226,7 @@
     "attribute float a_rot; attribute vec4 a_uv; attribute vec2 a_size;",
     "attribute float a_alpha;",
     "uniform mat4 u_matrix; uniform float u_now; uniform float u_bearing;",
-    "uniform vec2 u_viewport;",
+    "uniform vec2 u_viewport; uniform float u_dpr;",
     "varying vec2 v_uv; varying float v_alpha;",
     "void main() {",
     "  float dt = clamp(u_now - a_t0, 0.0, 90.0);",
@@ -2234,7 +2234,7 @@
     "  vec4 clip = u_matrix * vec4(p, 0.0, 1.0);",
     "  float ang = a_rot - u_bearing;",
     "  float c = cos(ang), s = sin(ang);",
-    "  vec2 px = a_corner * a_size;",
+    "  vec2 px = a_corner * a_size * u_dpr;",
     "  vec2 r = vec2(px.x * c - px.y * s, px.x * s + px.y * c);",
     "  clip.xy += vec2(r.x, -r.y) * 2.0 / u_viewport * clip.w;",
     "  gl_Position = clip;",
@@ -2258,6 +2258,14 @@
       this.divisor = isGL2
         ? function (i, d) { gl.vertexAttribDivisor(i, d); }
         : function (i, d) { ext.vertexAttribDivisorANGLE(i, d); };
+      // our own vertex array: MapLibre binds its own per draw, and
+      // attribute pointers set on the wrong one corrupt other layers
+      var vaoExt = isGL2 ? null : gl.getExtension("OES_vertex_array_object");
+      if (!isGL2 && !vaoExt) throw new Error("no vertex arrays");
+      this.vao = isGL2 ? gl.createVertexArray() : vaoExt.createVertexArrayOES();
+      this.bindVao = isGL2
+        ? function (v) { gl.bindVertexArray(v); }
+        : function (v) { vaoExt.bindVertexArrayOES(v); };
       this.drawInst = isGL2
         ? function (n) { gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, n); }
         : function (n) { ext.drawArraysInstancedANGLE(gl.TRIANGLES, 0, 6, n); };
@@ -2283,7 +2291,7 @@
        "a_alpha"].forEach(function (n) {
         self.loc[n] = gl.getAttribLocation(prog, n);
       });
-      ["u_matrix", "u_now", "u_bearing", "u_viewport", "u_tex"].forEach(
+      ["u_matrix", "u_now", "u_bearing", "u_viewport", "u_dpr", "u_tex"].forEach(
         function (n) { self.loc[n] = gl.getUniformLocation(prog, n); });
       this.quad = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
@@ -2324,9 +2332,11 @@
       gl.uniform1f(this.loc.u_bearing, map.getBearing() * Math.PI / 180);
       var c = map.getCanvas();
       gl.uniform2f(this.loc.u_viewport, c.width, c.height);
+      gl.uniform1f(this.loc.u_dpr, window.devicePixelRatio || 1);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.tex);
       gl.uniform1i(this.loc.u_tex, 0);
+      this.bindVao(this.vao);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
       gl.enableVertexAttribArray(this.loc.a_corner);
       gl.vertexAttribPointer(this.loc.a_corner, 2, gl.FLOAT, false, 0, 0);
@@ -2341,10 +2351,7 @@
           self.divisor(L[a[0]], 1);
         });
       this.drawInst(gpu.n);
-      // divisors are global GL state: hand the attributes back clean
-      Object.keys(L).forEach(function (n) {
-        if (n.charAt(0) === "a" && L[n] >= 0) self.divisor(L[n], 0);
-      });
+      this.bindVao(null);
       if (gpu.moving && !reducedMotion && !document.hidden) map.triggerRepaint();
     }
   };
