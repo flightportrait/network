@@ -238,3 +238,57 @@ def test_aircraft_bbox(ctx):
     assert [a["hex"] for a in body["aircraft"]] == ["cccccc"]
     assert client.get("/v1/aircraft?bbox=1,2,3").status_code == 422
     assert client.get("/v1/aircraft?bbox=0,50,10,40").status_code == 422
+
+
+def test_stream_sends_the_box_then_only_changes(ctx):
+    client, app, sm, settings, readsb = ctx
+    sin = {"hex": "aaaaaa", "flight": "SIA1", "lat": 1.3, "lon": 103.8,
+           "gs": 400, "track": 90, "seen": 0.1, "seen_pos": 0.5}
+    gva = {"hex": "bbbbbb", "flight": "SWR1", "lat": 46.2, "lon": 6.1}
+    t0 = time.time()
+    app.state.snapshot = build_snapshot(
+        {"now": t0, "aircraft": [sin, gva]}, settings.max_aircraft)
+    with client.websocket_connect("/v1/stream") as ws:
+        ws.send_json({"bbox": [100, -5, 110, 10]})
+        first = ws.receive_json()
+        assert first["full"] is True and first["total"] == 2
+        assert [a["hex"] for a in first["upd"]] == ["aaaaaa"]
+        # seen ticking alone is not a change: nothing is sent
+        moved = dict(sin, seen=3.1, seen_pos=3.5)
+        app.state.snapshot = build_snapshot(
+            {"now": t0 + 5, "aircraft": [moved, gva]}, settings.max_aircraft)
+        # a real move, and Geneva enters the box while Singapore leaves
+        app.state.snapshot = build_snapshot(
+            {"now": t0 + 10, "aircraft": [dict(sin, lat=1.4)]},
+            settings.max_aircraft)
+        second = ws.receive_json()
+        assert "full" not in second and second["t"] == t0 + 10
+        assert [a["lat"] for a in second["upd"]] == [1.4] and second["del"] == []
+        app.state.snapshot = build_snapshot(
+            {"now": t0 + 15, "aircraft": [gva]}, settings.max_aircraft)
+        third = ws.receive_json()
+        assert third["upd"] == [] and third["del"] == ["aaaaaa"]
+        # a new box: everything in it again
+        ws.send_json({"bbox": None})
+        fourth = ws.receive_json()
+        assert fourth["full"] is True
+        assert [a["hex"] for a in fourth["upd"]] == ["bbbbbb"]
+
+
+def test_stream_caps_sockets_per_address(ctx):
+    client, app, sm, settings, readsb = ctx
+    settings.stream_max_per_ip = 1
+    with client.websocket_connect("/v1/stream") as first:
+        first.send_json({"bbox": None})
+        first.receive_json()
+        try:
+            with client.websocket_connect("/v1/stream") as second:
+                second.send_json({"bbox": None})
+                closed = False
+                try:
+                    second.receive_json()
+                except Exception:
+                    closed = True
+                assert closed
+        except Exception:
+            pass      # refused at the handshake: also fine

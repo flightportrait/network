@@ -2163,7 +2163,7 @@
   // ---- motion ---------------------------------------------------------
   function projected(a) {
     if (a.lat == null || reducedMotion) return [a.lon, a.lat];
-    var age = (Date.now() - state.fetchedAt) / 1000 + (a.seen_pos || 0);
+    var age = (Date.now() - (a._heard || state.fetchedAt)) / 1000 + (a.seen_pos || 0);
     if (a.gs == null || a.track == null || age > 90) return [a.lon, a.lat];
     var nm = a.gs * Math.min(age, 90) / 3600;
     var rad = (a.track || 0) * Math.PI / 180;
@@ -2373,7 +2373,6 @@
     var west = b.getWest() - mw, east = b.getEast() + mw;
     var south = b.getSouth() - mh, north = b.getNorth() + mh;
     var whole = z < 2.5 || east - west >= 360;
-    var heard = state.fetchedAt / 1000;
     var rows = [], moving = false;
     var sel = state.selected;
     function row(a, uv, size, alpha, ring) {
@@ -2392,7 +2391,7 @@
         vy = -Math.cos(rad) * ms * perM;
         if (ms > 1) moving = true;
       }
-      var t0 = heard - (a.seen_pos || 0) - gpu.epoch;
+      var t0 = (a._heard || state.fetchedAt) / 1000 - (a.seen_pos || 0) - gpu.epoch;
       rows.push(mc.x, mc.y, vx, vy, t0, ring ? 0 : (a.track || 0) * Math.PI / 180,
                 uv[0], uv[1], uv[2], uv[3], size[0], size[1], alpha);
       return rows.length / STRIDE - 1;
@@ -2578,6 +2577,7 @@
   var lastMoveFetch = 0;
   function onViewMoved() {
     if (!map) return;
+    if (stream && stream.open) { stream.sendBox(); return; }
     var box = viewBox();
     if (!box && !fetchedBox) return;
     if (box && fetchedBox && boxCovers(fetchedBox, map.getBounds())) return;
@@ -2587,28 +2587,98 @@
     refresh();
   }
 
+  // ---- the live stream ------------------------------------------------
+  // One socket per open map: the page says which box it looks at, the
+  // network answers with everything in it and then only what changed,
+  // every snapshot (5 s). Polling stays as the fallback and resumes by
+  // itself whenever the socket is down.
+  var stream = { ws: null, open: false, backoff: 2000, byHex: {}, sentBox: "",
+                 timer: null, sendAt: 0 };
+  stream.connect = function () {
+    if (!("WebSocket" in window) || stream.ws) return;
+    var url = API.replace(/^http/, "ws") + "/v1/stream";
+    var ws;
+    try { ws = new WebSocket(url); } catch (e) { return; }
+    stream.ws = ws;
+    ws.onopen = function () {
+      stream.open = true; stream.backoff = 2000;
+      stream.byHex = {}; stream.sentBox = "";
+      stream.sendBox(true);
+    };
+    ws.onmessage = function (ev) {
+      var m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.stale) { setStatus(false, "network stale"); return; }
+      if (m.full) stream.byHex = {};
+      var now = Date.now();
+      (m.upd || []).forEach(function (a) {
+        a._heard = now; stream.byHex[a.hex] = a;
+      });
+      (m.del || []).forEach(function (h) { delete stream.byHex[h]; });
+      var list = Object.keys(stream.byHex).map(function (k) {
+        return stream.byHex[k];
+      });
+      applySky(list, { generated_at: m.t, total: m.total });
+    };
+    ws.onclose = ws.onerror = function () {
+      if (stream.ws !== ws) return;
+      stream.ws = null; stream.open = false;
+      clearTimeout(stream.timer);
+      stream.timer = setTimeout(stream.connect, stream.backoff);
+      stream.backoff = Math.min(30000, stream.backoff * 2);
+    };
+  };
+  // the box the page looks at, sent when it changes (at most once a
+  // second); the same rules as the poll's box
+  stream.sendBox = function (force) {
+    if (!stream.open) return;
+    var box = viewBox();
+    var key = box ? [box.w, box.s, box.e, box.n]
+      .map(function (x) { return x.toFixed(3); }).join(",") : "";
+    if (!force && key === stream.sentBox) return;
+    var now = Date.now();
+    if (!force && now - stream.sendAt < 1000) {
+      clearTimeout(stream.boxTimer);
+      stream.boxTimer = setTimeout(function () { stream.sendBox(); }, 1000);
+      return;
+    }
+    stream.sendAt = now; stream.sentBox = key;
+    try {
+      stream.ws.send(JSON.stringify({ bbox: box
+        ? [+box.w.toFixed(3), +box.s.toFixed(3), +box.e.toFixed(3), +box.n.toFixed(3)]
+        : null }));
+    } catch (e) { /* the close handler reconnects */ }
+  };
+  stream.connect();
+
+  function applySky(list, d) {
+    state.aircraft = list || [];
+    state.generatedAt = d.generated_at || 0;
+    state.fetchedAt = Date.now();
+    setStatus(true, "live");
+    el("count-aircraft").textContent =
+      d.total != null ? d.total : state.aircraft.length;
+    gpuSync();
+    pushPositions();
+    renderList();
+    if (window.__rosterSky) window.__rosterSky();
+    if (state.selected) { renderDetail(); updateTrail(); }
+    else if (map && map.getSource("aircraft") && location.hash.length > 1 &&
+             findAircraft(location.hash.slice(1))) {
+      select(location.hash.slice(1));
+    }
+    maybeFit(toFeatures(state.aircraft,
+      function (a) { return [a.lat, a.lon]; }));
+  }
   function refresh() {
-    fetchSky().then(function (d) {
-      state.aircraft = d.aircraft || [];
-      state.generatedAt = d.generated_at || 0;
-      state.fetchedAt = Date.now();
-      setStatus(true, "live");
-      el("count-aircraft").textContent =
-        d.total != null ? d.total : state.aircraft.length;
-      gpuSync();
-      pushPositions();
-      renderList();
-      if (window.__rosterSky) window.__rosterSky();
-      if (state.selected) { renderDetail(); updateTrail(); }
-      else if (map && map.getSource("aircraft") && location.hash.length > 1 &&
-               findAircraft(location.hash.slice(1))) {
-        select(location.hash.slice(1));
-      }
-      maybeFit(toFeatures(state.aircraft,
-        function (a) { return [a.lat, a.lon]; }));
-    }).catch(function () {
-      setStatus(false, "network not answering");
-    });
+    if (stream && stream.open) stream.sendBox();
+    else {
+      fetchSky().then(function (d) {
+        applySky(d.aircraft, d);
+      }).catch(function () {
+        setStatus(false, "network not answering");
+      });
+    }
 
     fetch(API + "/v1/now").then(function (r) { return r.json(); })
       .then(function (d) {
@@ -2659,7 +2729,8 @@
   }
   el("search").addEventListener("input", function () {
     renderList();
-    if (fetchedBox && (el("search").value || "").trim()) refresh();
+    if (stream && stream.open) stream.sendBox();
+    else if (fetchedBox && (el("search").value || "").trim()) refresh();
   });
   if (window.fpSearch && el("q")) {
     fpSearch(el("q"), el("q-list"), {

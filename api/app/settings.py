@@ -160,6 +160,9 @@ class Settings:
         "NETWORK_API_NOW_RATE_LIMIT", 600))
     aircraft_rate_limit: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_AIRCRAFT_RATE_LIMIT", 300))
+    # Live stream: open sockets per client address.
+    stream_max_per_ip: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_STREAM_MAX_PER_IP", 4))
     point_rate_limit: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_POINT_RATE_LIMIT", 300))
     stations_rate_limit: int = field(default_factory=lambda: _env_int(

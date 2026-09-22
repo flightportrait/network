@@ -8,10 +8,12 @@ does. /v2/point included: it filters the snapshot by distance instead of
 proxying the aggregator, so its envelope stays ecosystem-shaped while its
 cost stays memory-only.
 """
+import asyncio
 import math
 import time
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Query, Request, Response, WebSocket, \
+    WebSocketDisconnect
 
 from . import openapi as spec
 from . import ratelimit
@@ -210,3 +212,110 @@ def point(lat: spec.Lat, lon: spec.Lon, radius: spec.RadiusNM,
         "ctime": snapshot.generated_at,
         "ptime": round((time.time() - started) * 1000, 3),
     }
+
+
+# ---- the live stream ------------------------------------------------------
+# One socket per open map. The client says which box it looks at (or
+# null for the whole sky); the server answers with everything in it,
+# then, on every new snapshot, only what changed: aircraft whose fields
+# moved (`upd`) and aircraft that left the box or the sky (`del`).
+# `seen`/`seen_pos` ticking alone is not a change; the client ages a
+# position from the moment it received it. Compression is the socket's
+# own (permessage-deflate).
+
+_open_sockets: dict[str, int] = {}
+STREAM_TICK_S = 1.0
+_SKIP = ("seen", "seen_pos")
+
+
+def _same(a: dict, b: dict) -> bool:
+    for k in set(a) | set(b):
+        if k in _SKIP:
+            continue
+        if a.get(k) != b.get(k):
+            return False
+    return True
+
+
+def _box_of(msg) -> tuple | None:
+    box = msg.get("bbox") if isinstance(msg, dict) else None
+    if box is None:
+        return None
+    if not (isinstance(box, list) and len(box) == 4):
+        raise ValueError("bbox")
+    return _parse_bbox(",".join(str(float(x)) for x in box))
+
+
+@router.websocket("/v1/stream")
+async def stream(ws: WebSocket):
+    settings = ws.app.state.settings
+    ip = ratelimit.client_ip(ws)
+    if _open_sockets.get(ip, 0) >= settings.stream_max_per_ip:
+        await ws.close(code=1008)
+        return
+    _open_sockets[ip] = _open_sockets.get(ip, 0) + 1
+    await ws.accept()
+    box = None
+    sent: dict[str, dict] = {}
+    last_gen = -1.0
+    wait = 0.5          # the first box usually arrives right away
+    try:
+        while True:
+            try:
+                msg = await asyncio.wait_for(ws.receive_json(), timeout=wait)
+            except asyncio.TimeoutError:
+                msg = None
+            except (ValueError, TypeError):
+                await ws.close(code=1003)
+                return
+            wait = STREAM_TICK_S
+            full = False
+            if msg is not None:
+                try:
+                    new_box = _box_of(msg)
+                except (ValueError, ApiError):
+                    await ws.close(code=1003)
+                    return
+                if new_box != box or not sent and last_gen < 0:
+                    box, full = new_box, True
+            snap = ws.app.state.snapshot
+            if not snap.fresh(settings.stale_after_s):
+                if last_gen != 0:
+                    await ws.send_json({"stale": True})
+                    last_gen = 0
+                continue
+            if snap.generated_at == last_gen and not full:
+                continue
+            if last_gen < 0:
+                full = True          # the first word is always everything
+            last_gen = snap.generated_at
+            listed = snap.aircraft
+            if box is not None:
+                listed = [a for a in listed if _in_bbox(a, box)]
+            now_keys = set()
+            upd = []
+            for a in listed:
+                h = a.get("hex")
+                if not h:
+                    continue
+                now_keys.add(h)
+                prev = sent.get(h)
+                if full or prev is None or not _same(prev, a):
+                    upd.append(a)
+                    sent[h] = a
+            gone = [h for h in sent if h not in now_keys]
+            for h in gone:
+                del sent[h]
+            if full or upd or gone:
+                out = {"t": snap.generated_at, "total": snap.aircraft_count,
+                       "with_position": snap.with_pos_count, "upd": upd,
+                       "del": gone}
+                if full:
+                    out["full"] = True
+                await ws.send_json(out)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        _open_sockets[ip] = _open_sockets.get(ip, 1) - 1
+        if _open_sockets[ip] <= 0:
+            _open_sockets.pop(ip, None)
