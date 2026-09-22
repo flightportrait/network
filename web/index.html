@@ -157,17 +157,21 @@
      operator's name. The airframe follows as labelled rows. */
   /* The head: mark, callsign and two chips on the close's row; the
      operator's name on the next; then the photo. */
-  .detail .dhead{display:flex;align-items:center;gap:8px;padding-right:28px;
-    line-height:1.15;min-height:26px}
-  .detail .dhead img{width:30px;height:26px;object-fit:contain;display:block;
+  /* The mark spans both rows; the callsign row and the operator
+     start at the same left edge beside it. */
+  .detail .dhead{display:flex;align-items:center;gap:10px;padding-right:28px;
+    line-height:1.15}
+  .detail .dhead img{width:46px;height:40px;object-fit:contain;display:block;
     flex:none}
+  .detail .dhead-text{min-width:0;flex:1}
+  .detail .dhead-row{display:flex;align-items:center;gap:8px}
   .detail .dhead .cs{flex:none;font-size:20px}
   .detail .chips{display:flex;gap:4px;min-width:0;overflow:hidden}
   .detail .chip{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;
     letter-spacing:.04em;color:var(--quiet);background:var(--card);
     border:1px solid var(--line);border-radius:4px;padding:2px 6px;
     line-height:1.2;white-space:nowrap}
-  .detail .op{color:var(--quiet);font-size:13px;line-height:1.2;margin-top:3px}
+  .detail .op{color:var(--quiet);font-size:13px;line-height:1.2;margin-top:2px}
   /* Only when it is real: a squawk or transponder emergency */
   .detail .alert{margin-top:10px;padding:8px 12px;border-radius:6px;
     background:var(--red);color:var(--paper);font-size:14px}
@@ -951,10 +955,11 @@
   <button class="cardclose" id="d-close" aria-label="Close">&times;</button>
   <div class="dhead" id="d-operator">
     <img id="d-operator-tail" alt="" hidden>
-    <span class="cs" id="d-cs"></span>
-    <span class="chips" id="d-chips"></span>
+    <div class="dhead-text">
+      <div class="dhead-row"><span class="cs" id="d-cs"></span><span class="chips" id="d-chips"></span></div>
+      <div class="op" id="d-op"></div>
+    </div>
   </div>
-  <div class="op" id="d-op"></div>
   <div class="sub" id="d-sub" hidden></div>
   <div class="alert" id="d-alert" hidden></div>
   <div class="photo" id="d-photo"></div>
