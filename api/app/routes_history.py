@@ -212,6 +212,10 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
             leg["dep"] = _hhmm(row.dep_min) if row else None
             leg["arr"] = _hhmm(row.arr_min) if row else None
             leg["type"] = row.type_code if row else None
+            # where the times come from: observed (inferred from what
+            # flew), published (an airport's board), or both
+            leg["times"] = getattr(row, "source", None) if row else None
+            leg["flight"] = getattr(row, "flight", None) if row else None
     response.headers["Cache-Control"] = CACHE
     return out
 

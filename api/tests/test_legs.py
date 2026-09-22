@@ -266,6 +266,7 @@ def test_flight_view(ctx, tmp_path):
     assert leg["flights"] == 3 and leg["days"] == 3
     assert leg["dep"] == "16:00" and leg["arr"] == "22:35"
     assert leg["type"] == "A359"
+    assert leg["times"] == "observed" and leg["flight"] is None
     regs = [a["reg"] for a in body["aircraft"]]
     assert "9V-SHF" in regs and "9V-SHG" in regs
     assert body["aircraft"][0]["flights"] == 2        # busiest tail first

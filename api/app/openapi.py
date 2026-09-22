@@ -393,6 +393,14 @@ SCH_FLIGHT = _obj({
                  "arr": _t("string", "Typical arrival, HH:MM local at "
                                      "destination.", nullable=True),
                  "type": _t("string", "Dominant type.", nullable=True),
+                 "times": _t("string", "Where dep/arr come from: observed "
+                                       "(inferred from what flew), "
+                                       "published (an airport's board), "
+                                       "or both.", nullable=True),
+                 "flight": _t("string", "The marketed flight number when "
+                                        "a board named it (e.g. LH996 "
+                                        "for callsign DLH8AE).",
+                              nullable=True),
              })), {"type": "null"}]},
     "aircraft": {"description": "Airframes flying it, busiest first "
                                 "(top 8). Null = log artifact not loaded.",

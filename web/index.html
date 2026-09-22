@@ -2233,9 +2233,12 @@
     var depNear = dep && oa.length && kmBetween(dep.lat, dep.lon, oa[1], oa[2]) < 80;
     var arr = b && b.arrival;
     var arrNear = arr && da.length && kmBetween(arr.lat, arr.lon, da[1], da[2]) < 80;
+    // published times are scheduled; inferred ones are what the flight
+    // usually keeps
+    var sched = leg.times && leg.times !== "observed" ? "scheduled" : "usually";
     var left0 = depNear
       ? "<span class='t'>" + hhmm(new Date(dep.at * 1000), oa[5]) + "</span><span class='lbl'>departed</span>"
-      : "<span class='t'>" + (leg.dep || "–") + "</span><span class='lbl'>usually</span>";
+      : "<span class='t'>" + (leg.dep || "–") + "</span><span class='lbl'>" + sched + "</span>";
     var right0 = arrNear
       ? "<span class='lbl'>arrived</span><span class='t'>" + hhmm(new Date(arr.at * 1000), da[5]) + "</span>"
       : "<span class='lbl'>estimated</span><span class='t est'>" +
