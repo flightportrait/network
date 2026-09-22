@@ -1513,6 +1513,7 @@
                    "bottom-right");
     map.on("dragstart", function () { state.touched = true; });
     map.on("moveend", renderListSoon);
+    map.on("moveend", onViewMoved);
     map.on("zoomstart", function (e) {
       if (e.originalEvent) state.touched = true;
     });
@@ -1783,10 +1784,23 @@
     .then(function (d) { typeNames = d; }).catch(function () {});
   // {code: [city, lat, lon]} from OurAirports (public domain) — names
   // the route's endpoints and anchors the drawn route line.
+  // Two passes: the map's own subset first (the top of the rank order,
+  // one entry per field, a fifth of the size), the full file once the
+  // page is idle. Same thinning both times, so the hubs stay put and
+  // the smaller fields simply arrive.
   var airports = {};
-  fetch("assets/airports.json").then(function (r) { return r.json(); })
+  fetch("assets/airports-map.json").then(function (r) { return r.json(); })
     .then(function (d) { airports = d; setSkyAirports(); })
-    .catch(function () {});
+    .catch(function () {})
+    .then(function () {
+      var later = window.requestIdleCallback ||
+        function (fn) { setTimeout(fn, 2500); };
+      later(function () {
+        fetch("assets/airports.json").then(function (r) { return r.json(); })
+          .then(function (d) { airports = d; setSkyAirports(); })
+          .catch(function () {});
+      }, { timeout: 4000 });
+    });
 
   // The zoom each field earns a place at. Fields are taken in rank
   // order (tools/rank_airports.py: size class, then runways) and each
@@ -2140,23 +2154,56 @@
     return [a.lon + dLon, a.lat + dLat];
   }
 
+  // Only what the map draws: the aircraft inside the view (plus a
+  // margin for the dead-reckoned drift) with the few properties the
+  // layers read. A busy sky used to rebuild every aircraft's full
+  // property bag once a second; the source re-indexes on every push,
+  // so the feature count is the cost. Labels stay while there are few
+  // enough of them for the collision engine to be cheap.
+  var LABEL_MAX = 400;
   function pushPositions() {
     if (!map || !map.getSource("aircraft")) return;
+    var b = map.getBounds(), z = map.getZoom();
+    var mw = (b.getEast() - b.getWest()) * 0.25;
+    var mh = (b.getNorth() - b.getSouth()) * 0.25;
+    var west = b.getWest() - mw, east = b.getEast() + mw;
+    var south = b.getSouth() - mh, north = b.getNorth() + mh;
+    var whole = z < 2.5 || east - west >= 360;
     var feats = [];
     state.aircraft.forEach(function (a) {
       if (a.lat == null) return;
-      var props = Object.assign({}, a, {
-        _ground: a.alt_baro === "ground" ? 1 : 0,
-        _alt: typeof a.alt_baro === "number" ? a.alt_baro : 25000,
-        _icon: "icon-" + iconFor(a)
-      });
-      feats.push({ type: "Feature", properties: props,
-        geometry: { type: "Point", coordinates: projected(a) } });
+      var c = projected(a);
+      if (!whole) {
+        if (c[1] < south || c[1] > north) return;
+        var lon = c[0];
+        while (lon < west) lon += 360;
+        while (lon > east) lon -= 360;
+        if (lon < west) return;
+      }
+      feats.push({ type: "Feature", properties: {
+          hex: a.hex, flight: a.flight || "", track: a.track,
+          _ground: a.alt_baro === "ground" ? 1 : 0,
+          _icon: "icon-" + iconFor(a)
+        }, geometry: { type: "Point", coordinates: c } });
     });
     map.getSource("aircraft").setData(
       { type: "FeatureCollection", features: feats });
+    if (map.getLayer("plane-labels")) {
+      var want = feats.length <= LABEL_MAX ? "visible" : "none";
+      if (map.getLayoutProperty("plane-labels", "visibility") !== want) {
+        map.setLayoutProperty("plane-labels", "visibility", want);
+      }
+    }
+    state.drawn = feats.length;
   }
-  if (!reducedMotion) setInterval(pushPositions, 1000);
+  // Cadence follows the count: one second for a normal sky, slower
+  // when thousands are in view, so the main thread keeps up with the
+  // user's finger.
+  (function tick() {
+    if (!reducedMotion) pushPositions();
+    var n = state.drawn || 0;
+    setTimeout(tick, n > 3000 ? 3000 : n > 1200 ? 2000 : 1000);
+  })();
 
   // ---- data -----------------------------------------------------------
   function setStatus(ok, text) {
@@ -2199,11 +2246,54 @@
       });
   }
 
+  // The poll asks only for the view (plus a wide margin) once the map
+  // is zoomed past a world view: a large network is thousands of
+  // aircraft, a city is dozens. Search and the airlines roster read
+  // the whole sky, so a search term or airlines mode lifts the box.
+  var fetchedBox = null;
+  function viewBox() {
+    if (!map || !map.loaded()) return null;
+    if (document.body.classList.contains("mode-airlines")) return null;
+    if ((el("search").value || "").trim()) return null;
+    if (map.getZoom() < 3.5) return null;
+    var b = map.getBounds();
+    var w = b.getWest(), e = b.getEast(), s = b.getSouth(), n = b.getNorth();
+    var mw = (e - w) * 0.75, mh = (n - s) * 0.75;
+    w -= mw; e += mw; s -= mh; n += mh;
+    if (e - w >= 300) return null;
+    s = Math.max(-85, s); n = Math.min(85, n);
+    var wrap = function (x) { return ((x + 180) % 360 + 360) % 360 - 180; };
+    return { w: wrap(w), e: wrap(e), s: s, n: n, rawW: w, rawE: e };
+  }
+  function boxCovers(box, b) {
+    // the current view sits inside the box's inner 60 %
+    if (!box) return false;
+    var mw = (box.rawE - box.rawW) * 0.2, mh = (box.n - box.s) * 0.2;
+    return b.getWest() >= box.rawW + mw && b.getEast() <= box.rawE - mw &&
+      b.getSouth() >= box.s + mh && b.getNorth() <= box.n - mh;
+  }
   function fetchSky() {
-    return fetch(API + "/v1/aircraft").then(function (r) {
+    var box = viewBox();
+    var q = box ? "?bbox=" + [box.w, box.s, box.e, box.n]
+      .map(function (x) { return x.toFixed(3); }).join(",") : "";
+    return fetch(API + "/v1/aircraft" + q).then(function (r) {
       if (!r.ok) throw new Error(r.status);
+      fetchedBox = box;
       return r.json();
     });
+  }
+  // Leaving the fetched box refreshes early (at most every 3 s); the
+  // regular poll then continues from there.
+  var lastMoveFetch = 0;
+  function onViewMoved() {
+    if (!map) return;
+    var box = viewBox();
+    if (!box && !fetchedBox) return;
+    if (box && fetchedBox && boxCovers(fetchedBox, map.getBounds())) return;
+    var now = Date.now();
+    if (now - lastMoveFetch < 3000) return;
+    lastMoveFetch = now;
+    refresh();
   }
 
   function refresh() {
@@ -2212,7 +2302,8 @@
       state.generatedAt = d.generated_at || 0;
       state.fetchedAt = Date.now();
       setStatus(true, "live");
-      el("count-aircraft").textContent = state.aircraft.length;
+      el("count-aircraft").textContent =
+        d.total != null ? d.total : state.aircraft.length;
       pushPositions();
       renderList();
       if (window.__rosterSky) window.__rosterSky();
@@ -2274,7 +2365,10 @@
     if (!q) return state.aircraft;
     return state.aircraft.filter(function (a) { return matchesQuery(a, q); });
   }
-  el("search").addEventListener("input", renderList);
+  el("search").addEventListener("input", function () {
+    renderList();
+    if (fetchedBox && (el("search").value || "").trim()) refresh();
+  });
   if (window.fpSearch && el("q")) {
     fpSearch(el("q"), el("q-list"), {
       local: function (q) {

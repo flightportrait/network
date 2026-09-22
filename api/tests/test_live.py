@@ -216,3 +216,25 @@ def test_docs_site_openapi_matches(ctx):
         pytest.skip("docs-site not checked out")
     client, app, sm, settings, readsb = ctx
     assert json.loads(docs.read_text()) == client.get("/openapi.json").json()
+
+
+def test_aircraft_bbox(ctx):
+    client, app, sm, settings, readsb = ctx
+    app.state.snapshot = build_snapshot(
+        {"now": time.time(), "aircraft": [
+            {"hex": "aaaaaa", "lat": 1.3, "lon": 103.8},      # Singapore
+            {"hex": "bbbbbb", "lat": 46.2, "lon": 6.1},       # Geneva
+            {"hex": "cccccc", "lat": -17.5, "lon": -149.6},   # Tahiti
+            {"hex": "dddddd"},                                # no fix
+        ]}, settings.max_aircraft)
+    body = client.get("/v1/aircraft").json()
+    assert body["total"] == 4 and body["with_position"] == 3
+    assert len(body["aircraft"]) == 4
+    body = client.get("/v1/aircraft?bbox=100,-5,110,10").json()
+    assert [a["hex"] for a in body["aircraft"]] == ["aaaaaa"]
+    assert body["total"] == 4                       # the network, not the box
+    # a box across the antimeridian: Tahiti is inside, Geneva is not
+    body = client.get("/v1/aircraft?bbox=170,-30,-140,0").json()
+    assert [a["hex"] for a in body["aircraft"]] == ["cccccc"]
+    assert client.get("/v1/aircraft?bbox=1,2,3").status_code == 422
+    assert client.get("/v1/aircraft?bbox=0,50,10,40").status_code == 422

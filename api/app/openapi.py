@@ -210,11 +210,17 @@ SCH_AIRCRAFT_ITEM = _obj({
 
 SCH_AIRCRAFT = _obj({
     "generated_at": _t("number", "Snapshot time, unix seconds UTC."),
+    "total": _t("integer", "Aircraft in the whole snapshot, before any "
+                           "bbox filter."),
+    "with_position": _t("integer", "Of those, aircraft with a position "
+                                   "fix."),
     "aircraft": _arr(SCH_AIRCRAFT_ITEM),
-}, required=["generated_at", "aircraft"])
+}, required=["generated_at", "total", "with_position", "aircraft"])
 
 EX_AIRCRAFT = {
     "generated_at": 1787924061.0,
+    "total": 191,
+    "with_position": 184,
     "aircraft": [{
         "hex": "76cd06", "flight": "SIA123", "t": "A359", "r": "9V-SHF",
         "lat": 1.5, "lon": 103.8, "alt_baro": 6325, "gs": 285.9,

@@ -11,7 +11,7 @@ cost stays memory-only.
 import math
 import time
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 
 from . import openapi as spec
 from . import ratelimit
@@ -70,25 +70,68 @@ def now(request: Request, response: Response):
     }
 
 
+def _parse_bbox(bbox: str | None):
+    """`minLon,minLat,maxLon,maxLat` -> tuple, or None. A box whose west
+    edge is east of its east edge crosses the antimeridian."""
+    if not bbox:
+        return None
+    try:
+        parts = [float(x) for x in bbox.split(",")]
+    except ValueError:
+        parts = []
+    if len(parts) != 4 or not all(math.isfinite(x) for x in parts):
+        raise ApiError(422, "invalid_request",
+                       "bbox is minLon,minLat,maxLon,maxLat")
+    w, s, e, n = parts
+    if not (-90 <= s <= n <= 90) or not (-180 <= w <= 180 and -180 <= e <= 180):
+        raise ApiError(422, "invalid_request", "bbox out of range")
+    return w, s, e, n
+
+
+def _in_bbox(item: dict, box) -> bool:
+    lat, lon = item.get("lat"), item.get("lon")
+    if lat is None or lon is None:
+        return False
+    w, s, e, n = box
+    if not (s <= lat <= n):
+        return False
+    if w <= e:
+        return w <= lon <= e
+    return lon >= w or lon <= e          # crosses the antimeridian
+
+
 @router.get(
     "/v1/aircraft", tags=["Live"], summary="Aircraft",
     description="Aircraft the network hears right now, readsb field "
-                "dialect. 503 if the snapshot is older than 60 seconds. "
-                "Rate: 300 per 600 s (bucket `aircraft`). Cache: 10 s "
-                "edge, 5 s browser.",
+                "dialect. With `bbox=minLon,minLat,maxLon,maxLat` only "
+                "the aircraft with a position inside it (a box whose "
+                "west edge is east of its east edge crosses the "
+                "antimeridian); `total` stays the whole network. 503 if "
+                "the snapshot is older than 60 seconds. Rate: 300 per "
+                "600 s (bucket `aircraft`). Cache: 10 s edge, 5 s browser.",
     operation_id="aircraft",
-    responses=spec.ok(spec.EX_AIRCRAFT, spec.R429, spec.R503,
+    responses=spec.ok(spec.EX_AIRCRAFT, spec.R422, spec.R429, spec.R503,
                       schema=spec.SCH_AIRCRAFT),
     openapi_extra=spec.STABLE,
 )
-def aircraft(request: Request, response: Response):
+def aircraft(request: Request, response: Response,
+             bbox: str | None = Query(
+                 None, max_length=80,
+                 description="minLon,minLat,maxLon,maxLat; only aircraft "
+                             "with a position inside.")):
     settings = request.app.state.settings
     ratelimit.throttle(request, settings.aircraft_rate_limit,
                        settings.rate_window_s, bucket="aircraft")
+    box = _parse_bbox(bbox)
     snapshot = _fresh_snapshot(request)
     response.headers["Cache-Control"] = CACHE_LIVE
+    listed = snapshot.aircraft
+    if box is not None:
+        listed = [a for a in listed if _in_bbox(a, box)]
     return {"generated_at": snapshot.generated_at,
-            "aircraft": snapshot.aircraft}
+            "total": snapshot.aircraft_count,
+            "with_position": snapshot.with_pos_count,
+            "aircraft": listed}
 
 
 @router.get(
