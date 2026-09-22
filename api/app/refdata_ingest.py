@@ -23,6 +23,7 @@ higher rank overwrites non-null fields, lower rank only fills nulls.
 """
 import argparse
 import csv
+import os
 import datetime
 import gzip
 import json
@@ -340,13 +341,7 @@ def ingest_boards(session, path):
     return decorated + added
 
 
-def ingest_airline_names(session, path):
-    """Complete the airline registry from observation: every operator
-    the schedule table actually records gets a row, named from the
-    OpenFlights airlines.dat snapshot (ODbL, same source family as the
-    airport timezones). The curated seed rows keep their names and
-    palettes; operators OpenFlights cannot name are left out rather
-    than shown as bare codes."""
+def _openflights_names(path):
     names = {}
     with _open_text(path) as fh:
         for row in csv.reader(fh):
@@ -361,20 +356,59 @@ def ingest_airline_names(session, path):
                 continue                  # prefer the active holder
             names[icao.upper()] = (name[:120],
                                    iata if len(iata) == 2 else None)
+    return names
 
-    have = set(session.execute(select(RefAirline.icao)).scalars())
+
+def _vrs_names(path):
+    """Virtual Radar Server's standing data (CC0), the maintained list:
+    Code,Name,ICAO,IATA,... one row per airline."""
+    names = {}
+    with _open_text(path) as fh:
+        text = fh.read().lstrip("\ufeff")
+    for row in csv.DictReader(text.splitlines()):
+        icao = (row.get("ICAO") or "").strip().upper()
+        name = (row.get("Name") or "").strip()
+        iata = (row.get("IATA") or "").strip()
+        if len(icao) != 3 or not icao.isalpha() or not name:
+            continue
+        names[icao] = (name[:120], iata if len(iata) == 2 else None)
+    return names
+
+
+def ingest_airline_names(session, path):
+    """Complete the airline registry from observation: every operator
+    the schedule table actually records gets a row. Names come from
+    the OpenFlights airlines.dat snapshot (ODbL) and, when a
+    vrs-airlines.csv sits beside it, from Virtual Radar Server's
+    standing data (CC0), which is maintained and wins where both speak:
+    OpenFlights has no easyJet Europe and calls GER a 1990s carrier.
+    The curated seed rows keep their names and palettes; other rows
+    take a corrected name; operators neither source can name are left
+    out rather than shown as bare codes."""
+    names = _openflights_names(path)
+    vrs = os.path.join(os.path.dirname(path), "vrs-airlines.csv")
+    if os.path.exists(vrs):
+        names.update(_vrs_names(vrs))
+
+    rows = {r.icao: r for r in session.execute(select(RefAirline)).scalars()}
     observed = set(session.execute(
         select(RefSchedule.airline_icao).distinct()
         .where(RefSchedule.airline_icao != "",
                RefSchedule.n_flights >= 5)).scalars())
     added = 0
-    for icao in sorted(observed - have):
+    for icao in sorted(observed - set(rows)):
         found = names.get(icao)
         if not found:
             continue
         session.add(RefAirline(icao=icao, iata=found[1], name=found[0],
                                palette=[]))
         added += 1
+    for icao, row in rows.items():
+        found = names.get(icao)
+        if found and not row.palette and row.name != found[0]:
+            row.name = found[0]           # a non-curated row, renamed
+            if found[1] and not row.iata:
+                row.iata = found[1]
     return added
 
 

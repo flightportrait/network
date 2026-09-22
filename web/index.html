@@ -2272,7 +2272,7 @@
     // the operator, when the callsign says who it is: the mark and the
     // name on the callsign's row
     var op = operatorOf(a);
-    var opName = op && airlineNames && airlineNames[op];
+    var opName = operatorName(op);
     var opTail = op && tails[op] && tails[op]["64"];
     el("d-op").textContent = opName || op || "";
     el("d-op").hidden = !(opName || op);
@@ -3178,6 +3178,23 @@
       });
       if (state.aircraft.length) renderList();   // names for the tail titles
     }).catch(function () {});
+  // Every operator designator with a name (Virtual Radar Server's
+  // standing data, CC0): the airlines list above knows only operators
+  // the archive has seen fly a schedule; a business jet or a one-off
+  // callsign still deserves its name. Loaded once the page is idle.
+  var operators = null;
+  (window.requestIdleCallback || function (fn) { setTimeout(fn, 3000); })(function () {
+    fetch("assets/operators.json").then(function (r) { return r.json(); })
+      .then(function (d) {
+        operators = d;
+        if (state.aircraft.length) renderList();
+        if (state.selected) renderDetail();
+      }).catch(function () {});
+  }, { timeout: 5000 });
+  function operatorName(op) {
+    if (!op) return null;
+    return (airlineNames && airlineNames[op]) || (operators && operators[op]) || null;
+  }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"'\/]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "/": "&#47;" }[c];
@@ -3208,13 +3225,13 @@
     var rel = entry && entry["64"];
     return rel
       ? "<img class='tail' data-a='" + op + "' title='" +
-        esc((airlineNames && airlineNames[op]) || op) +
+        esc(operatorName(op) || op) +
         "' alt='' src='assets/airline-tails/" + esc(rel) + "'>"
       : "<img class='pic' alt='' src='assets/icons/" + iconFor(a) + ".png'>";
   }
   // names and marks the other cards borrow
   window.__airlineName = function (icao) {
-    return (airlineNames && airlineNames[icao]) || null;
+    return operatorName(icao);
   };
   window.__tailURL = function (icao) {
     var entry = icao && tails[icao];

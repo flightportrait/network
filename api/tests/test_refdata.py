@@ -535,3 +535,37 @@ def test_boards_merge(ctx, tmp_path):
             session, str(tmp_path / "absent.db")) == 0
     finally:
         session.close()
+
+
+def test_airline_names_prefer_the_maintained_list(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    from app import refdata_ingest
+    from app.refdata_models import RefAirline, RefSchedule
+    dat = tmp_path / "airlines.dat"
+    dat.write_text(
+        '1,"German International Air Lines",\\N,"GM","GER","","Germany","Y"\n')
+    (tmp_path / "vrs-airlines.csv").write_text(
+        "\ufeffCode,Name,ICAO,IATA,PositioningFlightPattern,CharterFlightPattern\n"
+        "EJU,easyJet Europe,EJU,EC,,\n"
+        "GER,German Airways,GER,,,\n")
+    session = sm()
+    try:
+        for code in ("EJU", "GER", "DAL"):
+            session.add(RefSchedule(callsign=code + "1", org="AAA", dst="BBB",
+                                    airline_icao=code, dep_min=0, arr_min=0,
+                                    type_code=None, n_flights=30))
+        session.add(RefAirline(icao="DAL", iata="DL", name="Delta Air Lines",
+                               palette=["#003366"]))      # curated: untouched
+        session.add(RefAirline(icao="GER", iata=None,
+                               name="German International Air Lines",
+                               palette=[]))                # stale, non-curated
+        session.commit()
+        added = refdata_ingest.ingest_airline_names(session, str(dat))
+        session.commit()
+        assert added == 1                                  # EJU
+        assert session.get(RefAirline, "EJU").name == "easyJet Europe"
+        assert session.get(RefAirline, "EJU").iata == "EC"
+        assert session.get(RefAirline, "GER").name == "German Airways"
+        assert session.get(RefAirline, "DAL").name == "Delta Air Lines"
+    finally:
+        session.close()
