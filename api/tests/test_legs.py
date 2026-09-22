@@ -329,3 +329,25 @@ def test_now_reports_archive_through(ctx, tmp_path):
     _build(str(db), LEGS)
     app.state.legs = LegBook(str(db))
     assert client.get("/v1/now").json()["archive_through"] == "2026-08-27"
+
+
+def test_routes_bulk(ctx, tmp_path):
+    import gzip
+    import json
+    client, app, sm, settings, readsb = ctx
+    db = tmp_path / "legs.db"
+    _build(str(db), AIRPORT_LEGS)
+    app.state.legs = LegBook(str(db))
+    with gzip.open(tmp_path / "routes.json.gz", "wt") as fh:
+        json.dump({"sq322": ["SIN", "LHR"], "BAW9": ["LHR", "SIN"]}, fh)
+    app.state.routes = RouteBook(str(tmp_path / "routes.json.gz"))
+    body = client.get("/v1/routes?cs=sq322, baw9,ZZZZ9,sq322").json()
+    assert body == {"routes": {"SQ322": ["SIN", "LHR"], "BAW9": ["LHR", "SIN"],
+                               "ZZZZ9": None}}
+    assert client.get("/v1/routes?cs=a").status_code == 422
+    assert client.get("/v1/routes?cs=" + ",".join(
+        "AB%03d" % i for i in range(81))).status_code == 422
+    # the list's bucket is not the tap's bucket
+    for _ in range(3):
+        client.get("/v1/routes?cs=SQ322")
+    assert client.get("/v1/flights/sq322").status_code == 200

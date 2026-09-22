@@ -127,6 +127,10 @@ class Settings:
         "NETWORK_API_AIRPORT_RATE_LIMIT", 120))
     flight_rate_limit: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_FLIGHT_RATE_LIMIT", 120))
+    # One call per list on screen (up to 80 callsigns), so a busy sky
+    # never spends the flight bucket a tap needs.
+    routes_rate_limit: int = field(default_factory=lambda: _env_int(
+        "NETWORK_API_ROUTES_RATE_LIMIT", 120))
     # Reference-data lookups: open, cached hard, one
     # shared bucket — slow-moving data never earns a bigger slice of the
     # box than the live sky.

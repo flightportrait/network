@@ -801,6 +801,11 @@
     @media(prefers-reduced-motion:reduce){.col{transition:none}}
     .sheet-handle{display:block;width:100%;background:none;border:none;
       padding:9px 0 3px;cursor:grab;touch-action:none;flex:none}
+    /* A thumb-sized close: 44 px square, the glyph larger. */
+    #sheet-cards .cardclose{top:2px;right:8px;width:44px;height:44px;
+      padding:0;display:flex;align-items:center;justify-content:center;
+      font-size:26px;border-radius:22px}
+    #sheet-cards .cardclose:active{background:rgba(34,31,26,.08)}
     .sheet-handle::before{content:"";display:block;width:40px;height:4px;
       border-radius:2px;background:rgba(34,31,26,.25);margin:0 auto}
     .head{padding:4px 20px 12px}
@@ -2362,21 +2367,33 @@
     routeQueue.push(callsign);
     pumpRoutes();
   }
+  // One bulk call per batch (up to 40 callsigns), its own rate bucket:
+  // a busy list never spends the flight lookups a tap needs.
   function pumpRoutes() {
-    while (routeBusy < 3 && routeQueue.length) {
+    if (routeBusy || !routeQueue.length) return;
+    var batch = [];
+    while (routeQueue.length && batch.length < 40) {
       var cs = routeQueue.shift();
       if (cs in routeCache) continue;
-      routeCache[cs] = undefined; routeBusy++;
-      (function (cs) {
-        fetch(API + "/v1/flights/" + encodeURIComponent(cs))
-          .then(function (r) { return r.ok ? r.json() : {}; })
-          .then(function (d) { routeCache[cs] = d.route || null; })
-          .catch(function () { routeCache[cs] = null; })
-          .then(function () {
-            routeBusy--; renderListSoon(); pumpRoutes();
-          });
-      })(cs);
+      routeCache[cs] = undefined;
+      batch.push(cs);
     }
+    if (!batch.length) return;
+    routeBusy = 1;
+    fetch(API + "/v1/routes?cs=" + encodeURIComponent(batch.join(",")))
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (d) {
+        var got = (d && d.routes) || {};
+        batch.forEach(function (cs) {
+          routeCache[cs] = got[cs.toUpperCase()] || null;
+        });
+      })
+      .catch(function () {
+        batch.forEach(function (cs) { routeCache[cs] = null; });
+      })
+      .then(function () {
+        routeBusy = 0; renderListSoon(); pumpRoutes();
+      });
   }
   function routeCell(a) {
     var cs = String(a.flight || "").trim();
@@ -4227,7 +4244,11 @@ window.__initJoin = function () {
     card.hidden = false;
     render(code, null);
     fetch(API + "/v1/airports/" + code)
-      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (r) {
+        if (r.ok) return r.json();
+        if (r.status === 404) return null;
+        throw new Error(String(r.status));
+      })
       .then(function (d) {
         if (mine !== token) return;
         if (d) {
@@ -4239,9 +4260,11 @@ window.__initJoin = function () {
         }
         el("apt-sub").textContent = code +
           " · nothing observed here in the archive window";
-      }).catch(function () {
+      }).catch(function (err) {
         if (mine !== token) return;
-        el("apt-sub").textContent = code + " · the network is not answering";
+        el("apt-sub").textContent = code + (String(err && err.message) === "429"
+          ? " · too many lookups from your connection, try again in a few minutes"
+          : " · the network is not answering");
       });
     if (M && a) {
       M.flyTo({ center: [a[2], a[1]], zoom: 10, duration: 1100 });
@@ -4402,7 +4425,11 @@ window.__initJoin = function () {
     el("fl-tails-head").hidden = true;
     el("fl-frames").innerHTML = "";
     fetch(API + "/v1/flights/" + cs)
-      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (r) {
+        if (r.ok) return r.json();
+        if (r.status === 404) return null;
+        throw new Error(String(r.status));
+      })
       .then(function (d) {
         if (mine !== token) return;
         if (!d) {
@@ -4411,7 +4438,13 @@ window.__initJoin = function () {
           return;
         }
         render(d, mine);
-      }).catch(function () {
+      }).catch(function (err) {
+        if (mine !== token) return;
+        if (String(err && err.message) === "429") {
+          el("fl-sub").textContent =
+            "too many lookups from your connection, try again in a few minutes";
+          return;
+        }
         if (mine !== token) return;
         el("fl-sub").textContent = "the network is not answering";
       });

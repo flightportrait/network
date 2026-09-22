@@ -12,7 +12,7 @@ resource depends on is dark, the route serves 503 `artifact_unavailable`
 — a fact about our ops — instead of a 404 that would claim a fact about
 the world.
 """
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select
 
 from . import openapi as spec
@@ -102,6 +102,47 @@ def airframe(hex: spec.Hex, request: Request, response: Response,
             out["category"] = ref_type.category
     response.headers["Cache-Control"] = CACHE
     return out
+
+
+@router.get(
+    "/v1/routes", tags=["History"], summary="Routes, bulk",
+    description="Derived routes for the callsigns of a list on screen, "
+                "up to 80 in one call: observed routes first, the "
+                "community catalog where they are silent. Null for a "
+                "callsign never observed. Rate: 120 per 600 s (bucket "
+                "`routes`). Cache: 1 h edge.",
+    operation_id="routes_bulk",
+    responses=spec.ok(spec.EX_ROUTES, spec.R429, spec.R422, spec.R503,
+                      schema=spec.SCH_ROUTES),
+    openapi_extra=spec.STABLE,
+)
+def routes_bulk(request: Request, response: Response,
+                cs: str = Query(..., min_length=2, max_length=1100,
+                                description="Comma-separated callsigns, "
+                                            "up to 80."),
+                session=Depends(get_session)):
+    settings = request.app.state.settings
+    ratelimit.throttle(request, settings.routes_rate_limit,
+                       settings.rate_window_s, bucket="routes")
+    names = [c.strip().upper() for c in cs.split(",") if c.strip()]
+    names = list(dict.fromkeys(names))
+    if not names or len(names) > 80 or any(
+            not (2 <= len(n) <= 12) or not n.isalnum() for n in names):
+        raise ApiError(422, "invalid_request",
+                       "1 to 80 callsigns, 2-12 alphanumerics each")
+    routes_book = request.app.state.routes
+    routes_up = routes_book.available()
+    if not routes_up and not request.app.state.legs.available():
+        raise _dark()
+    out = {}
+    for name in names:
+        route = routes_book.get(name) if routes_up else None
+        if route is None:
+            current = catalog_current(session, name)
+            route = catalog_route(current) if current is not None else None
+        out[name] = route
+    response.headers["Cache-Control"] = CACHE
+    return {"routes": out}
 
 
 @router.get(

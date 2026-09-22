@@ -340,6 +340,15 @@ EX_AIRFRAME = {
     "coverage": "observed",
 }
 
+SCH_ROUTES = _obj({
+    "routes": {"description": "Callsign (upper case) to [origin, ...via, "
+                              "destination] IATA, or null when unknown. "
+                              "Every requested callsign is a key.",
+               "type": "object",
+               "additionalProperties": {
+                   "oneOf": [_arr(_t("string")), {"type": "null"}]}},
+})
+
 SCH_FLIGHT = _obj({
     "callsign": _t("string"),
     "route": {"description": "[origin, ...via, destination], IATA, from "
@@ -384,6 +393,9 @@ SCH_FLIGHT = _obj({
     "coverage": _SCH_COVERAGE,
 }, required=["callsign", "route", "legs", "aircraft", "recent",
              "window_days", "coverage"])
+
+EX_ROUTES = {"routes": {"SQ322": ["SIN", "LHR"], "BAW9": ["LHR", "SIN"],
+                        "ZZZZ9": None}}
 
 EX_FLIGHT = {
     "callsign": "SQ322",
