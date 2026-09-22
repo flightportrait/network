@@ -159,10 +159,13 @@
      operator's name on the next; then the photo. */
   /* The mark spans both rows; the callsign row and the operator
      start at the same left edge beside it. */
-  .detail .dhead{display:flex;align-items:flex-start;gap:8px;padding-right:28px;
+  .detail .dhead{display:flex;align-items:center;gap:4px;padding-right:28px;
     line-height:1.15}
-  .detail .dhead img{width:46px;height:40px;object-fit:contain;display:block;
-    flex:none;margin:-4px 0 0 -6px}
+  /* the mark's own file carries air around the fin: draw it larger and
+     let it overlap the card's padding, so the fin reads big and the
+     text sits close */
+  .detail .dhead img{width:56px;height:46px;object-fit:contain;display:block;
+    flex:none;margin:-5px 0 -5px -12px}
   .detail .dhead-text{min-width:0;flex:1}
   .detail .dhead-row{display:flex;align-items:center;gap:8px}
   .detail .dhead .cs{flex:none;font-size:20px}
