@@ -16,9 +16,9 @@ from .snapshot import AIRCRAFT_FIELDS, Snapshot
 log = logging.getLogger("network-api.livesky")
 
 FRESH_S = 10.0          # no line this long: the poll takes over
-WARMUP_S = 12.0         # after a connect, hold the poll until every
-                        # aircraft has spoken (positions every second,
-                        # the silent ones every ten)
+WARMUP_S = 3.0          # after a connect, a breath before the live
+                        # state speaks; it is seeded from the poll's last
+                        # snapshot, so nothing counts up from zero
 EXPIRE_S = 60.0         # not heard this long: gone
 PUBLISH_MIN_S = 0.25    # rebuild the snapshot at most this often
 TRACE_EVERY_S = 2.0     # trail points at the poll's old cadence
@@ -33,6 +33,7 @@ class LiveSky:
         self.last_line_at = 0.0     # wall clock of the last line
         self.connected = False
         self.connected_at = 0.0
+        self.seed_source = None     # () -> Snapshot, the poll's last word
         self.cond = asyncio.Condition()
 
     # ---- state ---------------------------------------------------------
@@ -57,6 +58,23 @@ class LiveSky:
         self.aircraft[hex_id] = item
         self.last_line_at = now
         return True
+
+    def seed(self, snapshot, now: float) -> int:
+        """Take the poll's aircraft the state does not know yet, aging
+        from now: a fresh connection starts with the whole sky, and the
+        lines then refine it. Returns how many were taken."""
+        taken = 0
+        for entry in getattr(snapshot, "aircraft", None) or []:
+            hex_id = entry.get("hex")
+            if not hex_id or hex_id in self.aircraft:
+                continue
+            item = dict(entry)
+            item["_at"] = now
+            self.aircraft[hex_id] = item
+            taken += 1
+        if taken:
+            self.version += 1
+        return taken
 
     def snapshot(self, now: float | None = None) -> Snapshot:
         """The state as an aircraft.json-shaped snapshot: seen and
@@ -105,6 +123,8 @@ async def read_lines(live: LiveSky, host: str, port: int) -> None:
                 asyncio.open_connection(host, port), timeout=10)
             live.connected = True
             live.connected_at = time.time()
+            if live.seed_source is not None:
+                live.seed(live.seed_source(), live.connected_at)
             backoff = 1.0
             log.info("live sky connected to %s:%s", host, port)
             try:
@@ -150,5 +170,6 @@ async def publish(app, live: LiveSky) -> None:
 
 def start(app, live: LiveSky, endpoint: str) -> list:
     host, _, port = endpoint.rpartition(":")
+    live.seed_source = lambda: app.state.snapshot
     return [asyncio.create_task(read_lines(live, host, int(port))),
             asyncio.create_task(publish(app, live))]

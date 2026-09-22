@@ -78,3 +78,20 @@ def test_poll_steps_aside_while_lines_flow(ctx):
     live.last_line_at = time.time() - FRESH_S - 5
     asyncio.run(poll_snapshot_once(app))
     assert app.state.snapshot is not before               # the poll is back
+
+
+def test_a_fresh_connection_is_seeded_from_the_poll():
+    from app.snapshot import build_snapshot
+    live = LiveSky(max_aircraft=10)
+    t0 = 1000.0
+    live.ingest({"hex": "aaaaaa", "lat": 1.3, "lon": 103.8, "seen": 0.1}, t0)
+    polled = build_snapshot({"now": t0, "aircraft": [
+        {"hex": "aaaaaa", "lat": 9.9, "lon": 9.9, "seen": 5.0},   # known: kept as heard
+        {"hex": "eeeeee", "flight": "QFA1", "seen": 20.0},        # unknown: taken
+    ]}, 10)
+    assert live.seed(polled, t0 + 1) == 1
+    snap = live.snapshot(t0 + 2)
+    by = {a["hex"]: a for a in snap.aircraft}
+    assert by["aaaaaa"]["lat"] == 1.3
+    assert by["eeeeee"]["seen"] == 21.0                            # aged from the seed
+    assert live.snapshot(t0 + 2 + 41).aircraft_count == 1         # the seeded one expires first
