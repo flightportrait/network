@@ -178,23 +178,24 @@
   .detail .credit a{color:var(--quiet)}
   .detail .route{font-size:16px;margin-top:12px;display:none}
   .detail .route.show{display:block}
-  .detail .rp{display:flex;align-items:flex-start;gap:8px}
-  .detail .rp-end{flex:1;min-width:0}
-  .detail .rp-end .apcode{font-size:30px;line-height:1;letter-spacing:.02em}
-  .detail .rp-end:last-child{text-align:right}
-  .detail .rp-end .city{margin-top:4px;font-size:14px;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis}
-  .detail .rp-end .tz{color:var(--quiet);font-size:12px;margin-top:2px;
-    font-family:'Helvetica Neue',Arial,sans-serif}
-  .detail .rp-mid{color:var(--quiet);font-size:22px;line-height:30px}
-  .detail .route .via{color:var(--quiet);font-size:13px;margin-top:4px}
-  .detail .rp-times{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;
-    margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
-  .detail .rp-times div{display:flex;justify-content:space-between;
-    align-items:baseline}
-  .detail .rp-times .k{color:var(--quiet);font-size:12px;letter-spacing:.06em;
-    font-family:'Helvetica Neue',Arial,sans-serif}
-  .detail .rp-times .v{font-size:17px;font-variant-numeric:tabular-nums}
+  /* The leg as a table: a label column, then origin and destination.
+     Codes head the columns; the rows beneath share one baseline grid. */
+  .detail .rp{display:grid;grid-template-columns:auto 1fr 1fr;
+    column-gap:12px;row-gap:2px;align-items:baseline}
+  .detail .rp .k{color:var(--quiet);font-size:11px;letter-spacing:.08em;
+    font-family:'Helvetica Neue',Arial,sans-serif;text-transform:lowercase;
+    align-self:baseline}
+  .detail .rp .r{text-align:right}
+  .detail .rp .code .apcode{font-size:30px;line-height:1.1;letter-spacing:.02em}
+  .detail .rp .city{font-size:14px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;min-width:0}
+  .detail .rp .tz{color:var(--quiet);font-size:10.5px;letter-spacing:.04em;
+    font-family:'Helvetica Neue',Arial,sans-serif;padding-bottom:6px;
+    border-bottom:1px solid var(--line);margin-bottom:4px}
+  .detail .rp .v{font-size:17px;font-variant-numeric:tabular-nums;
+    white-space:nowrap}
+  .detail .rp .v small{font-size:12px;color:var(--quiet);margin-left:4px}
+  .detail .route .via{color:var(--quiet);font-size:13px;margin-top:6px}
   .detail .rp-bar{height:3px;background:var(--line);border-radius:2px;
     margin-top:12px;position:relative}
   .detail .rp-bar i{display:block;height:100%;background:var(--red);
@@ -2052,11 +2053,16 @@
       var off = new Intl.DateTimeFormat("en-GB", { timeZone: tz,
         timeZoneName: "longOffset" }).formatToParts(new Date())
         .filter(function (p) { return p.type === "timeZoneName"; })[0].value;
-      off = off.replace(/^GMT/, "UTC");
-      if (off === "UTC") off = "UTC+00:00";
-      if (/^GMT[+-]/.test(name) || name === "GMT") return off;
-      return name + " (" + off + ")";
+      off = off.replace(/^GMT/, "");
+      if (!off) off = "+00:00";
+      if (/^GMT[+-]/.test(name) || name === "GMT") return "UTC " + off;
+      return name + " " + off;
     } catch (e) { return ""; }
+  }
+  // The city out of a registry name: "Manchester, Greater Manchester"
+  // and "Paris (Roissy-en-France, Val-d'Oise)" are Manchester and Paris.
+  function cityName(name) {
+    return String(name || "").split(/\s*[(,]/)[0].trim();
   }
   function hhmm(date, tz) {
     try {
@@ -2097,14 +2103,11 @@
     var leg = (flight.legs || []).filter(function (l) {
       return l.org === org && l.dst === dst;
     })[0] || (flight.legs || [])[0] || {};
-    function end(code, ap) {
-      return "<div class='rp-end'><span class='apcode' data-code='" + code + "'>" +
-        code + "</span><div class='city'>" + esc(ap[0] || code) + "</div>" +
-        "<div class='tz'>" + esc(tzLabel(ap[5])) + "</div></div>";
+    function code(c) {
+      return "<span class='apcode' data-code='" + c + "'>" + c + "</span>";
     }
     var via = chain.length > 2 ? "<div class='via'>via " + chain.slice(1, -1)
-      .map(function (c) { return "<span class='apcode' data-code='" + c + "'>" + c + "</span>"; })
-      .join(", ") + "</div>" : "";
+      .map(code).join(", ") + "</div>" : "";
     var flown = null, left = null, eta = null;
     if (a.lat != null && oa.length && da.length) {
       var now = projected(a);
@@ -2113,24 +2116,26 @@
       if (a.gs > 60) eta = left / (a.gs * 1.852) * 60;      // minutes
     }
     var etaDate = eta != null ? new Date(Date.now() + eta * 60000) : null;
-    var times = "<div class='rp-times'>" +
-      "<div><span class='k'>usually</span><span class='v'>" + (leg.dep || "–") + "</span></div>" +
-      "<div><span class='k'>usually</span><span class='v'>" + (leg.arr || "–") + "</span></div>" +
-      "<div><span class='k'>flown</span><span class='v'>" +
-        (flown != null ? Math.round(flown) + " km" : "–") + "</span></div>" +
-      "<div><span class='k'>estimated</span><span class='v'>" +
-        (etaDate ? hhmm(etaDate, da[5]) : "–") + "</span></div>" +
+    function row(k, x, y, cls) {
+      return "<div class='k'>" + k + "</div><div class='" + cls + "'>" + x +
+        "</div><div class='" + cls + " r'>" + y + "</div>";
+    }
+    var table = "<div class='rp'>" +
+      row("", code(org), code(dst), "code") +
+      row("", esc(cityName(oa[0]) || org), esc(cityName(da[0]) || dst), "city") +
+      row("", esc(tzLabel(oa[5])), esc(tzLabel(da[5])), "tz") +
+      row("usually", leg.dep || "–", leg.arr || "–", "v") +
+      row("now", flown != null ? Math.round(flown) + " km flown" : "–",
+          etaDate ? hhmm(etaDate, da[5]) + "<small> in " + durationText(eta) + "</small>" : "–", "v") +
       "</div>";
     var bar = "";
     if (flown != null) {
       var frac = Math.max(0, Math.min(1, flown / (flown + left)));
       bar = "<div class='rp-bar'><i style='width:" + (frac * 100).toFixed(1) + "%'></i></div>" +
-        "<div class='rp-dist'><span>" + Math.round(flown) + " km flown</span><span>" +
-        Math.round(left) + " km" + (eta != null ? ", in " + durationText(eta) : "") +
-        "</span></div>";
+        "<div class='rp-dist'><span>" + Math.round(flown) + " km</span><span>" +
+        Math.round(left) + " km</span></div>";
     }
-    box.innerHTML = "<div class='rp'>" + end(org, oa) +
-      "<div class='rp-mid'>→</div>" + end(dst, da) + "</div>" + via + times + bar;
+    box.innerHTML = table + via + bar;
     box.className = "route show";
     drawRouteLine(chain);
   }
