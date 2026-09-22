@@ -197,8 +197,7 @@
   .detail .leg-plane{width:38px;height:38px;border-radius:50%;
     background:var(--paper);border:1px solid var(--line);display:flex;
     align-items:center;justify-content:center;position:relative;z-index:1}
-  .detail .leg-plane img{width:22px;height:22px;transform:rotate(90deg);
-    opacity:.85}
+  .detail .leg-plane svg{width:20px;height:20px;color:var(--red);display:block}
   .detail .leg-cells{display:grid;grid-template-columns:1fr 1fr;gap:3px;
     margin-top:3px}
   .detail .cell{display:flex;justify-content:space-between;
@@ -212,8 +211,10 @@
     margin:16px 4px 0;position:relative}
   .detail .leg-bar i{display:block;height:100%;background:var(--red);
     border-radius:2px}
-  .detail .leg-bar img{position:absolute;top:50%;width:18px;height:18px;
-    transform:translate(-50%,-50%) rotate(90deg)}
+  .detail .leg-bar .mark{position:absolute;top:50%;width:22px;height:22px;
+    transform:translate(-50%,-50%);color:var(--ink);background:var(--paper);
+    border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .detail .leg-bar .mark svg{width:16px;height:16px;display:block}
   .detail .leg-dist{display:flex;justify-content:space-between;
     color:var(--quiet);font-size:13px;margin:8px 4px 0}
   .detail .route .via{color:var(--quiet);font-size:13px;margin-top:8px;
@@ -2062,7 +2063,8 @@
   function tzLabel(tz) {
     if (!tz) return "";
     try {
-      var parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz,
+      // en-US names American zones (CDT); en-GB would say GMT-5
+      var parts = new Intl.DateTimeFormat("en-US", { timeZone: tz,
         timeZoneName: "short" }).formatToParts(new Date());
       var name = (parts.filter(function (p) { return p.type === "timeZoneName"; })[0] || {}).value || "";
       var off = new Intl.DateTimeFormat("en-GB", { timeZone: tz,
@@ -2077,8 +2079,18 @@
   // The city out of a registry name: "Manchester, Greater Manchester"
   // and "Paris (Roissy-en-France, Val-d'Oise)" are Manchester and Paris.
   function cityName(name) {
-    return String(name || "").split(/\s*[(,]/)[0].trim();
+    var n = String(name || "").split(/\s*[(,]/)[0].trim();
+    // a long name keeps its first word when that is a name on its own:
+    // Frankfurt am Main, Palma de Mallorca, Allentown/Bethlehem
+    if (n.length > 15) {
+      var head = n.split(/[\s\/]/)[0];
+      if (head.length >= 4) n = head;
+    }
+    return n;
   }
+  // A small aircraft glyph, nose to the right, centred in its box.
+  var PLANE_SVG = "<svg viewBox='0 0 24 24' aria-hidden='true'><path fill='currentColor' " +
+    "d='M21.5 12c0-.7-.6-1.3-1.3-1.3h-5.6L9.3 3.5H7.2l2.6 7.2H5.1L3.6 8.6H2l1 3.4-1 3.4h1.6l1.5-2.1h4.7l-2.6 7.2h2.1l5.3-7.2h5.6c.7 0 1.3-.6 1.3-1.3z'/></svg>";
   function hhmm(date, tz) {
     try {
       return new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit",
@@ -2140,7 +2152,7 @@
       return "<div class='cell'><span>" + k + "</span><b>" + v + "</b></div>";
     }
     var ends = "<div class='leg-ends'>" + end(org, oa) +
-      "<div class='leg-plane'><img src='assets/icons/" + iconFor(a) + ".png' alt=''></div>" +
+      "<div class='leg-plane'>" + PLANE_SVG + "</div>" +
       end(dst, da) + "</div>";
     var cells = "<div class='leg-cells'>" +
       cell("Usually", leg.dep || "–") + cell("Usually", leg.arr || "–") +
@@ -2151,7 +2163,7 @@
       var frac = Math.max(0, Math.min(1, flown / (flown + left)));
       var pct = (frac * 100).toFixed(1) + "%";
       bar = "<div class='leg-bar'><i style='width:" + pct + "'></i>" +
-        "<img src='assets/icons/" + iconFor(a) + ".png' alt='' style='left:" + pct + "'></div>" +
+        "<span class='mark' style='left:" + pct + "'>" + PLANE_SVG + "</span></div>" +
         "<div class='leg-dist'><span>" + Math.round(flown) + " km</span><span>" +
         Math.round(left) + " km" + (eta != null ? ", in " + durationText(eta) : "") +
         "</span></div>";
