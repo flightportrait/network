@@ -176,9 +176,33 @@
   .detail .credit{font-family:'Helvetica Neue',Arial,sans-serif;
     font-size:11px;letter-spacing:.04em;color:var(--quiet);margin-top:5px}
   .detail .credit a{color:var(--quiet)}
-  .detail .route{font-size:16px;margin-top:10px;display:none}
+  .detail .route{font-size:16px;margin-top:12px;display:none}
   .detail .route.show{display:block}
-  .detail .route .cities{color:var(--quiet);font-size:13px;margin-top:2px}
+  .detail .rp{display:flex;align-items:flex-start;gap:8px}
+  .detail .rp-end{flex:1;min-width:0}
+  .detail .rp-end .apcode{font-size:30px;line-height:1;letter-spacing:.02em}
+  .detail .rp-end:last-child{text-align:right}
+  .detail .rp-end .city{margin-top:4px;font-size:14px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .detail .rp-end .tz{color:var(--quiet);font-size:12px;margin-top:2px;
+    font-family:'Helvetica Neue',Arial,sans-serif}
+  .detail .rp-mid{color:var(--quiet);font-size:22px;line-height:30px}
+  .detail .route .via{color:var(--quiet);font-size:13px;margin-top:4px}
+  .detail .rp-times{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;
+    margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+  .detail .rp-times div{display:flex;justify-content:space-between;
+    align-items:baseline}
+  .detail .rp-times .k{color:var(--quiet);font-size:12px;letter-spacing:.06em;
+    font-family:'Helvetica Neue',Arial,sans-serif}
+  .detail .rp-times .v{font-size:17px;font-variant-numeric:tabular-nums}
+  .detail .rp-bar{height:3px;background:var(--line);border-radius:2px;
+    margin-top:12px;position:relative}
+  .detail .rp-bar i{display:block;height:100%;background:var(--red);
+    border-radius:2px;position:relative}
+  .detail .rp-bar i::after{content:"";position:absolute;right:-4px;top:-3px;
+    width:9px;height:9px;border-radius:50%;background:var(--red)}
+  .detail .rp-dist{display:flex;justify-content:space-between;
+    color:var(--quiet);font-size:12.5px;margin-top:6px}
   .detail .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;
     margin-top:12px;font-size:14px}
   .detail .grid .k{color:var(--quiet)}
@@ -1632,13 +1656,34 @@
       map.on("mouseleave", "planes", function () {
         map.getCanvas().style.cursor = "";
       });
-      var hoverAt = 0;
+      var hoverAt = 0, hoverHex = null;
       map.on("mousemove", function (e) {
         if (!gpu.active) return;
         var now = Date.now();
         if (now - hoverAt < 60) return;
         hoverAt = now;
-        map.getCanvas().style.cursor = gpuHit(e.point) ? "pointer" : "";
+        var hex = gpuHit(e.point);
+        map.getCanvas().style.cursor = hex ? "pointer" : "";
+        var t = el("tip");
+        if (!hex) {
+          if (hoverHex) { t.style.display = "none"; hoverHex = null; }
+          return;
+        }
+        var a = findAircraft(hex);
+        if (!a) return;
+        hoverHex = hex;
+        var alt = a.alt_baro === "ground" ? "on the ground"
+          : (a.alt_baro != null ? Number(a.alt_baro).toLocaleString() + " ft" : "");
+        var line = [typeNameOf(a), alt].filter(Boolean).join(" · ");
+        t.innerHTML = "<div></div><div class='m'></div>";
+        t.firstChild.textContent = a.flight || a.r || a.hex;
+        t.lastChild.textContent = line;
+        t.style.display = "block";
+        t.style.left = Math.min(e.originalEvent.clientX + 14, innerWidth - 220) + "px";
+        t.style.top = (e.originalEvent.clientY + 16) + "px";
+      });
+      map.on("mouseout", function () {
+        if (hoverHex) { el("tip").style.display = "none"; hoverHex = null; }
       });
       gpuStart();
 
@@ -1988,10 +2033,49 @@
       })
       .then(function (d) {
         routeCache[callsign] = d.route || null;
+        flightCache[callsign] = d;
         renderRoute(callsign);
       }).catch(function () {
         routeCache[callsign] = null; renderRoute(callsign);
       });
+  }
+  var flightCache = {};      // callsign -> the flight record (legs, times)
+  // Time-zone label for an airport: the zone's short name and its
+  // offset now, "CEST (UTC+02:00)"; the offset alone when the short
+  // name is only "GMT+2".
+  function tzLabel(tz) {
+    if (!tz) return "";
+    try {
+      var parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz,
+        timeZoneName: "short" }).formatToParts(new Date());
+      var name = (parts.filter(function (p) { return p.type === "timeZoneName"; })[0] || {}).value || "";
+      var off = new Intl.DateTimeFormat("en-GB", { timeZone: tz,
+        timeZoneName: "longOffset" }).formatToParts(new Date())
+        .filter(function (p) { return p.type === "timeZoneName"; })[0].value;
+      off = off.replace(/^GMT/, "UTC");
+      if (off === "UTC") off = "UTC+00:00";
+      if (/^GMT[+-]/.test(name) || name === "GMT") return off;
+      return name + " (" + off + ")";
+    } catch (e) { return ""; }
+  }
+  function hhmm(date, tz) {
+    try {
+      return new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit",
+        minute: "2-digit", hour12: false }).format(date);
+    } catch (e) { return ""; }
+  }
+  function kmBetween(lat1, lon1, lat2, lon2) {
+    var r = Math.PI / 180, R = 6371;
+    var dlat = (lat2 - lat1) * r, dlon = (lon2 - lon1) * r;
+    var h = Math.sin(dlat / 2) * Math.sin(dlat / 2) +
+      Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dlon / 2) * Math.sin(dlon / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function durationText(min) {
+    if (min < 1) return "now";
+    if (min < 60) return Math.round(min) + " min";
+    var h = Math.floor(min / 60), m = Math.round(min - h * 60);
+    return h + " h " + (m < 10 ? "0" : "") + m;
   }
   function renderRoute(callsign) {
     var a = state.selected && findAircraft(state.selected);
@@ -2003,13 +2087,50 @@
       drawRouteLine([]);
       return;
     }
-    var cities = chain.map(function (code) {
-      return airports[code] ? airports[code][0] : code;
-    });
-    box.innerHTML = chain.map(function (c) {
-      return "<span class='apcode' data-code='" + c + "'>" + c + "</span>";
-    }).join(" → ") +
-      "<div class='cities'>" + cities.join(" → ") + "</div>";
+    // The leg as a panel: the two ends with their city and time zone,
+    // the times the flight usually keeps (observed, not a schedule),
+    // an estimate for the arrival from where the aircraft is now and
+    // how fast it goes, and the progress along the great circle.
+    var org = chain[0], dst = chain[chain.length - 1];
+    var oa = airports[org] || [], da = airports[dst] || [];
+    var flight = flightCache[callsign] || {};
+    var leg = (flight.legs || []).filter(function (l) {
+      return l.org === org && l.dst === dst;
+    })[0] || (flight.legs || [])[0] || {};
+    function end(code, ap) {
+      return "<div class='rp-end'><span class='apcode' data-code='" + code + "'>" +
+        code + "</span><div class='city'>" + esc(ap[0] || code) + "</div>" +
+        "<div class='tz'>" + esc(tzLabel(ap[5])) + "</div></div>";
+    }
+    var via = chain.length > 2 ? "<div class='via'>via " + chain.slice(1, -1)
+      .map(function (c) { return "<span class='apcode' data-code='" + c + "'>" + c + "</span>"; })
+      .join(", ") + "</div>" : "";
+    var flown = null, left = null, eta = null;
+    if (a.lat != null && oa.length && da.length) {
+      var now = projected(a);
+      flown = kmBetween(oa[1], oa[2], now[1], now[0]);
+      left = kmBetween(now[1], now[0], da[1], da[2]);
+      if (a.gs > 60) eta = left / (a.gs * 1.852) * 60;      // minutes
+    }
+    var etaDate = eta != null ? new Date(Date.now() + eta * 60000) : null;
+    var times = "<div class='rp-times'>" +
+      "<div><span class='k'>usually</span><span class='v'>" + (leg.dep || "–") + "</span></div>" +
+      "<div><span class='k'>usually</span><span class='v'>" + (leg.arr || "–") + "</span></div>" +
+      "<div><span class='k'>flown</span><span class='v'>" +
+        (flown != null ? Math.round(flown) + " km" : "–") + "</span></div>" +
+      "<div><span class='k'>estimated</span><span class='v'>" +
+        (etaDate ? hhmm(etaDate, da[5]) : "–") + "</span></div>" +
+      "</div>";
+    var bar = "";
+    if (flown != null) {
+      var frac = Math.max(0, Math.min(1, flown / (flown + left)));
+      bar = "<div class='rp-bar'><i style='width:" + (frac * 100).toFixed(1) + "%'></i></div>" +
+        "<div class='rp-dist'><span>" + Math.round(flown) + " km flown</span><span>" +
+        Math.round(left) + " km" + (eta != null ? ", in " + durationText(eta) : "") +
+        "</span></div>";
+    }
+    box.innerHTML = "<div class='rp'>" + end(org, oa) +
+      "<div class='rp-mid'>→</div>" + end(dst, da) + "</div>" + via + times + bar;
     box.className = "route show";
     drawRouteLine(chain);
   }
@@ -2136,6 +2257,8 @@
       return "<span class='k'>" + r[0] + "</span><span class='v'>" +
              r[1] + "</span>";
     }).join("");
+    var cs = (a.flight || "").trim();
+    if (cs && routeCache[cs]) renderRoute(cs);
   }
 
   function updateTrail() {
@@ -2244,7 +2367,7 @@
     "attribute vec2 a_corner;",
     "attribute vec2 a_pos; attribute vec2 a_vel; attribute float a_t0;",
     "attribute float a_rot; attribute vec4 a_uv; attribute vec2 a_size;",
-    "attribute float a_alpha;",
+    "attribute float a_alpha; attribute float a_rot0; attribute float a_rott;",
     "uniform mat4 u_matrix; uniform float u_now; uniform float u_bearing;",
     "uniform vec2 u_viewport; uniform float u_dpr;",
     "varying vec2 v_uv; varying float v_alpha;",
@@ -2252,14 +2375,17 @@
     "  float dt = clamp(u_now - a_t0, 0.0, 90.0);",
     "  vec2 p = a_pos + a_vel * dt;",
     "  vec4 clip = u_matrix * vec4(p, 0.0, 1.0);",
-    "  float ang = a_rot - u_bearing;",
+    "  float k = clamp((u_now - a_rott) / 1.0, 0.0, 1.0);",
+    "  float rot = mix(a_rot0, a_rot, k * k * (3.0 - 2.0 * k));",
+    "  float ang = rot - u_bearing;",
     "  float c = cos(ang), s = sin(ang);",
     "  vec2 px = a_corner * a_size * u_dpr;",
     "  vec2 r = vec2(px.x * c - px.y * s, px.x * s + px.y * c);",
     "  clip.xy += vec2(r.x, -r.y) * 2.0 / u_viewport * clip.w;",
     "  gl_Position = clip;",
     "  v_uv = mix(a_uv.xy, a_uv.zw, a_corner + 0.5);",
-    "  v_alpha = a_alpha;",
+    "  float age = u_now - a_t0;",
+    "  v_alpha = a_alpha * (1.0 - 0.6 * smoothstep(30.0, 90.0, age));",
     "}"].join("\n");
   var FS = [
     "precision mediump float;",
@@ -2267,7 +2393,7 @@
     "varying vec2 v_uv; varying float v_alpha;",
     "void main() { gl_FragColor = texture2D(u_tex, v_uv) * v_alpha; }"
   ].join("\n");
-  var STRIDE = 13;   // floats per instance
+  var STRIDE = 15;   // floats per instance
   var skyLayer = {
     id: "sky-gpu", type: "custom", renderingMode: "2d",
     onAdd: function (m, gl) {
@@ -2308,7 +2434,7 @@
       this.loc = {};
       var self = this;
       ["a_corner", "a_pos", "a_vel", "a_t0", "a_rot", "a_uv", "a_size",
-       "a_alpha"].forEach(function (n) {
+       "a_alpha", "a_rot0", "a_rott"].forEach(function (n) {
         self.loc[n] = gl.getAttribLocation(prog, n);
       });
       ["u_matrix", "u_now", "u_bearing", "u_viewport", "u_dpr", "u_tex"].forEach(
@@ -2364,7 +2490,8 @@
       gl.bindBuffer(gl.ARRAY_BUFFER, this.inst);
       var F = 4, S = STRIDE * F, L = this.loc, self = this;
       [["a_pos", 2, 0], ["a_vel", 2, 2], ["a_t0", 1, 4], ["a_rot", 1, 5],
-       ["a_uv", 4, 6], ["a_size", 2, 10], ["a_alpha", 1, 12]]
+       ["a_uv", 4, 6], ["a_size", 2, 10], ["a_alpha", 1, 12], ["a_rot0", 1, 13],
+       ["a_rott", 1, 14]]
         .forEach(function (a) {
           gl.enableVertexAttribArray(L[a[0]]);
           gl.vertexAttribPointer(L[a[0]], a[1], gl.FLOAT, false, S, a[2] * F);
@@ -2392,6 +2519,7 @@
   // One row per aircraft in view (plus margin): where it was heard,
   // how fast and which way in mercator units, when, and which sprite.
   var gpuRows = [];
+  var headings = {};   // hex -> {rot, from, t}: the last heading and the turn under way
   function gpuSync() {
     if (!gpu.active || !map) return;
     var b = map.getBounds(), z = map.getZoom();
@@ -2419,8 +2547,25 @@
         if (ms > 1) moving = true;
       }
       var t0 = (a._heard || state.fetchedAt) / 1000 - (a.seen_pos || 0) - gpu.epoch;
-      rows.push(mc.x, mc.y, vx, vy, t0, ring ? 0 : (a.track || 0) * Math.PI / 180,
-                uv[0], uv[1], uv[2], uv[3], size[0], size[1], alpha);
+      var rot = ring ? 0 : (a.track || 0) * Math.PI / 180;
+      var rot0 = rot, rott = 0;
+      if (!ring) {
+        // a heading change eases over a second, by the short way round
+        var h = headings[a.hex], nowS = Date.now() / 1000 - gpu.epoch;
+        if (h && Math.abs(h.rot - rot) > 1e-6) {
+          var d = rot - h.rot;
+          while (d > Math.PI) d -= 2 * Math.PI;
+          while (d < -Math.PI) d += 2 * Math.PI;
+          rot0 = rot - d; rott = nowS;
+          headings[a.hex] = { rot: rot, from: rot0, t: rott };
+        } else if (h) {
+          rot0 = h.from; rott = h.t;
+        } else {
+          headings[a.hex] = { rot: rot, from: rot, t: 0 };
+        }
+      }
+      rows.push(mc.x, mc.y, vx, vy, t0, rot,
+                uv[0], uv[1], uv[2], uv[3], size[0], size[1], alpha, rot0, rott);
       return rows.length / STRIDE - 1;
     }
     var idx = [];
@@ -2442,6 +2587,9 @@
       row(a, uv, [uv[4], uv[5]], a.alt_baro === "ground" ? 0.45 : 1, false);
     });
     gpuRows = idx;
+    Object.keys(headings).forEach(function (h) {
+      if (!findAircraft(h)) delete headings[h];
+    });
     gpu.moving = moving;
     skyLayer.upload(new Float32Array(rows), rows.length / STRIDE);
     map.triggerRepaint();
