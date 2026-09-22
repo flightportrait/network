@@ -409,7 +409,10 @@ def test_supersession_is_dated(ctx, tmp_path):
     session = sm()
     try:
         first, second = session.query(Claim).order_by(Claim.id).all()
-        contributions.approve(session, app.state.gaps, first.id)
+        # an explicit start for the first row, so the dated assertions
+        # below do not depend on the day the test runs
+        contributions.approve(session, app.state.gaps, first.id,
+                              valid_from=datetime.date(2026, 9, 1))
         contributions.approve(session, app.state.gaps, second.id)
         rows = session.query(RouteCatalog).order_by(RouteCatalog.id).all()
         assert rows[0].valid_to == datetime.date(2026, 10, 1)
