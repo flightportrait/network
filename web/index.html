@@ -1514,6 +1514,7 @@
     map.on("dragstart", function () { state.touched = true; });
     map.on("moveend", renderListSoon);
     map.on("moveend", onViewMoved);
+    map.on("moveend", gpuSync);
     map.on("zoomstart", function (e) {
       if (e.originalEvent) state.touched = true;
     });
@@ -1529,10 +1530,12 @@
         return map.loadImage("assets/icons/" + kind + ".png")
           .then(function (resp) {
             map.addImage("icon-" + kind, resp.data, { pixelRatio: 3 });
+            iconBitmaps[kind] = { data: resp.data, pixelRatio: 3 };
           })
           .catch(function () {
-            map.addImage("icon-" + kind, iconImage(kind, 96),
-                         { pixelRatio: 2 });
+            var img = iconImage(kind, 96);
+            map.addImage("icon-" + kind, img, { pixelRatio: 2 });
+            iconBitmaps[kind] = { data: img, pixelRatio: 2 };
           });
       });
       // the airport marker: a control tower once you zoom in (dots
@@ -1615,6 +1618,11 @@
         select(e.features[0].properties.hex);
       });
       map.on("click", function (e) {
+        if (gpu.active) {
+          var hit = gpuHit(e.point);
+          if (hit) select(hit); else deselect();
+          return;
+        }
         if (!map.queryRenderedFeatures(e.point,
               { layers: ["planes"] }).length) deselect();
       });
@@ -1624,6 +1632,15 @@
       map.on("mouseleave", "planes", function () {
         map.getCanvas().style.cursor = "";
       });
+      var hoverAt = 0;
+      map.on("mousemove", function (e) {
+        if (!gpu.active) return;
+        var now = Date.now();
+        if (now - hoverAt < 60) return;
+        hoverAt = now;
+        map.getCanvas().style.cursor = gpuHit(e.point) ? "pointer" : "";
+      });
+      gpuStart();
 
       // Airports: fixed quiet marks under the moving sky — paper
       // beacons ringed in ink, every one a door into the airport card.
@@ -2015,6 +2032,7 @@
       history.replaceState(null, "",
         location.pathname + location.search + "#" + hex);
     }
+    gpuSync();
     if (map.getLayer("selected-ring")) {
       map.setFilter("selected-ring", ["==", ["get", "hex"], hex]);
     }
@@ -2037,6 +2055,7 @@
         location.pathname + location.search);
     }
     el("detail").className = "detail";
+    gpuSync();
     if (map.getLayer("selected-ring")) {
       map.setFilter("selected-ring", ["==", ["get", "hex"], "___none___"]);
     }
@@ -2154,6 +2173,269 @@
     return [a.lon + dLon, a.lat + dLat];
   }
 
+  // ---- the GPU sky ----------------------------------------------------
+  // Every aircraft in view is one instanced sprite. The vertex shader
+  // advances it along its track from the moment its position was
+  // heard, every frame, so the sky glides between polls instead of
+  // stepping once a second. Data is rebuilt only when a poll lands or
+  // the view leaves the fetched margin; a frame costs one draw call.
+  // The symbol layer stays as the fallback when WebGL2 or the shader
+  // is unavailable, and the GeoJSON source keeps feeding the labels.
+  var iconBitmaps = {};
+  var gpu = { active: false, n: 0, moving: false, epoch: Date.now() / 1000 };
+  function buildAtlas() {
+    var kinds = Object.keys(iconBitmaps);
+    var pad = 2, x = pad, y = pad, rowH = 0, W = 1024;
+    var uv = {}, sizes = [];
+    kinds.forEach(function (k) {
+      var b = iconBitmaps[k].data;
+      var w = b.width, h = b.height;
+      if (x + w + pad > W) { x = pad; y += rowH + pad; rowH = 0; }
+      sizes.push({ k: k, x: x, y: y, w: w, h: h });
+      x += w + pad; rowH = Math.max(rowH, h);
+    });
+    // the selection halo: a quiet ring, drawn once into the atlas
+    var R = 48;
+    if (x + R + pad > W) { x = pad; y += rowH + pad; rowH = 0; }
+    var ring = { x: x, y: y, w: R, h: R };
+    var H = y + Math.max(rowH, R) + pad;
+    var canvas = document.createElement("canvas");
+    canvas.width = W; canvas.height = Math.pow(2, Math.ceil(Math.log2(H)));
+    var ctx = canvas.getContext("2d");
+    sizes.forEach(function (sz) {
+      var b = iconBitmaps[sz.k].data;
+      if (b instanceof ImageData) ctx.putImageData(b, sz.x, sz.y);
+      else ctx.drawImage(b, sz.x, sz.y);
+      uv[sz.k] = [sz.x / W, sz.y / canvas.height, (sz.x + sz.w) / W,
+                  (sz.y + sz.h) / canvas.height,
+                  sz.w / iconBitmaps[sz.k].pixelRatio,
+                  sz.h / iconBitmaps[sz.k].pixelRatio];
+    });
+    ctx.beginPath();
+    ctx.arc(ring.x + R / 2, ring.y + R / 2, R / 2 - 2, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(184,64,46,.08)"; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(184,64,46,.7)"; ctx.stroke();
+    uv.__ring = [ring.x / W, ring.y / canvas.height, (ring.x + R) / W,
+                 (ring.y + R) / canvas.height, 44, 44];
+    return { canvas: canvas, uv: uv };
+  }
+  var VS = [
+    "precision highp float;",
+    "attribute vec2 a_corner;",
+    "attribute vec2 a_pos; attribute vec2 a_vel; attribute float a_t0;",
+    "attribute float a_rot; attribute vec4 a_uv; attribute vec2 a_size;",
+    "attribute float a_alpha;",
+    "uniform mat4 u_matrix; uniform float u_now; uniform float u_bearing;",
+    "uniform vec2 u_viewport;",
+    "varying vec2 v_uv; varying float v_alpha;",
+    "void main() {",
+    "  float dt = clamp(u_now - a_t0, 0.0, 90.0);",
+    "  vec2 p = a_pos + a_vel * dt;",
+    "  vec4 clip = u_matrix * vec4(p, 0.0, 1.0);",
+    "  float ang = a_rot - u_bearing;",
+    "  float c = cos(ang), s = sin(ang);",
+    "  vec2 px = a_corner * a_size;",
+    "  vec2 r = vec2(px.x * c - px.y * s, px.x * s + px.y * c);",
+    "  clip.xy += vec2(r.x, -r.y) * 2.0 / u_viewport * clip.w;",
+    "  gl_Position = clip;",
+    "  v_uv = mix(a_uv.xy, a_uv.zw, a_corner + 0.5);",
+    "  v_alpha = a_alpha;",
+    "}"].join("\n");
+  var FS = [
+    "precision mediump float;",
+    "uniform sampler2D u_tex;",
+    "varying vec2 v_uv; varying float v_alpha;",
+    "void main() { gl_FragColor = texture2D(u_tex, v_uv) * v_alpha; }"
+  ].join("\n");
+  var STRIDE = 13;   // floats per instance
+  var skyLayer = {
+    id: "sky-gpu", type: "custom", renderingMode: "2d",
+    onAdd: function (m, gl) {
+      var isGL2 = typeof WebGL2RenderingContext !== "undefined" &&
+        gl instanceof WebGL2RenderingContext;
+      var ext = isGL2 ? null : gl.getExtension("ANGLE_instanced_arrays");
+      if (!isGL2 && !ext) throw new Error("no instancing");
+      this.divisor = isGL2
+        ? function (i, d) { gl.vertexAttribDivisor(i, d); }
+        : function (i, d) { ext.vertexAttribDivisorANGLE(i, d); };
+      this.drawInst = isGL2
+        ? function (n) { gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, n); }
+        : function (n) { ext.drawArraysInstancedANGLE(gl.TRIANGLES, 0, 6, n); };
+      function shader(type, src) {
+        var sh = gl.createShader(type);
+        gl.shaderSource(sh, src); gl.compileShader(sh);
+        if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+          throw new Error(gl.getShaderInfoLog(sh));
+        }
+        return sh;
+      }
+      var prog = gl.createProgram();
+      gl.attachShader(prog, shader(gl.VERTEX_SHADER, VS));
+      gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FS));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(prog));
+      }
+      this.prog = prog;
+      this.loc = {};
+      var self = this;
+      ["a_corner", "a_pos", "a_vel", "a_t0", "a_rot", "a_uv", "a_size",
+       "a_alpha"].forEach(function (n) {
+        self.loc[n] = gl.getAttribLocation(prog, n);
+      });
+      ["u_matrix", "u_now", "u_bearing", "u_viewport", "u_tex"].forEach(
+        function (n) { self.loc[n] = gl.getUniformLocation(prog, n); });
+      this.quad = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5]),
+        gl.STATIC_DRAW);
+      this.inst = gl.createBuffer();
+      var atlas = buildAtlas();
+      gpu.uv = atlas.uv;
+      this.tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, this.tex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,
+                    atlas.canvas);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      this.gl = gl;
+      gpu.active = true;
+      gpuSync();
+    },
+    upload: function (data, n) {
+      var gl = this.gl;
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.inst);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+      gpu.n = n;
+    },
+    render: function (gl, matrix) {
+      if (!gpu.n) return;
+      gl.useProgram(this.prog);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.disable(gl.DEPTH_TEST);
+      gl.uniformMatrix4fv(this.loc.u_matrix, false, matrix);
+      gl.uniform1f(this.loc.u_now, Date.now() / 1000 - gpu.epoch);
+      gl.uniform1f(this.loc.u_bearing, map.getBearing() * Math.PI / 180);
+      var c = map.getCanvas();
+      gl.uniform2f(this.loc.u_viewport, c.width, c.height);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.tex);
+      gl.uniform1i(this.loc.u_tex, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
+      gl.enableVertexAttribArray(this.loc.a_corner);
+      gl.vertexAttribPointer(this.loc.a_corner, 2, gl.FLOAT, false, 0, 0);
+      this.divisor(this.loc.a_corner, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.inst);
+      var F = 4, S = STRIDE * F, L = this.loc, self = this;
+      [["a_pos", 2, 0], ["a_vel", 2, 2], ["a_t0", 1, 4], ["a_rot", 1, 5],
+       ["a_uv", 4, 6], ["a_size", 2, 10], ["a_alpha", 1, 12]]
+        .forEach(function (a) {
+          gl.enableVertexAttribArray(L[a[0]]);
+          gl.vertexAttribPointer(L[a[0]], a[1], gl.FLOAT, false, S, a[2] * F);
+          self.divisor(L[a[0]], 1);
+        });
+      this.drawInst(gpu.n);
+      // divisors are global GL state: hand the attributes back clean
+      Object.keys(L).forEach(function (n) {
+        if (n.charAt(0) === "a" && L[n] >= 0) self.divisor(L[n], 0);
+      });
+      if (gpu.moving && !reducedMotion && !document.hidden) map.triggerRepaint();
+    }
+  };
+  function gpuStart() {
+    if (!map || gpu.active) return;
+    try {
+      map.addLayer(skyLayer, "plane-labels");
+    } catch (e) {
+      try { map.addLayer(skyLayer); } catch (e2) { gpu.active = false; }
+    }
+    if (!gpu.active) {
+      console.warn("sky-gpu: unavailable, symbol icons stay");
+      return;
+    }
+    map.setLayoutProperty("planes", "visibility", "none");
+    map.setLayoutProperty("selected-ring", "visibility", "none");
+  }
+  // One row per aircraft in view (plus margin): where it was heard,
+  // how fast and which way in mercator units, when, and which sprite.
+  var gpuRows = [];
+  function gpuSync() {
+    if (!gpu.active || !map) return;
+    var b = map.getBounds(), z = map.getZoom();
+    var mw = (b.getEast() - b.getWest()) * 0.35;
+    var mh = (b.getNorth() - b.getSouth()) * 0.35;
+    var west = b.getWest() - mw, east = b.getEast() + mw;
+    var south = b.getSouth() - mh, north = b.getNorth() + mh;
+    var whole = z < 2.5 || east - west >= 360;
+    var heard = state.fetchedAt / 1000;
+    var rows = [], moving = false;
+    var sel = state.selected;
+    function row(a, uv, size, alpha, ring) {
+      var lon = a.lon;
+      if (!whole) {
+        while (lon < west) lon += 360;
+        while (lon > east) lon -= 360;
+      }
+      var mc = maplibregl.MercatorCoordinate.fromLngLat([lon, a.lat]);
+      var vx = 0, vy = 0;
+      if (!reducedMotion && a.gs != null && a.track != null) {
+        var ms = a.gs * 0.514444;
+        var perM = 1 / (40075016.686 * Math.max(0.05, Math.cos(a.lat * Math.PI / 180)));
+        var rad = a.track * Math.PI / 180;
+        vx = Math.sin(rad) * ms * perM;
+        vy = -Math.cos(rad) * ms * perM;
+        if (ms > 1) moving = true;
+      }
+      var t0 = heard - (a.seen_pos || 0) - gpu.epoch;
+      rows.push(mc.x, mc.y, vx, vy, t0, ring ? 0 : (a.track || 0) * Math.PI / 180,
+                uv[0], uv[1], uv[2], uv[3], size[0], size[1], alpha);
+      return rows.length / STRIDE - 1;
+    }
+    var idx = [];
+    state.aircraft.forEach(function (a) {
+      if (a.lat == null) return;
+      if (!whole && (a.lat < south || a.lat > north)) return;
+      if (!whole) {
+        var lon = a.lon;
+        while (lon < west) lon += 360;
+        while (lon > east) lon -= 360;
+        if (lon < west) return;
+      }
+      var uv = gpu.uv[iconFor(a)] || gpu.uv.narrow;
+      if (!uv) return;
+      if (sel && a.hex === sel) {
+        row(a, gpu.uv.__ring, [gpu.uv.__ring[4], gpu.uv.__ring[5]], 1, true);
+      }
+      idx.push(a);
+      row(a, uv, [uv[4], uv[5]], a.alt_baro === "ground" ? 0.45 : 1, false);
+    });
+    gpuRows = idx;
+    gpu.moving = moving;
+    skyLayer.upload(new Float32Array(rows), rows.length / STRIDE);
+    map.triggerRepaint();
+  }
+  // Hit test against where each sprite is right now.
+  function gpuHit(point) {
+    if (!gpu.active) return null;
+    var best = null, bestD = 1e9, now = Date.now();
+    gpuRows.forEach(function (a) {
+      var c = projected(a);
+      var p = map.project(c);
+      var uv = gpu.uv[iconFor(a)] || gpu.uv.narrow;
+      var r = Math.max(14, (uv ? Math.max(uv[4], uv[5]) : 24) * 0.6);
+      var dx = p.x - point.x, dy = p.y - point.y, d = dx * dx + dy * dy;
+      if (d < r * r && d < bestD) { bestD = d; best = a.hex; }
+    });
+    void now;
+    return best;
+  }
+
   // Only what the map draws: the aircraft inside the view (plus a
   // margin for the dead-reckoned drift) with the few properties the
   // layers read. A busy sky used to rebuild every aircraft's full
@@ -2164,6 +2446,15 @@
   function pushPositions() {
     if (!map || !map.getSource("aircraft")) return;
     var b = map.getBounds(), z = map.getZoom();
+    if (gpu.active && z < 6.5) {
+      // no labels at this zoom and the sprites are on the GPU: nothing
+      // for the GeoJSON to do
+      if (state.drawn) {
+        map.getSource("aircraft").setData({ type: "FeatureCollection", features: [] });
+        state.drawn = 0;
+      }
+      return;
+    }
     var mw = (b.getEast() - b.getWest()) * 0.25;
     var mh = (b.getNorth() - b.getSouth()) * 0.25;
     var west = b.getWest() - mw, east = b.getEast() + mw;
@@ -2304,6 +2595,7 @@
       setStatus(true, "live");
       el("count-aircraft").textContent =
         d.total != null ? d.total : state.aircraft.length;
+      gpuSync();
       pushPositions();
       renderList();
       if (window.__rosterSky) window.__rosterSky();
