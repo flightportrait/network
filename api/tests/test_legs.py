@@ -407,3 +407,21 @@ def test_a_marketed_number_resolves_to_its_callsign(ctx, tmp_path):
     body = client.get("/v1/flights/sq22").json()
     assert body["callsign"] == "SQ322" and body["marketed"] == "SQ22"
     assert body["legs"][0]["flight"] == "SQ22" and body["legs"][0]["times"] == "both"
+
+
+def test_a_published_only_service_answers_from_the_schedule(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    app.state.legs = LegBook(str(tmp_path / "absent.db"))
+    app.state.routes = RouteBook(str(tmp_path / "absent.json.gz"))
+    from app.refdata_models import RefSchedule
+    with sm() as session:
+        session.add(RefSchedule(callsign="LH996", org="FRA", dst="AMS",
+                                airline_icao="DLH", dep_min=16 * 60 + 30,
+                                arr_min=17 * 60 + 40, type_code=None,
+                                n_flights=1, flight="LH996", source="published"))
+        session.commit()
+    body = client.get("/v1/flights/LH996").json()
+    assert body["route"] == ["FRA", "AMS"] and body["route_source"] == "published"
+    assert body["coverage"] == "published"
+    leg = body["legs"][0]
+    assert leg["dep"] == "16:30" and leg["arr"] == "17:40" and leg["times"] == "published"

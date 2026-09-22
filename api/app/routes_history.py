@@ -196,6 +196,17 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
                             if question and question.get("known") in route
                             else "catalog")
     log = legs_book.flight(callsign) if legs_up else None
+    published = None
+    if route is None and log is None:
+        # a service an airport's board publishes that the network has
+        # not watched fly yet: the record speaks from the schedule
+        rows = session.execute(
+            select(RefSchedule).where(RefSchedule.callsign == callsign)
+            .order_by(RefSchedule.n_flights.desc())).scalars().all()
+        if rows:
+            published = rows
+            route = [rows[0].org, rows[0].dst]
+            route_source = "published"
     if route is None and log is None:
         raise ApiError(404, "not_observed", "no observations")
 
@@ -211,6 +222,10 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
     if log is not None:
         out.update(legs=log["legs"], aircraft=log["aircraft"],
                    recent=log["recent"])
+    elif published:
+        out["legs"] = [{"org": r.org, "dst": r.dst, "flights": 0, "days": 0,
+                        "last": None} for r in published]
+        out["coverage"] = "published"
     elif legs_up:
         out.update(legs=[], aircraft=[], recent=[])
     if out["legs"]:
