@@ -157,11 +157,11 @@
      operator's name. The airframe follows as labelled rows. */
   /* The head: mark, callsign and two chips on the close's row; the
      operator's name on the next; then the photo. */
-  .detail .head{display:flex;align-items:center;gap:8px;padding-right:30px;
-    line-height:1.15;min-height:28px}
-  .detail .head img{width:30px;height:26px;object-fit:contain;display:block;
+  .detail .dhead{display:flex;align-items:center;gap:8px;padding-right:28px;
+    line-height:1.15;min-height:26px}
+  .detail .dhead img{width:30px;height:26px;object-fit:contain;display:block;
     flex:none}
-  .detail .head .cs{flex:none;font-size:20px}
+  .detail .dhead .cs{flex:none;font-size:20px}
   .detail .chips{display:flex;gap:4px;min-width:0;overflow:hidden}
   .detail .chip{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;
     letter-spacing:.04em;color:var(--quiet);background:var(--card);
@@ -949,7 +949,7 @@
 </div>
 <div class="detail" id="detail">
   <button class="cardclose" id="d-close" aria-label="Close">&times;</button>
-  <div class="head" id="d-operator">
+  <div class="dhead" id="d-operator">
     <img id="d-operator-tail" alt="" hidden>
     <span class="cs" id="d-cs"></span>
     <span class="chips" id="d-chips"></span>
