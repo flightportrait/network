@@ -525,7 +525,7 @@ def test_boards_merge(ctx, tmp_path):
         session.commit()
         decorated = session.get(RefSchedule, ("SAS43C", "OSL", "EWR"))
         assert decorated.flight == "SK907" and decorated.source == "both"
-        assert decorated.dep_min == 655            # observation stays
+        assert decorated.dep_min == 660            # observation stays   # the board\'s time, now that the board named it
         assert decorated.arr_min == 800            # arrival filled
         added = session.get(RefSchedule, ("WF569", "OSL", "FRO"))
         assert added.source == "published"
