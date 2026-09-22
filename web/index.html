@@ -2096,10 +2096,14 @@
   }
 
   var routeCache = {};       // callsign -> [codes] | null
+  // The list's bulk lookup fills routeCache with the route alone; the
+  // card wants the whole flight record (the times it usually keeps),
+  // so a selection fetches it once even when the route is known.
   function loadRoute(callsign) {
     if (!callsign) { el("d-route").className = "route"; return; }
-    if (callsign in routeCache) { renderRoute(callsign); return; }
-    routeCache[callsign] = undefined;
+    if (callsign in flightCache) { renderRoute(callsign); return; }
+    if (routeCache[callsign]) renderRoute(callsign);   // the route now, times soon
+    flightCache[callsign] = undefined;                  // in flight
     fetch(API + "/v1/flights/" + encodeURIComponent(callsign))
       .then(function (r) {
         if (!r.ok) throw new Error(r.status);
@@ -2110,7 +2114,9 @@
         flightCache[callsign] = d;
         renderRoute(callsign);
       }).catch(function () {
-        routeCache[callsign] = null; renderRoute(callsign);
+        if (!(callsign in routeCache)) routeCache[callsign] = null;
+        flightCache[callsign] = null;
+        renderRoute(callsign);
       });
   }
   var flightCache = {};      // callsign -> the flight record (legs, times)
