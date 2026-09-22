@@ -155,14 +155,19 @@
      and registration. Everything the top used to say, in two lines. */
   /* The head is one row: the operator's tail mark, the callsign, the
      operator's name. The airframe follows as labelled rows. */
-  .detail .head{display:flex;align-items:center;gap:8px;padding-right:26px;
-    line-height:1.15}
-  .detail .photo.show + .head{padding-right:0}
+  /* The head: mark, callsign and two chips on the close's row; the
+     operator's name on the next; then the photo. */
+  .detail .head{display:flex;align-items:center;gap:8px;padding-right:30px;
+    line-height:1.15;min-height:28px}
   .detail .head img{width:30px;height:26px;object-fit:contain;display:block;
     flex:none}
   .detail .head .cs{flex:none;font-size:20px}
-  .detail .head .op{color:var(--quiet);font-size:13px;margin-left:auto;
-    text-align:right;min-width:0;line-height:1.2}
+  .detail .chips{display:flex;gap:4px;min-width:0;overflow:hidden}
+  .detail .chip{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;
+    letter-spacing:.04em;color:var(--quiet);background:var(--card);
+    border:1px solid var(--line);border-radius:4px;padding:2px 6px;
+    line-height:1.2;white-space:nowrap}
+  .detail .op{color:var(--quiet);font-size:13px;line-height:1.2;margin-top:3px}
   /* Only when it is real: a squawk or transponder emergency */
   .detail .alert{margin-top:10px;padding:8px 12px;border-radius:6px;
     background:var(--red);color:var(--paper);font-size:14px}
@@ -178,10 +183,9 @@
   .detail a.hist:hover{text-decoration:underline}
   /* The photo at a fixed height with the credit set over its corner,
      so it costs one block, not a block and a line. */
-  .detail .photo{margin:-16px -20px 10px;display:none;position:relative}
+  .detail .photo{margin:8px -20px 0;display:none;position:relative}
   .detail .photo.show{display:block}
-  .detail .photo img{width:100%;height:150px;object-fit:cover;display:block;
-    border-radius:8px 8px 0 0}
+  .detail .photo img{width:100%;height:150px;object-fit:cover;display:block}
   .detail .credit{position:absolute;right:6px;bottom:6px;
     font-family:'Helvetica Neue',Arial,sans-serif;font-size:10px;
     letter-spacing:.03em;color:var(--quiet);background:rgba(245,241,230,.88);
@@ -496,9 +500,8 @@
   .cardclose{position:absolute;top:8px;right:10px;z-index:2;
     background:none;border:none;color:var(--quiet);font-size:19px;
     cursor:pointer;font-family:inherit;padding:4px 8px;line-height:1}
-  .detail .cardclose{background:rgba(245,241,230,.88);border-radius:50%;
-    width:30px;height:30px;padding:0;display:flex;align-items:center;
-    justify-content:center;color:var(--ink)}
+  .detail .cardclose{width:30px;height:30px;padding:0;display:flex;
+    align-items:center;justify-content:center;color:var(--ink);top:10px}
   .cardclose:hover{color:var(--red)}
 
   /* Map-layer switch: a segmented pill ON the map (layer controls
@@ -856,11 +859,11 @@
     .sheet-handle{display:block;width:100%;background:none;border:none;
       padding:9px 0 3px;cursor:grab;touch-action:none;flex:none}
     /* A thumb-sized close: 44 px square, the glyph larger. */
-    #sheet-cards .cardclose{top:8px;right:12px;width:40px;height:40px;
+    #sheet-cards .cardclose{top:-2px;right:8px;width:40px;height:40px;
       padding:0;display:flex;align-items:center;justify-content:center;
       font-size:26px;border-radius:20px}
-    #sheet-cards .detail .photo{margin:0 -20px 10px}
-    #sheet-cards .detail .photo img{height:160px;border-radius:0}
+    #sheet-cards .detail .photo{margin:8px -20px 0}
+    #sheet-cards .detail .photo img{height:160px}
     #sheet-cards .cardclose:active{background:rgba(34,31,26,.08)}
     .sheet-handle::before{content:"";display:block;width:40px;height:4px;
       border-radius:2px;background:rgba(34,31,26,.25);margin:0 auto}
@@ -946,14 +949,15 @@
 </div>
 <div class="detail" id="detail">
   <button class="cardclose" id="d-close" aria-label="Close">&times;</button>
-  <div class="photo" id="d-photo"></div>
   <div class="head" id="d-operator">
     <img id="d-operator-tail" alt="" hidden>
     <span class="cs" id="d-cs"></span>
-    <span class="op" id="d-op"></span>
+    <span class="chips" id="d-chips"></span>
   </div>
+  <div class="op" id="d-op"></div>
   <div class="sub" id="d-sub" hidden></div>
   <div class="alert" id="d-alert" hidden></div>
+  <div class="photo" id="d-photo"></div>
   <div class="route" id="d-route"></div>
   <div class="links"><a id="d-history" class="hist" href="#">Airframe history</a><a id="d-flightlog" class="hist" href="#" hidden>Flight log</a></div>
   <div class="grid" id="d-grid"></div>
@@ -2271,6 +2275,10 @@
     var opName = op && airlineNames && airlineNames[op];
     var opTail = op && tails[op] && tails[op]["64"];
     el("d-op").textContent = opName || op || "";
+    el("d-op").hidden = !(opName || op);
+    el("d-chips").innerHTML = [a.t, a.r].filter(Boolean).map(function (c) {
+      return "<span class='chip'>" + esc(c) + "</span>";
+    }).join("");
     el("d-operator-tail").hidden = !opTail;
     if (opTail) el("d-operator-tail").src = "assets/airline-tails/" + opTail;
     // the airframe leads the labelled rows further down (rows below)
