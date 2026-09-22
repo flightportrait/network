@@ -312,6 +312,16 @@ def ingest_boards(session, path):
                 deps.setdefault((flight, airport, cp), (sched, c))
             else:
                 arrs.setdefault((flight, cp, airport), sched)
+        # boards that name no other end (a city name only): the number,
+        # airline and time still name the service
+        blind = {}
+        for airport, kind, flight, sched, c in conn.execute(
+                "SELECT airport, kind, flight, sched_min, COUNT(*)"
+                " FROM boards WHERE counterpart IS NULL"
+                " AND sched_min IS NOT NULL"
+                " GROUP BY airport, kind, flight, sched_min"
+                " ORDER BY airport, kind, flight, COUNT(*) DESC"):
+            blind.setdefault((flight, airport, kind), sched)
         days = dict(conn.execute(
             "SELECT flight || '|' || airport || '|' || counterpart,"
             " COUNT(DISTINCT day) FROM boards WHERE kind = 'dep'"
@@ -407,6 +417,38 @@ def ingest_boards(session, path):
                 dep_min=None, arr_min=arr, type_code=None, flight=flight[:8],
                 source="published", n_flights=1))
             added += 1
+    # Counterpart-less boards: the same-airline service carrying the
+    # board's number, at that airport, within three hours, takes the
+    # number and the board's time. Nothing is added from them.
+    for (flight, airport, kind), sched in blind.items():
+        prefix, icao = _airline_of(flight, iata_icao)
+        if kind == "dep":
+            rows = session.execute(
+                select(RefSchedule).where(RefSchedule.org == airport,
+                                          RefSchedule.dep_min.is_not(None))
+            ).scalars().all()
+        else:
+            rows = session.execute(
+                select(RefSchedule).where(RefSchedule.dst == airport,
+                                          RefSchedule.arr_min.is_not(None))
+            ).scalars().all()
+        best = None
+        for r in rows:
+            if (icao and r.airline_icao != icao) or (not icao and r.airline_icao != prefix):
+                continue
+            if not _same_number(r.callsign, flight):
+                continue
+            d = abs((r.dep_min if kind == "dep" else r.arr_min) - sched)
+            if d <= 180 and (best is None or d < best[0]):
+                best = (d, r)
+        if best is not None:
+            r = best[1]
+            r.flight, r.source = flight[:8], "both"
+            if kind == "dep":
+                r.dep_min = sched
+            else:
+                r.arr_min = sched
+            decorated += 1
     print("  boards: %d services decorated with flight numbers,"
           " %d published-only added, %d arrivals filled"
           % (decorated, added, arrfill))
