@@ -162,9 +162,7 @@
     flex:none}
   .detail .head .cs{flex:none}
   .detail .head .op{color:var(--quiet);font-size:14px;margin-left:auto;
-    text-align:right;min-width:0;white-space:nowrap;overflow:hidden;
-    text-overflow:ellipsis}
-  .detail .facts{margin-top:6px;padding-top:0;border-top:none;gap:3px 16px}
+    text-align:right;min-width:0;line-height:1.25}
   /* Only when it is real: a squawk or transponder emergency */
   .detail .alert{margin-top:10px;padding:8px 12px;border-radius:6px;
     background:var(--red);color:var(--paper);font-size:14px}
@@ -955,7 +953,6 @@
     <span class="op" id="d-op"></span>
   </div>
   <div class="sub" id="d-sub" hidden></div>
-  <div class="facts grid" id="d-facts"></div>
   <div class="alert" id="d-alert" hidden></div>
   <div class="route" id="d-route"></div>
   <div class="links"><a id="d-history" class="hist" href="#">Airframe history</a><a id="d-flightlog" class="hist" href="#" hidden>Flight log</a></div>
@@ -2276,14 +2273,10 @@
     el("d-op").textContent = opName || op || "";
     el("d-operator-tail").hidden = !opTail;
     if (opTail) el("d-operator-tail").src = "assets/airline-tails/" + opTail;
-    // the airframe as labelled rows, the card's own pattern
+    // the airframe leads the labelled rows further down (rows below)
     var facts = [];
     if (typeName) facts.push(["Aircraft", esc(typeName)]);
     if (a.r) facts.push(["Registration", esc(a.r)]);
-    el("d-facts").innerHTML = facts.map(function (r) {
-      return "<span class='k'>" + r[0] + "</span><span class='v'>" + r[1] + "</span>";
-    }).join("");
-    el("d-facts").hidden = !facts.length;
     // a position older than half a minute explains a frozen icon
     var posAge = a.seen_pos != null
       ? a.seen_pos + (Date.now() - (a._heard || state.fetchedAt)) / 1000 : null;
@@ -2328,6 +2321,7 @@
       ["Position", a.lat != null
         ? a.lat.toFixed(3) + ", " + a.lon.toFixed(3) : "no fix"]
     );
+    rows = facts.concat(rows);
     el("d-grid").innerHTML = rows.map(function (r) {
       return "<span class='k'>" + r[0] + "</span><span class='v'>" +
              r[1] + "</span>";
