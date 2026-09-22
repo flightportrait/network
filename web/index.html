@@ -2693,7 +2693,7 @@
       d.total != null ? d.total : state.aircraft.length;
     gpuSync();
     pushPositions();
-    renderList();
+    renderListSoon();
     if (window.__rosterSky) window.__rosterSky();
     if (state.selected) { renderDetail(); updateTrail(); }
     else if (map && map.getSource("aircraft") && location.hash.length > 1 &&
@@ -2791,6 +2791,7 @@
 
   // The map is the list. The column shows aircraft rows only while a
   // search query is typed; otherwise the space belongs to the widgets.
+  var listed = {};           // hex -> true for the rows on screen now
   function inView(a) {
     if (a.lat == null) return false;
     // until the basemap is up and the first fit has landed, the map is
@@ -2798,8 +2799,12 @@
     if (!map || !map.isStyleLoaded() ||
         (!state.fitted && !state.touched)) return true;
     var b = map.getBounds();
-    return a.lon >= b.getWest() && a.lon <= b.getEast() &&
-           a.lat >= b.getSouth() && a.lat <= b.getNorth();
+    // a row already on the list keeps it a little past the edge, so an
+    // aircraft drifting along the border does not blink in and out
+    var m = listed[a.hex] ? 0.08 : 0;
+    var mw = (b.getEast() - b.getWest()) * m, mh = (b.getNorth() - b.getSouth()) * m;
+    return a.lon >= b.getWest() - mw && a.lon <= b.getEast() + mw &&
+           a.lat >= b.getSouth() - mh && a.lat <= b.getNorth() + mh;
   }
   function renderList() {
     var ul = el("aclist");
@@ -2809,6 +2814,7 @@
     var list = q ? filteredAircraft() : state.aircraft.filter(inView);
     head.textContent = q ? "Matching" : "In view";
     if (!list.length) {
+      ul.dataset.key = "";
       var li = document.createElement("li");
       li.className = "empty";
       li.textContent = q ? "Nothing matches that search."
@@ -2817,36 +2823,68 @@
       ul.appendChild(li);
       return;
     }
-    list.slice()
+    // Highest first, in 1,000 ft bands so a climbing aircraft does not
+    // swap places every update; within a band the order is fixed.
+    function band(a) {
+      return typeof a.alt_baro === "number" ? Math.floor(a.alt_baro / 1000) : -1;
+    }
+    var rows = list.slice()
       .sort(function (a, b2) {
-        var x = typeof a.alt_baro === "number" ? a.alt_baro : -1;
-        var y = typeof b2.alt_baro === "number" ? b2.alt_baro : -1;
-        return y - x;
+        var d = band(b2) - band(a);
+        return d || (a.hex < b2.hex ? -1 : a.hex > b2.hex ? 1 : 0);
       })
-      .slice(0, 80)
-      .forEach(function (a) {
-        var li = document.createElement("li");
-        if (a.hex === state.selected) li.className = "sel";
-        var alt = a.alt_baro === "ground" ? "gnd"
-          : (a.alt_baro != null ? Number(a.alt_baro).toLocaleString() : "");
-        var tail = a.lat == null
-          ? "<span class='nofix'>no fix</span>"
-          : "<span class='alt'>" + alt + "</span>";
-        var sub = esc(typeNameOf(a));
-        li.innerHTML = markFor(a) +
-          "<span class='who'><span class='cs'>" +
-          esc(a.flight || a.r || a.hex) + "</span><span class='ty'>" +
-          sub + "</span></span>" + routeCell(a) + tail;
-        li.addEventListener("click", function (e) {
-          var tail = e.target.closest(".tail[data-a]");
-          if (tail && window.__goAirline) {
-            window.__goAirline(tail.getAttribute("data-a"));
-            return;
-          }
-          select(a.hex);
-        });
-        ul.appendChild(li);
+      .slice(0, 80);
+    var key = rows.map(function (a) { return a.hex; }).join(",");
+    var next = {};
+    rows.forEach(function (a) { next[a.hex] = true; });
+    listed = next;
+    function cells(a) {
+      var alt = a.alt_baro === "ground" ? "gnd"
+        : (a.alt_baro != null ? Number(a.alt_baro).toLocaleString() : "");
+      var tail = a.lat == null
+        ? "<span class='nofix'>no fix</span>"
+        : "<span class='alt'>" + alt + "</span>";
+      return { tail: tail, route: routeCell(a) };
+    }
+    if (key === ul.dataset.key && !q) {
+      // same rows: refresh what moves, keep the DOM and the scroll
+      rows.forEach(function (a, i) {
+        var li = ul.children[i];
+        if (!li) return;
+        li.className = a.hex === state.selected ? "sel" : "";
+        var c = cells(a);
+        var tailEl = li.querySelector(".alt, .nofix");
+        if (tailEl && tailEl.outerHTML !== c.tail) tailEl.outerHTML = c.tail;
+        var routeEl = li.querySelector(".route");
+        if (!routeEl && c.route) {
+          li.querySelector(".who").insertAdjacentHTML("afterend", c.route);
+        } else if (routeEl && routeEl.outerHTML !== c.route) {
+          routeEl.outerHTML = c.route;
+        }
       });
+      return;
+    }
+    ul.innerHTML = "";
+    ul.dataset.key = key;
+    rows.forEach(function (a) {
+      var li = document.createElement("li");
+      if (a.hex === state.selected) li.className = "sel";
+      var c = cells(a);
+      var sub = esc(typeNameOf(a));
+      li.innerHTML = markFor(a) +
+        "<span class='who'><span class='cs'>" +
+        esc(a.flight || a.r || a.hex) + "</span><span class='ty'>" +
+        sub + "</span></span>" + c.route + c.tail;
+      li.addEventListener("click", function (e) {
+        var tail = e.target.closest(".tail[data-a]");
+        if (tail && window.__goAirline) {
+          window.__goAirline(tail.getAttribute("data-a"));
+          return;
+        }
+        select(a.hex);
+      });
+      ul.appendChild(li);
+    });
   }
   // routes for the rows on screen: the same cache the card reads, filled
   // a few callsigns at a time so a busy sky never floods the API
@@ -2892,10 +2930,15 @@
     return "<span class='route'>" + chain.map(esc)
       .join("<span class='arr'>\u2192</span>") + "</span>";
   }
-  var listTimer = null;
+  // At most one list pass per second and a half: the stream can speak
+  // four times a second, the eye cannot follow rows that often.
+  var listTimer = null, listAt = 0;
   function renderListSoon() {
-    clearTimeout(listTimer);
-    listTimer = setTimeout(renderList, 120);
+    if (listTimer) return;
+    var wait = Math.max(120, 1500 - (Date.now() - listAt));
+    listTimer = setTimeout(function () {
+      listTimer = null; listAt = Date.now(); renderList();
+    }, wait);
   }
 
   // operator names from the same public registry the airlines mode
