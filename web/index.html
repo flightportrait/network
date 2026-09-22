@@ -153,11 +153,18 @@
   .detail.show{display:block}
   /* The head: tail mark, callsign, one quiet line for operator, type
      and registration. Everything the top used to say, in two lines. */
-  .detail .head{display:flex;align-items:flex-start;gap:8px;padding-right:26px}
+  /* The head is one row: the operator's tail mark, the callsign, the
+     operator's name. The airframe follows as labelled rows. */
+  .detail .head{display:flex;align-items:center;gap:10px;padding-right:26px;
+    min-height:34px}
   .detail .photo.show + .head{padding-right:0}
-  .detail .head img{width:26px;height:22px;object-fit:contain;display:block;
-    flex:none;margin-top:3px}
-  .detail .head-text{min-width:0;flex:1}
+  .detail .head img{width:40px;height:34px;object-fit:contain;display:block;
+    flex:none}
+  .detail .head .cs{flex:none}
+  .detail .head .op{color:var(--quiet);font-size:14px;margin-left:auto;
+    text-align:right;min-width:0;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  .detail .facts{margin-top:6px;padding-top:0;border-top:none;gap:3px 16px}
   /* Only when it is real: a squawk or transponder emergency */
   .detail .alert{margin-top:10px;padding:8px 12px;border-radius:6px;
     background:var(--red);color:var(--paper);font-size:14px}
@@ -165,7 +172,7 @@
   .detail .sub .stale{color:var(--red)}
   .detail .top{display:flex;justify-content:space-between;align-items:baseline}
   .detail .cs{font-size:22px}
-  .detail .sub{color:var(--quiet);font-size:13px;line-height:1.4;margin-top:2px}
+  .detail .sub{color:var(--quiet);font-size:13px;line-height:1.4;margin-top:4px}
   .detail .links{display:flex;gap:16px;margin-top:8px}
   .detail a.hist{color:var(--red);font-size:13px;text-decoration:none;
     font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:.04em}
@@ -944,11 +951,11 @@
   <div class="photo" id="d-photo"></div>
   <div class="head" id="d-operator">
     <img id="d-operator-tail" alt="" hidden>
-    <div class="head-text">
-      <div class="cs" id="d-cs"></div>
-      <div class="sub" id="d-sub"></div>
-    </div>
+    <span class="cs" id="d-cs"></span>
+    <span class="op" id="d-op"></span>
   </div>
+  <div class="sub" id="d-sub" hidden></div>
+  <div class="facts grid" id="d-facts"></div>
   <div class="alert" id="d-alert" hidden></div>
   <div class="route" id="d-route"></div>
   <div class="links"><a id="d-history" class="hist" href="#">Airframe history</a><a id="d-flightlog" class="hist" href="#" hidden>Flight log</a></div>
@@ -2049,7 +2056,13 @@
       "<div class='credit'>&copy; " + esc(p.photographer) +
       " &middot; <a href='" + link +
       "' target='_blank' rel='noopener'>planespotters.net</a></div>";
-    box.className = "photo show";
+    var img = box.querySelector("img");
+    box.className = "photo";
+    img.onload = function () {
+      if (state.selected === hex && img.naturalWidth > 0) box.className = "photo show";
+    };
+    img.onerror = function () { box.className = "photo"; box.innerHTML = ""; };
+    if (img.complete && img.naturalWidth > 0) box.className = "photo show";
   }
 
   var routeCache = {};       // callsign -> [codes] | null
@@ -2255,22 +2268,31 @@
     card.className = "detail show";
     el("d-cs").textContent = a.flight || a.hex;
     var typeName = (a.t && typeNames[a.t] && typeNames[a.t][0]) || a.t;
-    var sub = [typeName, a.r].filter(Boolean).map(esc).join(" · ");
-    // a position older than half a minute explains a frozen icon
-    var posAge = a.seen_pos != null
-      ? a.seen_pos + (Date.now() - (a._heard || state.fetchedAt)) / 1000 : null;
-    if (posAge != null && posAge >= 30) {
-      sub += (sub ? " · " : "") + "<span class='stale'>position " +
-        Math.round(posAge) + " s old</span>";
-    }
-    // the operator, when the callsign says who it is, leads the line
+    // the operator, when the callsign says who it is: the mark and the
+    // name on the callsign's row
     var op = operatorOf(a);
     var opName = op && airlineNames && airlineNames[op];
     var opTail = op && tails[op] && tails[op]["64"];
-    if (opName || op) sub = esc(opName || op) + (sub ? " · " + sub : "");
-    el("d-sub").innerHTML = sub;
+    el("d-op").textContent = opName || op || "";
     el("d-operator-tail").hidden = !opTail;
     if (opTail) el("d-operator-tail").src = "assets/airline-tails/" + opTail;
+    // the airframe as labelled rows, the card's own pattern
+    var facts = [];
+    if (typeName) facts.push(["Aircraft", esc(typeName)]);
+    if (a.r) facts.push(["Registration", esc(a.r)]);
+    el("d-facts").innerHTML = facts.map(function (r) {
+      return "<span class='k'>" + r[0] + "</span><span class='v'>" + r[1] + "</span>";
+    }).join("");
+    el("d-facts").hidden = !facts.length;
+    // a position older than half a minute explains a frozen icon
+    var posAge = a.seen_pos != null
+      ? a.seen_pos + (Date.now() - (a._heard || state.fetchedAt)) / 1000 : null;
+    var stale = posAge != null && posAge >= 30;
+    el("d-sub").hidden = !stale;
+    if (stale) {
+      el("d-sub").innerHTML = "<span class='stale'>position " +
+        Math.round(posAge) + " s old</span>";
+    }
     // an emergency, only when there is one
     var EMERG = { general: "Emergency declared", lifeguard: "Lifeguard flight",
                   minfuel: "Minimum fuel", nordo: "Radio failure",
