@@ -178,32 +178,47 @@
   .detail .credit a{color:var(--quiet)}
   .detail .route{font-size:16px;margin-top:12px;display:none}
   .detail .route.show{display:block}
-  /* The leg as a table: a label column, then origin and destination.
-     Codes head the columns; the rows beneath share one baseline grid. */
-  .detail .rp{display:grid;grid-template-columns:auto 1fr 1fr;
-    column-gap:12px;row-gap:2px;align-items:baseline}
-  .detail .rp .k{color:var(--quiet);font-size:11px;letter-spacing:.08em;
-    font-family:'Helvetica Neue',Arial,sans-serif;text-transform:lowercase;
-    align-self:baseline}
-  .detail .rp .r{text-align:right}
-  .detail .rp .code .apcode{font-size:30px;line-height:1.1;letter-spacing:.02em}
-  .detail .rp .city{font-size:14px;white-space:nowrap;overflow:hidden;
-    text-overflow:ellipsis;min-width:0}
-  .detail .rp .tz{color:var(--quiet);font-size:10.5px;letter-spacing:.04em;
-    font-family:'Helvetica Neue',Arial,sans-serif;padding-bottom:6px;
-    border-bottom:1px solid var(--line);margin-bottom:4px}
-  .detail .rp .v{font-size:17px;font-variant-numeric:tabular-nums;
-    white-space:nowrap}
-  .detail .rp .v small{font-size:12px;color:var(--quiet);margin-left:4px}
-  .detail .route .via{color:var(--quiet);font-size:13px;margin-top:6px}
-  .detail .rp-bar{height:3px;background:var(--line);border-radius:2px;
-    margin-top:12px;position:relative}
-  .detail .rp-bar i{display:block;height:100%;background:var(--red);
-    border-radius:2px;position:relative}
-  .detail .rp-bar i::after{content:"";position:absolute;right:-4px;top:-3px;
-    width:9px;height:9px;border-radius:50%;background:var(--red)}
-  .detail .rp-dist{display:flex;justify-content:space-between;
-    color:var(--quiet);font-size:12.5px;margin-top:6px}
+  /* The leg, laid out the way flight trackers do: two mirrored columns
+     split by a rule, the code over the city over the zone, then two
+     rows of labelled cells, the progress bar with the aircraft on it,
+     and the distances. */
+  .detail .leg{margin:0 -4px}
+  .detail .leg-ends{display:grid;grid-template-columns:1fr auto 1fr;
+    align-items:center;text-align:center;padding:6px 0 10px;
+    border-bottom:1px solid var(--line);position:relative}
+  .detail .leg-ends::before{content:"";position:absolute;left:50%;top:6px;
+    bottom:10px;width:1px;background:var(--line)}
+  .detail .leg-end .apcode{display:block;font-size:34px;line-height:1.05;
+    letter-spacing:.02em}
+  .detail .leg-end .city{font-size:14px;margin-top:4px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;padding:0 6px}
+  .detail .leg-end .tz{color:var(--quiet);font-size:11px;margin-top:3px;
+    font-family:'Helvetica Neue',Arial,sans-serif;white-space:nowrap}
+  .detail .leg-plane{width:38px;height:38px;border-radius:50%;
+    background:var(--paper);border:1px solid var(--line);display:flex;
+    align-items:center;justify-content:center;position:relative;z-index:1}
+  .detail .leg-plane img{width:22px;height:22px;transform:rotate(90deg);
+    opacity:.85}
+  .detail .leg-cells{display:grid;grid-template-columns:1fr 1fr;gap:3px;
+    margin-top:3px}
+  .detail .cell{display:flex;justify-content:space-between;
+    align-items:baseline;background:var(--card);padding:7px 10px;
+    border-radius:4px}
+  .detail .cell span{color:var(--quiet);font-size:11.5px;letter-spacing:.06em;
+    font-family:'Helvetica Neue',Arial,sans-serif}
+  .detail .cell b{font-weight:normal;font-size:18px;
+    font-variant-numeric:tabular-nums}
+  .detail .leg-bar{height:4px;background:var(--line);border-radius:2px;
+    margin:16px 4px 0;position:relative}
+  .detail .leg-bar i{display:block;height:100%;background:var(--red);
+    border-radius:2px}
+  .detail .leg-bar img{position:absolute;top:50%;width:18px;height:18px;
+    transform:translate(-50%,-50%) rotate(90deg)}
+  .detail .leg-dist{display:flex;justify-content:space-between;
+    color:var(--quiet);font-size:13px;margin:8px 4px 0}
+  .detail .route .via{color:var(--quiet);font-size:13px;margin-top:8px;
+    text-align:center}
+
   .detail .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;
     margin-top:12px;font-size:14px}
   .detail .grid .k{color:var(--quiet)}
@@ -2056,7 +2071,7 @@
       off = off.replace(/^GMT/, "");
       if (!off) off = "+00:00";
       if (/^GMT[+-]/.test(name) || name === "GMT") return "UTC " + off;
-      return name + " " + off;
+      return name + " (UTC " + off + ")";
     } catch (e) { return ""; }
   }
   // The city out of a registry name: "Manchester, Greater Manchester"
@@ -2116,26 +2131,32 @@
       if (a.gs > 60) eta = left / (a.gs * 1.852) * 60;      // minutes
     }
     var etaDate = eta != null ? new Date(Date.now() + eta * 60000) : null;
-    function row(k, x, y, cls) {
-      return "<div class='k'>" + k + "</div><div class='" + cls + "'>" + x +
-        "</div><div class='" + cls + " r'>" + y + "</div>";
+    function end(c, ap) {
+      return "<div class='leg-end'>" + code(c) +
+        "<div class='city'>" + esc(cityName(ap[0]) || c) + "</div>" +
+        "<div class='tz'>" + esc(tzLabel(ap[5])) + "</div></div>";
     }
-    var table = "<div class='rp'>" +
-      row("", code(org), code(dst), "code") +
-      row("", esc(cityName(oa[0]) || org), esc(cityName(da[0]) || dst), "city") +
-      row("", esc(tzLabel(oa[5])), esc(tzLabel(da[5])), "tz") +
-      row("usually", leg.dep || "–", leg.arr || "–", "v") +
-      row("now", flown != null ? Math.round(flown) + " km flown" : "–",
-          etaDate ? hhmm(etaDate, da[5]) + "<small> in " + durationText(eta) + "</small>" : "–", "v") +
-      "</div>";
+    function cell(k, v) {
+      return "<div class='cell'><span>" + k + "</span><b>" + v + "</b></div>";
+    }
+    var ends = "<div class='leg-ends'>" + end(org, oa) +
+      "<div class='leg-plane'><img src='assets/icons/" + iconFor(a) + ".png' alt=''></div>" +
+      end(dst, da) + "</div>";
+    var cells = "<div class='leg-cells'>" +
+      cell("Usually", leg.dep || "–") + cell("Usually", leg.arr || "–") +
+      cell("Now", hhmm(new Date(), oa[5]) || "–") +
+      cell("Estimated", etaDate ? hhmm(etaDate, da[5]) : "–") + "</div>";
     var bar = "";
     if (flown != null) {
       var frac = Math.max(0, Math.min(1, flown / (flown + left)));
-      bar = "<div class='rp-bar'><i style='width:" + (frac * 100).toFixed(1) + "%'></i></div>" +
-        "<div class='rp-dist'><span>" + Math.round(flown) + " km</span><span>" +
-        Math.round(left) + " km</span></div>";
+      var pct = (frac * 100).toFixed(1) + "%";
+      bar = "<div class='leg-bar'><i style='width:" + pct + "'></i>" +
+        "<img src='assets/icons/" + iconFor(a) + ".png' alt='' style='left:" + pct + "'></div>" +
+        "<div class='leg-dist'><span>" + Math.round(flown) + " km</span><span>" +
+        Math.round(left) + " km" + (eta != null ? ", in " + durationText(eta) : "") +
+        "</span></div>";
     }
-    box.innerHTML = table + via + bar;
+    box.innerHTML = "<div class='leg'>" + ends + cells + via + bar + "</div>";
     box.className = "route show";
     drawRouteLine(chain);
   }
