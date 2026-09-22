@@ -781,23 +781,37 @@
     .tabbar a.here{color:var(--red)}
 
     /* THE sheet. The only bottom surface: browse panel or the active
-       card, whichever the context says — one gesture engine drives it. */
-    .col{top:auto;left:0;right:0;bottom:54px;width:auto;z-index:5;
-      height:150px;max-height:calc(100% - 118px);
+       card, whichever the context says — one gesture engine drives it.
+       It is always its full height and slides on a transform, so a drag
+       never relayouts the content; the script sets height and
+       translateY. Three stops: peek (the head or a card's identity),
+       half, full. Content scrolls only at full; below that a vertical
+       swipe anywhere on the sheet moves the sheet. */
+    .col{top:auto;left:0;right:0;width:auto;z-index:5;
+      bottom:calc(54px + env(safe-area-inset-bottom));
+      height:70vh;
       border-left:none;border-top:1px solid var(--line);
-      border-radius:14px 14px 0 0;transition:height .25s ease;
-      box-shadow:0 -4px 20px rgba(34,31,26,.12)}
+      border-radius:14px 14px 0 0;
+      /* before the script sizes it: a 150 px peek, no flash of sheet */
+      transform:translateY(calc(70vh - 150px));will-change:transform;
+      transition:transform .28s cubic-bezier(.2,.8,.2,1);
+      box-shadow:0 -4px 20px rgba(34,31,26,.12);
+      touch-action:pan-y;overscroll-behavior:contain}
+    .col.dragging{transition:none}
+    @media(prefers-reduced-motion:reduce){.col{transition:none}}
     .sheet-handle{display:block;width:100%;background:none;border:none;
       padding:9px 0 3px;cursor:grab;touch-action:none;flex:none}
     .sheet-handle::before{content:"";display:block;width:40px;height:4px;
       border-radius:2px;background:rgba(34,31,26,.25);margin:0 auto}
-    .head{padding:8px 20px 16px}
+    .head{padding:4px 20px 12px}
     .headline .n{font-size:30px}
+    .subline{margin-top:6px}
     .counts{padding:10px 20px}
     .count .n{font-size:24px}
-    /* At the peek stop the panel is squeezed to nothing; clip it so its
-       lines never paint under the foot. */
-    .col .mode-panel{overflow:hidden}
+    /* Below full the content is not scrollable (the swipe moves the
+       sheet); hide the scrollbars so nothing looks cut. */
+    .col:not(.at-full) .col-scroll,
+    .col:not(.at-full) #sheet-cards > *{overflow-y:hidden}
     .col-foot{padding:12px 20px}
     .col-foot .social{top:14px}
 
@@ -4922,15 +4936,31 @@ window.__initJoin = function () {
         cardHomes[id].parent.insertBefore(n, cardHomes[id].next);
       }
     });
-    if (!isMobile()) { col.style.height = ""; col.style.transition = ""; }
-    else setSheet(detents()[0], false);
+    if (!isMobile()) {
+      col.style.height = ""; col.style.transform = "";
+      col.classList.remove("at-full", "dragging");
+      padMap(0);
+    } else {
+      layout();
+      setSheet(detents()[stopIndex], false);
+    }
   }
 
-  // ---- gesture engine: drag follows the finger, flick skips to the
-  // next detent, slow release snaps to the nearest, tap toggles -------
-  // Detents are content-aware: the middle detent is the sheet content's
-  // natural height, so a short card gets a sheet that fits it exactly,
-  // and the full detent exists only when there is more to scroll.
+  // ---- gesture engine ------------------------------------------------
+  // The sheet is always full height and slides on a transform: visible
+  // px = full - translateY. Three stops. A vertical swipe anywhere on
+  // the sheet moves it, except at full where the content scrolls; a
+  // swipe down on content already at its top collapses the sheet. A
+  // flick skips to the next stop, a slow release snaps to the nearest,
+  // a tap on the handle goes one stop up (full -> peek). The map keeps
+  // a bottom padding equal to the visible sheet, so a selected aircraft
+  // flies into the part of the map you can see.
+  var full = 0, visiblePx = 0, stopIndex = 0;
+  function layout() {
+    // Full: 85 % of the screen, always leaving the top bar clear.
+    full = Math.min(Math.round(innerHeight * 0.85), innerHeight - 118);
+    col.style.height = full + "px";
+  }
   function activeContent() {
     var m = currentMode();
     if (m === "join") return el("joinpanel");
@@ -4945,70 +4975,243 @@ window.__initJoin = function () {
     }
     return el("detail").classList.contains("show") ? el("detail") : null;
   }
-  function detents() {
-    var full = Math.round(innerHeight * 0.85);
-    var peek = 150;
+  // The peek shows the identity of what is open: the browse head
+  // (count + status), or a card's first lines. Measured, so it is
+  // never a crop: the first visible blocks up to ~60 px, plus air.
+  function peekPx() {
     var content = activeContent();
+    var chrome = handle.offsetHeight || 16;
+    if (!content) {
+      // browse: the visible mode panel's first block (sky: the head
+      // with count and status; airlines: the counts row)
+      var panels = col.querySelectorAll(".mode-panel"), head = null;
+      for (var j = 0; j < panels.length; j++) {
+        if (getComputedStyle(panels[j]).display !== "none") {
+          head = panels[j].firstElementChild;
+          break;
+        }
+      }
+      var h = head ? head.offsetHeight : 0;
+      return chrome + (h || 96) + 8;
+    }
+    var root = content;
+    var top = root.getBoundingClientRect().top, bottom = top, got = 0;
+    var kids = root.children;
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.hidden || k.classList.contains("cardclose")) continue;
+      var r = k.getBoundingClientRect();
+      if (r.height === 0) continue;
+      bottom = Math.max(bottom, r.bottom);
+      got = bottom - top;
+      if (got >= 56) break;
+    }
+    return chrome + Math.min(Math.max(got, 56), 150) + 18;
+  }
+  function detents() {
+    var content = activeContent();
+    var peek = peekPx();
     if (!content) {                     // browse: peek, half, full
       return [peek, Math.round(innerHeight * 0.5), full];
     }
     // sheet chrome above the content: the handle
-    var chrome = 30;
+    var chrome = (handle.offsetHeight || 16) + 4;
     var natural = Math.min(content.scrollHeight + chrome + 26, full);
     // the middle stop never passes half the screen: a card opens with
     // the map still in view, and a drag takes it the rest of the way
-    var mid = Math.min(Math.max(230, natural), Math.round(innerHeight * 0.5));
+    var mid = Math.min(Math.max(peek + 80, natural), Math.round(innerHeight * 0.5));
     return [peek, mid, full];
   }
-  function setSheet(px, animate) {
-    col.style.transition = animate ? "" : "none";
-    col.style.height = px + "px";
+  // Map padding: the visible sheet, capped so the map keeps a usable
+  // strip even at full (then the half-stop padding applies).
+  function padMap(px) {
+    var map = window.__fpMap;
+    if (!map) return;
+    var bottom = px ? Math.min(px, Math.round(innerHeight * 0.5)) : 0;
+    var pad = { top: px ? 64 : 0, left: 0, right: 0, bottom: bottom };
+    try { map.setPadding(pad); } catch (e) { /* tiny viewport */ }
   }
-  function sheetH() { return col.getBoundingClientRect().height; }
-  var drag = null;
-  handle.addEventListener("pointerdown", function (e) {
-    if (!isMobile()) return;
-    drag = { y: e.clientY, h: sheetH(), moved: false,
-             vy: 0, lastY: e.clientY, lastT: e.timeStamp };
-    handle.setPointerCapture(e.pointerId);
-    e.preventDefault();
-  });
-  handle.addEventListener("pointermove", function (e) {
-    if (!drag) return;
-    var dy = drag.y - e.clientY;
-    if (Math.abs(dy) > 4) drag.moved = true;
-    var dt = e.timeStamp - drag.lastT;
-    if (dt > 0) {
-      drag.vy = (drag.lastY - e.clientY) / dt;    // px/ms, + = opening
-      drag.lastY = e.clientY; drag.lastT = e.timeStamp;
+  // Camera moves issued while a card is opening should already aim at
+  // the strip above the sheet: wrap the camera calls once with the
+  // padding the sheet is about to have.
+  var wrapped = false;
+  function wrapCamera() {
+    var map = window.__fpMap;
+    if (wrapped || !map) return;
+    wrapped = true;
+    function predicted() {
+      if (!isMobile()) return null;
+      var px = visiblePx;
+      if (anyCardVisible()) px = Math.max(px, detents()[1]);
+      var bottom = Math.min(px, Math.round(innerHeight * 0.5));
+      return { top: 64, left: 0, right: 0, bottom: bottom };
     }
-    setSheet(Math.max(90, Math.min(innerHeight * 0.88, drag.h + dy)),
-             false);
-  });
-  function settle() {
-    if (!drag) return;
-    var pts = detents(), cur = sheetH(), target;
-    var top = pts[pts.length - 1];
-    if (!drag.moved) {
-      target = cur < pts[1] ? top : pts[0];
-    } else if (Math.abs(drag.vy) > 0.35) {
-      var up = drag.vy > 0;
+    ["flyTo", "easeTo", "fitBounds"].forEach(function (name) {
+      var orig = map[name];
+      map[name] = function () {
+        var args = Array.prototype.slice.call(arguments);
+        var pad = predicted();
+        var oi = name === "fitBounds" ? 1 : 0;
+        if (pad) {
+          var o = Object.assign({}, args[oi] || {});
+          var p = o.padding;
+          if (typeof p === "number") {
+            o.padding = { top: p + pad.top, left: p, right: p, bottom: p + pad.bottom };
+          } else if (p && typeof p === "object") {
+            o.padding = { top: (p.top || 0) + pad.top, left: p.left || 0,
+                          right: p.right || 0, bottom: (p.bottom || 0) + pad.bottom };
+          } else {
+            o.padding = pad;
+          }
+          args[oi] = o;
+        }
+        return orig.apply(map, args);
+      };
+    });
+  }
+  function apply(px) {
+    visiblePx = px;
+    col.style.transform = "translateY(" + Math.round(full - px) + "px)";
+  }
+  function nearestStop(px) {
+    var pts = detents(), best = 0;
+    for (var i = 1; i < pts.length; i++) {
+      if (Math.abs(pts[i] - px) < Math.abs(pts[best] - px)) best = i;
+    }
+    return best;
+  }
+  function setSheet(px, animate) {
+    if (!full) layout();
+    wrapCamera();
+    px = Math.max(60, Math.min(full, px));
+    col.classList.toggle("dragging", !animate);
+    apply(px);
+    var pts = detents();
+    stopIndex = nearestStop(px);
+    col.classList.toggle("at-full", px >= pts[2] - 2);
+    padMap(px);
+    if (!animate) {
+      // one frame with no transition, then transitions again
+      requestAnimationFrame(function () { col.classList.remove("dragging"); });
+    }
+  }
+  function sheetH() { return visiblePx; }
+
+  // The scrollable element under a touch, if any, inside the sheet.
+  function scrollerOf(node) {
+    while (node && node !== col) {
+      if (node.nodeType === 1) {
+        var oy = getComputedStyle(node).overflowY;
+        if ((oy === "auto" || oy === "scroll") && node.scrollHeight > node.clientHeight + 1) {
+          return node;
+        }
+      }
+      node = node.parentNode;
+    }
+    return null;
+  }
+  var g = null;
+  function settleFrom(vy, moved) {
+    var pts = detents(), cur = visiblePx, target;
+    if (!moved) {
+      target = cur;
+    } else if (Math.abs(vy) > 0.35) {
+      var up = vy > 0;
       var next = pts.filter(function (p) {
         return up ? p > cur + 10 : p < cur - 10;
       });
       target = next.length
         ? (up ? Math.min.apply(null, next) : Math.max.apply(null, next))
-        : (up ? top : pts[0]);
+        : (up ? pts[2] : pts[0]);
     } else {
-      target = pts.reduce(function (best, p) {
-        return Math.abs(p - cur) < Math.abs(best - cur) ? p : best;
-      }, pts[0]);
+      target = pts[nearestStop(cur)];
     }
     setSheet(target, true);
-    drag = null;
   }
-  handle.addEventListener("pointerup", settle);
-  handle.addEventListener("pointercancel", settle);
+  col.addEventListener("touchstart", function (e) {
+    if (!isMobile() || e.touches.length !== 1) { g = null; return; }
+    var t = e.touches[0];
+    g = { x: t.clientX, y: t.clientY, start: visiblePx, mode: null,
+          scroller: scrollerOf(e.target), vy: 0, lastY: t.clientY,
+          lastT: e.timeStamp, atFull: col.classList.contains("at-full") };
+  }, { passive: true });
+  col.addEventListener("touchmove", function (e) {
+    if (!g || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var dy = t.clientY - g.y, dx = t.clientX - g.x;   // dy > 0: finger down
+    if (!g.mode) {
+      if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return;
+      if (Math.abs(dx) > Math.abs(dy)) { g.mode = "none"; return; }
+      var sc = g.scroller;
+      if (g.atFull && sc) {
+        var canDown = sc.scrollTop + sc.clientHeight < sc.scrollHeight - 1;
+        if ((dy < 0 && canDown) || (dy > 0 && sc.scrollTop > 0)) {
+          g.mode = "scroll";
+          return;
+        }
+      }
+      g.mode = "drag";
+      col.classList.add("dragging");
+    }
+    if (g.mode !== "drag") return;
+    e.preventDefault();
+    var dt = e.timeStamp - g.lastT;
+    if (dt > 0) {
+      g.vy = (g.lastY - t.clientY) / dt;    // px/ms, + = opening
+      g.lastY = t.clientY; g.lastT = e.timeStamp;
+    }
+    var px = g.start - dy;
+    // rubber band past the ends
+    if (px > full) px = full + (px - full) * 0.25;
+    if (px < 60) px = 60 - (60 - px) * 0.25;
+    apply(px);
+  }, { passive: false });
+  function touchEnd() {
+    if (!g) return;
+    var was = g; g = null;
+    if (was.mode !== "drag") return;
+    col.classList.remove("dragging");
+    settleFrom(was.vy, true);
+  }
+  col.addEventListener("touchend", touchEnd);
+  col.addEventListener("touchcancel", touchEnd);
+  // Handle: tap goes one stop up (full -> peek); a mouse can drag it.
+  var md = null;
+  handle.addEventListener("pointerdown", function (e) {
+    if (!isMobile() || e.pointerType !== "mouse") return;
+    md = { y: e.clientY, start: visiblePx, moved: false, vy: 0,
+           lastY: e.clientY, lastT: e.timeStamp };
+    handle.setPointerCapture(e.pointerId);
+    col.classList.add("dragging");
+    e.preventDefault();
+  });
+  handle.addEventListener("pointermove", function (e) {
+    if (!md) return;
+    var dy = md.y - e.clientY;
+    if (Math.abs(dy) > 4) md.moved = true;
+    var dt = e.timeStamp - md.lastT;
+    if (dt > 0) { md.vy = (md.lastY - e.clientY) / dt; md.lastY = e.clientY; md.lastT = e.timeStamp; }
+    apply(Math.max(60, Math.min(full, md.start + dy)));
+  });
+  function mouseUp() {
+    if (!md) return;
+    var was = md; md = null;
+    col.classList.remove("dragging");
+    if (was.moved) settleFrom(was.vy, true);
+  }
+  handle.addEventListener("pointerup", mouseUp);
+  handle.addEventListener("pointercancel", mouseUp);
+  handle.addEventListener("click", function () {
+    if (!isMobile()) return;
+    var pts = detents();
+    var next = stopIndex >= 2 ? 0 : stopIndex + 1;
+    setSheet(pts[next], true);
+  });
+  window.addEventListener("resize", function () {
+    if (!isMobile()) return;
+    layout();
+    setSheet(detents()[stopIndex], false);
+  });
 
   // ---- modes ---------------------------------------------------------
   var bootedAirlines = false, bootedJoin = false;
@@ -5102,14 +5305,19 @@ window.__initJoin = function () {
       !el("ag-detail").hidden || !el("routecard").hidden ||
       el("detail").classList.contains("show");
   }
-  var lastCardState = false;
+  var lastCardState = false, browseStop = 0;
   function onCardChange() {
-    if (!isMobile()) return;
+    if (!isMobile() || g || md) return;   // never yank a sheet mid-drag
     var now = anyCardVisible();
     if (now && !lastCardState) {
+      browseStop = stopIndex;           // where the list was; back there on close
       setSheet(Math.max(sheetH(), detents()[1]), true);
     } else if (!now && lastCardState) {
-      setSheet(detents()[0], true);
+      setSheet(detents()[Math.min(browseStop, 1)], true);
+    } else if (now) {
+      // a card replaced another: the peek/half heights follow the new
+      // content, keep the same stop
+      setSheet(detents()[stopIndex], true);
     }
     lastCardState = now;
   }
