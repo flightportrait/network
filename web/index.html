@@ -153,11 +153,11 @@
   .detail.show{display:block}
   /* The head: tail mark, callsign, one quiet line for operator, type
      and registration. Everything the top used to say, in two lines. */
-  .detail .head{display:flex;align-items:center;gap:10px;padding-right:26px}
+  .detail .head{display:flex;align-items:flex-start;gap:8px;padding-right:26px}
   .detail .photo.show + .head{padding-right:0}
-  .detail .head img{width:34px;height:30px;object-fit:contain;display:block;
-    flex:none}
-  .detail .head-text{min-width:0}
+  .detail .head img{width:26px;height:22px;object-fit:contain;display:block;
+    flex:none;margin-top:3px}
+  .detail .head-text{min-width:0;flex:1}
   /* Only when it is real: a squawk or transponder emergency */
   .detail .alert{margin-top:10px;padding:8px 12px;border-radius:6px;
     background:var(--red);color:var(--paper);font-size:14px}
@@ -165,8 +165,7 @@
   .detail .sub .stale{color:var(--red)}
   .detail .top{display:flex;justify-content:space-between;align-items:baseline}
   .detail .cs{font-size:22px}
-  .detail .sub{color:var(--quiet);font-size:13px;margin-top:1px;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .detail .sub{color:var(--quiet);font-size:13px;line-height:1.4;margin-top:2px}
   .detail .links{display:flex;gap:16px;margin-top:8px}
   .detail a.hist{color:var(--red);font-size:13px;text-decoration:none;
     font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:.04em}
