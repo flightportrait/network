@@ -255,6 +255,19 @@ def ingest_airport_tz(session, path):
     return total
 
 
+def _airline_of(flight, iata_icao):
+    """The airline a flight number is written under: (designator,
+    ICAO). Three letters before the digits is an ICAO designator as
+    it stands; otherwise the first two characters are the IATA one,
+    folded to ICAO through our registry when it knows it."""
+    m = re.match(r"([A-Z]{3})\d", flight)
+    if m:
+        return m.group(1), m.group(1)
+    m = re.match(r"([A-Z0-9]{2})\d", flight)
+    prefix = m.group(1) if m else ""
+    return prefix, iata_icao.get(prefix, "")
+
+
 def ingest_boards(session, path):
     """Merge harvested airport boards (boards.db, the private
     collector's artifact) into the schedule:
@@ -310,13 +323,11 @@ def ingest_boards(session, path):
             select(RefSchedule).where(RefSchedule.source == "both",
                                       RefSchedule.flight.is_not(None))
     ).scalars():
-        prefix = "".join(ch for ch in r.flight if ch.isalpha())[:2]
-        icao = iata_icao.get(prefix)
+        prefix, icao = _airline_of(r.flight, iata_icao)
         if icao and r.airline_icao and r.airline_icao != icao:
             r.flight, r.source = None, "observed"
     for (flight, org, dst), (sched, _n) in deps.items():
-        prefix = "".join(ch for ch in flight if ch.isalpha())[:2]
-        icao = iata_icao.get(prefix, "")
+        prefix, icao = _airline_of(flight, iata_icao)
         rows = session.execute(
             select(RefSchedule).where(RefSchedule.org == org,
                                       RefSchedule.dst == dst,
@@ -351,8 +362,7 @@ def ingest_boards(session, path):
     # none, the arrival time; a service no departure board and no
     # observation knows becomes a published row with its arrival.
     for (flight, org, dst), arr in arrs.items():
-        prefix = "".join(ch for ch in flight if ch.isalpha())[:2]
-        icao = iata_icao.get(prefix, "")
+        prefix, icao = _airline_of(flight, iata_icao)
         rows = session.execute(
             select(RefSchedule).where(RefSchedule.org == org,
                                       RefSchedule.dst == dst)
