@@ -151,12 +151,12 @@
     background:var(--paper);border:1px solid var(--line);border-radius:8px;
     padding:16px 20px;box-shadow:0 4px 24px rgba(34,31,26,.18);display:none}
   .detail.show{display:block}
-  .detail .operator{display:flex;align-items:center;gap:8px;
-    margin-bottom:6px;padding-right:22px;color:var(--quiet);font-size:14px}
-  .detail .operator[hidden]{display:none}
-  .detail .operator img{width:30px;height:26px;object-fit:contain;display:block}
-  .detail .operator span{white-space:nowrap;overflow:hidden;
-    text-overflow:ellipsis}
+  /* The head: tail mark, callsign, one quiet line for operator, type
+     and registration. Everything the top used to say, in two lines. */
+  .detail .head{display:flex;align-items:center;gap:10px;padding-right:26px}
+  .detail .head img{width:34px;height:30px;object-fit:contain;display:block;
+    flex:none}
+  .detail .head-text{min-width:0}
   /* Only when it is real: a squawk or transponder emergency */
   .detail .alert{margin-top:10px;padding:8px 12px;border-radius:6px;
     background:var(--red);color:var(--paper);font-size:14px}
@@ -164,19 +164,25 @@
   .detail .sub .stale{color:var(--red)}
   .detail .top{display:flex;justify-content:space-between;align-items:baseline}
   .detail .cs{font-size:22px}
-  .detail .sub{color:var(--quiet);font-size:14px;margin-top:2px}
+  .detail .sub{color:var(--quiet);font-size:13px;margin-top:1px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .detail .links{display:flex;gap:16px;margin-top:8px}
   .detail a.hist{color:var(--red);font-size:13px;text-decoration:none;
     font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:.04em}
   .detail a.hist::after{content:" \2192"}
   .detail a.hist:hover{text-decoration:underline}
-  .detail .photo{margin:12px 0 2px;display:none}
+  /* The photo at a fixed height with the credit set over its corner,
+     so it costs one block, not a block and a line. */
+  .detail .photo{margin:10px 0 0;display:none;position:relative}
   .detail .photo.show{display:block}
-  .detail .photo img{width:100%;height:auto;border-radius:6px;display:block;
-    border:1px solid var(--line)}
-  .detail .credit{font-family:'Helvetica Neue',Arial,sans-serif;
-    font-size:11px;letter-spacing:.04em;color:var(--quiet);margin-top:5px}
+  .detail .photo img{width:100%;height:150px;object-fit:cover;border-radius:6px;
+    display:block;border:1px solid var(--line)}
+  .detail .credit{position:absolute;right:6px;bottom:6px;
+    font-family:'Helvetica Neue',Arial,sans-serif;font-size:10px;
+    letter-spacing:.03em;color:var(--quiet);background:rgba(245,241,230,.88);
+    padding:2px 6px;border-radius:3px;line-height:1.3}
   .detail .credit a{color:var(--quiet)}
-  .detail .route{font-size:16px;margin-top:8px;display:none}
+  .detail .route{font-size:16px;margin-top:10px;display:none}
   .detail .route.show{display:block}
   /* The leg, laid out the way flight trackers do: two mirrored columns
      split by a rule, the code over the city over the zone, then two
@@ -218,8 +224,9 @@
     color:var(--quiet);font-size:12px;margin-top:2px}
   .detail .route .via{color:var(--quiet);font-size:12px;margin-top:4px}
 
-  .detail .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;
-    margin-top:12px;font-size:14px}
+  .detail .grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;
+    margin-top:10px;padding-top:8px;border-top:1px solid var(--line);
+    font-size:14px}
   .detail .grid .k{color:var(--quiet)}
   .detail .grid .v{text-align:right;font-variant-numeric:tabular-nums}
 
@@ -929,13 +936,17 @@
 </div>
 <div class="detail" id="detail">
   <button class="cardclose" id="d-close" aria-label="Close">&times;</button>
-  <div class="operator" id="d-operator" hidden><img id="d-operator-tail" alt=""><span id="d-operator-name"></span></div>
-  <div class="top"><span class="cs" id="d-cs"></span></div>
-  <div class="sub" id="d-sub"></div>
+  <div class="head" id="d-operator">
+    <img id="d-operator-tail" alt="" hidden>
+    <div class="head-text">
+      <div class="cs" id="d-cs"></div>
+      <div class="sub" id="d-sub"></div>
+    </div>
+  </div>
   <div class="alert" id="d-alert" hidden></div>
-  <div style="margin-top:6px"><a id="d-history" class="hist" href="#">Airframe history</a><a id="d-flightlog" class="hist" href="#" hidden style="margin-left:14px">Flight log</a></div>
   <div class="photo" id="d-photo"></div>
   <div class="route" id="d-route"></div>
+  <div class="links"><a id="d-history" class="hist" href="#">Airframe history</a><a id="d-flightlog" class="hist" href="#" hidden>Flight log</a></div>
   <div class="grid" id="d-grid"></div>
 </div>
 
@@ -2247,13 +2258,12 @@
       sub += (sub ? " · " : "") + "<span class='stale'>position " +
         Math.round(posAge) + " s old</span>";
     }
-    el("d-sub").innerHTML = sub;
-    // the operator, when the callsign says who it is
+    // the operator, when the callsign says who it is, leads the line
     var op = operatorOf(a);
     var opName = op && airlineNames && airlineNames[op];
     var opTail = op && tails[op] && tails[op]["64"];
-    el("d-operator").hidden = !(opName || opTail);
-    el("d-operator-name").textContent = opName || op || "";
+    if (opName || op) sub = esc(opName || op) + (sub ? " · " + sub : "");
+    el("d-sub").innerHTML = sub;
     el("d-operator-tail").hidden = !opTail;
     if (opTail) el("d-operator-tail").src = "assets/airline-tails/" + opTail;
     // an emergency, only when there is one
