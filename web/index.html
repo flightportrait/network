@@ -176,7 +176,7 @@
   .detail .credit{font-family:'Helvetica Neue',Arial,sans-serif;
     font-size:11px;letter-spacing:.04em;color:var(--quiet);margin-top:5px}
   .detail .credit a{color:var(--quiet)}
-  .detail .route{font-size:16px;margin-top:12px;display:none}
+  .detail .route{font-size:16px;margin-top:8px;display:none}
   .detail .route.show{display:block}
   /* The leg, laid out the way flight trackers do: two mirrored columns
      split by a rule, the code over the city over the zone, then two
@@ -184,39 +184,42 @@
      and the distances. */
   .detail .leg{margin:0 -4px}
   .detail .leg-ends{display:grid;grid-template-columns:1fr auto 1fr;
-    align-items:center;text-align:center;padding:6px 0 10px;
+    align-items:center;text-align:center;padding:2px 0 8px;
     border-bottom:1px solid var(--line);position:relative}
-  .detail .leg-ends::before{content:"";position:absolute;left:50%;top:6px;
-    bottom:10px;width:1px;background:var(--line)}
-  .detail .leg-end .apcode{display:block;font-size:34px;line-height:1.05;
-    letter-spacing:.02em}
-  .detail .leg-end .city{font-size:14px;margin-top:4px;white-space:nowrap;
+  .detail .leg-ends::before{content:"";position:absolute;left:50%;top:4px;
+    bottom:8px;width:1px;background:var(--line)}
+  /* the codes sit under the card's title in size; the city is the
+     readable line, the zone a footnote */
+  .detail .leg-end .apcode{display:block;font-size:24px;line-height:1.1;
+    letter-spacing:.03em}
+  .detail .leg-end .city{font-size:13px;margin-top:1px;white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;padding:0 6px}
-  .detail .leg-end .tz{color:var(--quiet);font-size:11px;margin-top:3px;
-    font-family:'Helvetica Neue',Arial,sans-serif;white-space:nowrap}
-  .detail .leg-plane{width:38px;height:38px;border-radius:50%;
+  .detail .leg-end .tz{color:var(--quiet);font-size:10px;margin-top:2px;
+    letter-spacing:.03em;font-family:'Helvetica Neue',Arial,sans-serif;
+    white-space:nowrap}
+  .detail .leg-plane{width:30px;height:30px;border-radius:50%;
     background:var(--paper);border:1px solid var(--line);display:flex;
     align-items:center;justify-content:center;position:relative;z-index:1}
-  .detail .leg-plane svg{width:20px;height:20px;color:var(--red);display:block}
-  .detail .leg-cells{display:grid;grid-template-columns:1fr 1fr;gap:3px;
-    margin-top:3px}
+  .detail .leg-plane svg{width:15px;height:15px;color:var(--red);display:block}
+  .detail .leg-cells{display:grid;grid-template-columns:1fr 1fr;gap:2px;
+    margin-top:2px}
   .detail .cell{display:flex;justify-content:space-between;
-    align-items:baseline;background:var(--card);padding:7px 10px;
-    border-radius:4px}
-  .detail .cell span{color:var(--quiet);font-size:11.5px;letter-spacing:.06em;
+    align-items:baseline;background:var(--card);padding:5px 8px;
+    border-radius:3px}
+  .detail .cell span{color:var(--quiet);font-size:10.5px;letter-spacing:.05em;
     font-family:'Helvetica Neue',Arial,sans-serif}
-  .detail .cell b{font-weight:normal;font-size:18px;
+  .detail .cell b{font-weight:normal;font-size:16px;
     font-variant-numeric:tabular-nums}
-  .detail .leg-bar{height:4px;background:var(--line);border-radius:2px;
-    margin:16px 4px 0;position:relative}
+  .detail .leg-bar{height:3px;background:var(--line);border-radius:2px;
+    margin:12px 4px 0;position:relative}
   .detail .leg-bar i{display:block;height:100%;background:var(--red);
     border-radius:2px}
-  .detail .leg-bar .mark{position:absolute;top:50%;width:22px;height:22px;
+  .detail .leg-bar .mark{position:absolute;top:50%;width:18px;height:18px;
     transform:translate(-50%,-50%);color:var(--ink);background:var(--paper);
     border-radius:50%;display:flex;align-items:center;justify-content:center}
-  .detail .leg-bar .mark svg{width:16px;height:16px;display:block}
+  .detail .leg-bar .mark svg{width:13px;height:13px;display:block}
   .detail .leg-dist{display:flex;justify-content:space-between;
-    color:var(--quiet);font-size:13px;margin:8px 4px 0}
+    color:var(--quiet);font-size:12px;margin:5px 4px 0}
   .detail .route .via{color:var(--quiet);font-size:13px;margin-top:8px;
     text-align:center}
 
@@ -2063,10 +2066,15 @@
   function tzLabel(tz) {
     if (!tz) return "";
     try {
-      // en-US names American zones (CDT); en-GB would say GMT-5
-      var parts = new Intl.DateTimeFormat("en-US", { timeZone: tz,
-        timeZoneName: "short" }).formatToParts(new Date());
-      var name = (parts.filter(function (p) { return p.type === "timeZoneName"; })[0] || {}).value || "";
+      // en-GB names European zones (CEST), en-US the American ones (CDT);
+      // each says GMT+n for the other's
+      function shortName(locale) {
+        var parts = new Intl.DateTimeFormat(locale, { timeZone: tz,
+          timeZoneName: "short" }).formatToParts(new Date());
+        return (parts.filter(function (p) { return p.type === "timeZoneName"; })[0] || {}).value || "";
+      }
+      var name = shortName("en-GB");
+      if (/^GMT/.test(name)) name = shortName("en-US");
       var off = new Intl.DateTimeFormat("en-GB", { timeZone: tz,
         timeZoneName: "longOffset" }).formatToParts(new Date())
         .filter(function (p) { return p.type === "timeZoneName"; })[0].value;
@@ -2155,7 +2163,8 @@
       "<div class='leg-plane'>" + PLANE_SVG + "</div>" +
       end(dst, da) + "</div>";
     var cells = "<div class='leg-cells'>" +
-      cell("Usually", leg.dep || "–") + cell("Usually", leg.arr || "–") +
+      (leg.dep || leg.arr
+        ? cell("Usually", leg.dep || "–") + cell("Usually", leg.arr || "–") : "") +
       cell("Now", hhmm(new Date(), oa[5]) || "–") +
       cell("Estimated", etaDate ? hhmm(etaDate, da[5]) : "–") + "</div>";
     var bar = "";
