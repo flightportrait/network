@@ -259,15 +259,37 @@ async def stream(ws: WebSocket):
     sent: dict[str, dict] = {}
     last_gen = -1.0
     wait = 0.5          # the first box usually arrives right away
+    live = getattr(ws.app.state, "live", None)
+    seen_pub = live.published if live is not None else 0
+    recv_task = None
     try:
         while True:
-            try:
-                msg = await asyncio.wait_for(ws.receive_json(), timeout=wait)
-            except asyncio.TimeoutError:
-                msg = None
-            except (ValueError, TypeError):
-                await ws.close(code=1003)
-                return
+            # wake on: a message from the client, a published change of
+            # the sky, or the tick
+            if recv_task is None:
+                recv_task = asyncio.ensure_future(ws.receive_json())
+            waiters = {recv_task}
+            change = None
+            if live is not None:
+                change = asyncio.ensure_future(live.wait_change(seen_pub))
+                waiters.add(change)
+            done, _ = await asyncio.wait(waiters, timeout=wait,
+                                         return_when=asyncio.FIRST_COMPLETED)
+            if change is not None:
+                if change in done:
+                    seen_pub = change.result()
+                else:
+                    change.cancel()
+            msg = None
+            if recv_task in done:
+                try:
+                    msg = recv_task.result()
+                except WebSocketDisconnect:
+                    raise
+                except (ValueError, TypeError):
+                    await ws.close(code=1003)
+                    return
+                recv_task = None
             wait = STREAM_TICK_S
             full = False
             if msg is not None:
@@ -319,6 +341,8 @@ async def stream(ws: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
+        if recv_task is not None and not recv_task.done():
+            recv_task.cancel()
         _open_sockets[ip] = _open_sockets.get(ip, 1) - 1
         if _open_sockets[ip] <= 0:
             _open_sockets.pop(ip, None)

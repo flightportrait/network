@@ -19,6 +19,9 @@ log = logging.getLogger("network-api.poller")
 
 async def poll_snapshot_once(app) -> None:
     settings = app.state.settings
+    live = getattr(app.state, "live", None)
+    if live is not None and live.fresh():
+        return              # the pushed sky is speaking; the poll waits
     if settings.source_mode == "point":
         raw = await app.state.readsb.point_source(
             settings.source_point_url, settings.source_lat,
@@ -27,6 +30,8 @@ async def poll_snapshot_once(app) -> None:
         raw = await app.state.readsb.aircraft()
     app.state.snapshot = build_snapshot(raw, settings.max_aircraft)
     app.state.traces.record(app.state.snapshot)
+    if live is not None:
+        await live.bump()
 
 
 async def poll_stations_once(app) -> None:

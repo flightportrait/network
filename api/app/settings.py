@@ -38,6 +38,10 @@ class Settings:
     # The local readsb this API reads, over the deployment's private
     # network. Never a public URL — this service sits NEXT to the
     # aggregator by design.
+    # readsb's JSON position port (host:port), one line per position.
+    # Empty: the sky comes from the file poll alone.
+    live_json: str = field(default_factory=lambda: _env(
+        "NETWORK_API_LIVE_JSON", ""))
     upstream_url: str = field(default_factory=lambda: _env(
         "NETWORK_API_UPSTREAM", "http://aggregator:80"))
     upstream_timeout_s: float = field(default_factory=lambda: _env_float(

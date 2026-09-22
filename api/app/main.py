@@ -45,6 +45,9 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
         if start_pollers:
             from .poller import start_pollers as _start
             tasks = _start(app)
+            if settings.live_json and app.state.live is not None:
+                from .livesky import start as _start_live
+                tasks += _start_live(app, app.state.live, settings.live_json)
         try:
             yield
         finally:
@@ -66,6 +69,9 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     app.state.readsb = readsb or ReadsbClient(
         settings.upstream_url, settings.upstream_timeout_s)
     app.state.snapshot = Snapshot()
+    from .livesky import LiveSky
+    app.state.live = LiveSky(settings.max_aircraft) if settings.live_json \
+        or not start_pollers else None
     app.state.traces = TraceBook(
         retention_s=settings.trace_retention_s,
         max_points=settings.trace_max_points,
