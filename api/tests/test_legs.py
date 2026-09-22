@@ -392,6 +392,42 @@ def test_boards_pin_only_the_same_airline(ctx, tmp_path):
         session.close()
 
 
+def test_boards_pin_the_callsign_with_the_same_number_first(ctx, tmp_path):
+    import sqlite3 as s3
+    from app import refdata_ingest
+    from app.refdata_models import RefAirline, RefSchedule
+    client, app, sm, settings, readsb = ctx
+    bdb = tmp_path / "boards.db"
+    conn = s3.connect(str(bdb))
+    conn.execute("CREATE TABLE boards (airport TEXT, kind TEXT, flight TEXT,"
+                 " counterpart TEXT, sched_min INT, day TEXT, source TEXT,"
+                 " fetched_at TEXT)")
+    conn.execute("INSERT INTO boards VALUES ('MCO','dep','AA1630','MIA',600,"
+                 "'2026-09-22','t','now')")
+    conn.commit(); conn.close()
+    session = sm()
+    try:
+        session.add(RefAirline(icao="AAL", iata="AA", name="American", palette=[]))
+        # a shuttle leg: another American service five minutes off, the
+        # one carrying the number an hour off
+        session.add(RefSchedule(callsign="AAL9790", org="MCO", dst="MIA",
+                                airline_icao="AAL", dep_min=605, arr_min=665,
+                                type_code=None, n_flights=20))
+        session.add(RefSchedule(callsign="AAL1630", org="MCO", dst="MIA",
+                                airline_icao="AAL", dep_min=660, arr_min=720,
+                                type_code=None, n_flights=40))
+        session.commit()
+        refdata_ingest.ingest_boards(session, str(bdb))
+        session.commit()
+        other = session.get(RefSchedule, ("AAL9790", "MCO", "MIA"))
+        same = session.get(RefSchedule, ("AAL1630", "MCO", "MIA"))
+        assert other.flight is None
+        assert same.flight == "AA1630" and same.source == "both"
+        assert same.dep_min == 600
+    finally:
+        session.close()
+
+
 def test_a_marketed_number_resolves_to_its_callsign(ctx, tmp_path):
     client, app, sm, settings, readsb = ctx
     db = tmp_path / "legs.db"

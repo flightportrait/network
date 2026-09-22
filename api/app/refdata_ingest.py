@@ -255,6 +255,15 @@ def ingest_airport_tz(session, path):
     return total
 
 
+def _same_number(callsign, flight):
+    """AAL1630 carries AA1630's number: the digits agree. Such a service
+    takes the board's number before any nearest-in-time neighbour, which
+    matters on shuttle legs an airline flies every half hour."""
+    a = "".join(ch for ch in (callsign or "") if ch.isdigit()).lstrip("0")
+    b = "".join(ch for ch in flight if ch.isdigit()).lstrip("0")
+    return bool(a) and a == b
+
+
 def _airline_of(flight, iata_icao):
     """The airline a flight number is written under: (designator,
     ICAO). Three letters before the digits is an ICAO designator as
@@ -340,6 +349,8 @@ def ingest_boards(session, path):
             if not icao and r.airline_icao != prefix:
                 continue
             d = abs(r.dep_min - sched)
+            if _same_number(r.callsign, flight) and d <= 180:
+                d -= 1000                   # the number itself decides
             if d <= 45 and (best is None or d < best[0]):
                 best = (d, r)
         if best is not None:
@@ -380,6 +391,8 @@ def ingest_boards(session, path):
             if r.arr_min is None:
                 continue
             d = abs(r.arr_min - arr)
+            if _same_number(r.callsign, flight) and d <= 180:
+                d -= 1000
             if d <= 45 and (best is None or d < best[0]):
                 best = (d, r)
         if best is not None:
