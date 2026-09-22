@@ -182,36 +182,32 @@
      split by a rule, the code over the city over the zone, then two
      rows of labelled cells, the progress bar with the aircraft on it,
      and the distances. */
-  .detail .leg{margin:0 -4px}
-  .detail .leg-ends{display:grid;grid-template-columns:1fr auto 1fr;
-    align-items:center;text-align:center;padding:2px 0 8px;
-    border-bottom:1px solid var(--line);position:relative}
-  .detail .leg-ends::before{content:"";position:absolute;left:50%;top:4px;
-    bottom:8px;width:1px;background:var(--line)}
-  /* the codes sit under the card's title in size; the city is the
-     readable line, the zone a footnote */
+  /* The leg as a timeline: the bar is the layout. Each end stacks the
+     code (a step under the card's title), the city, the zone; under
+     the bar the times, then the distances. */
+  .detail .leg{margin-top:2px}
+  .detail .leg-ends{display:flex;justify-content:space-between;
+    align-items:flex-end;gap:12px}
+  .detail .leg-end{min-width:0}
+  .detail .leg-end.r{text-align:right}
   .detail .leg-end .apcode{display:block;font-size:21px;line-height:1.1;
     letter-spacing:.04em}
-  .detail .leg-end .city{font-size:13px;margin-top:1px;white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis;padding:0 6px}
+  .detail .leg-end .city{font-size:13px;color:var(--quiet);margin-top:1px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .detail .leg-end .tz{color:var(--quiet);font-size:10px;margin-top:2px;
     letter-spacing:.03em;font-family:'Helvetica Neue',Arial,sans-serif;
     white-space:nowrap}
-  .detail .leg-plane{width:30px;height:30px;border-radius:50%;
-    background:var(--paper);border:1px solid var(--line);display:flex;
-    align-items:center;justify-content:center;position:relative;z-index:1}
-  .detail .leg-plane svg{width:15px;height:15px;color:var(--red);display:block}
-  .detail .leg-cells{display:grid;grid-template-columns:1fr 1fr;gap:2px;
-    margin-top:2px}
-  .detail .cell{display:flex;justify-content:space-between;
-    align-items:baseline;background:var(--card);padding:5px 8px;
-    border-radius:3px}
-  .detail .cell span{color:var(--quiet);font-size:10.5px;letter-spacing:.05em;
-    font-family:'Helvetica Neue',Arial,sans-serif}
-  .detail .cell b{font-weight:normal;font-size:16px;
-    font-variant-numeric:tabular-nums}
+  .detail .leg-times{display:flex;justify-content:space-between;
+    align-items:baseline;gap:12px}
+  .detail .leg-times .t{font-size:17px;font-variant-numeric:tabular-nums}
+  .detail .leg-times .est{color:var(--red)}
+  .detail .leg-times .lbl{color:var(--quiet);font-size:10.5px;
+    letter-spacing:.05em;font-family:'Helvetica Neue',Arial,sans-serif;
+    margin:0 6px}
+  .detail .leg-times .lbl:last-child{margin-right:0}
+  .detail .leg-times .lbl:first-child{margin-left:0}
   .detail .leg-bar{height:3px;background:var(--line);border-radius:2px;
-    margin:12px 4px 0;position:relative}
+    margin:10px 0 6px;position:relative}
   .detail .leg-bar i{display:block;height:100%;background:var(--red);
     border-radius:2px}
   .detail .leg-bar .mark{position:absolute;top:50%;width:18px;height:18px;
@@ -219,9 +215,8 @@
     border-radius:50%;display:flex;align-items:center;justify-content:center}
   .detail .leg-bar .mark svg{width:13px;height:13px;display:block}
   .detail .leg-dist{display:flex;justify-content:space-between;
-    color:var(--quiet);font-size:12px;margin:5px 4px 0}
-  .detail .route .via{color:var(--quiet);font-size:13px;margin-top:8px;
-    text-align:center}
+    color:var(--quiet);font-size:12px;margin-top:2px}
+  .detail .route .via{color:var(--quiet);font-size:12px;margin-top:4px}
 
   .detail .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;
     margin-top:12px;font-size:14px}
@@ -2151,33 +2146,29 @@
       if (a.gs > 60) eta = left / (a.gs * 1.852) * 60;      // minutes
     }
     var etaDate = eta != null ? new Date(Date.now() + eta * 60000) : null;
-    function end(c, ap) {
-      return "<div class='leg-end'>" + code(c) +
+    // The timeline: the bar is the layout. Each end stacks code, city
+    // and zone; under the bar, the time the flight usually keeps at the
+    // origin and the estimated arrival; then the distances.
+    function end(c, ap, right) {
+      return "<div class='leg-end" + (right ? " r" : "") + "'>" + code(c) +
         "<div class='city'>" + esc(cityName(ap[0]) || c) + "</div>" +
         "<div class='tz'>" + esc(tzLabel(ap[5])) + "</div></div>";
     }
-    function cell(k, v) {
-      return "<div class='cell'><span>" + k + "</span><b>" + v + "</b></div>";
-    }
-    var ends = "<div class='leg-ends'>" + end(org, oa) +
-      "<div class='leg-plane'>" + PLANE_SVG + "</div>" +
-      end(dst, da) + "</div>";
-    var cells = "<div class='leg-cells'>" +
-      (leg.dep || leg.arr
-        ? cell("Usually", leg.dep || "–") + cell("Usually", leg.arr || "–") : "") +
-      cell("Now", hhmm(new Date(), oa[5]) || "–") +
-      cell("Estimated", etaDate ? hhmm(etaDate, da[5]) : "–") + "</div>";
-    var bar = "";
-    if (flown != null) {
-      var frac = Math.max(0, Math.min(1, flown / (flown + left)));
-      var pct = (frac * 100).toFixed(1) + "%";
-      bar = "<div class='leg-bar'><i style='width:" + pct + "'></i>" +
-        "<span class='mark' style='left:" + pct + "'>" + PLANE_SVG + "</span></div>" +
-        "<div class='leg-dist'><span>" + Math.round(flown) + " km</span><span>" +
+    var ends = "<div class='leg-ends'>" + end(org, oa, false) + end(dst, da, true) + "</div>";
+    var frac = flown != null ? Math.max(0, Math.min(1, flown / (flown + left))) : 0;
+    var pct = (frac * 100).toFixed(1) + "%";
+    var bar = "<div class='leg-bar'><i style='width:" + pct + "'></i>" +
+      (flown != null ? "<span class='mark' style='left:" + pct + "'>" + PLANE_SVG + "</span>" : "") +
+      "</div>";
+    var times = "<div class='leg-times'>" +
+      "<div><span class='t'>" + (leg.dep || "–") + "</span><span class='lbl'>usually</span></div>" +
+      "<div><span class='lbl'>estimated</span><span class='t est'>" +
+        (etaDate ? hhmm(etaDate, da[5]) : (leg.arr || "–")) + "</span></div></div>";
+    var dist = flown != null
+      ? "<div class='leg-dist'><span>" + Math.round(flown) + " km</span><span>" +
         Math.round(left) + " km" + (eta != null ? ", in " + durationText(eta) : "") +
-        "</span></div>";
-    }
-    box.innerHTML = "<div class='leg'>" + ends + cells + via + bar + "</div>";
+        "</span></div>" : "";
+    box.innerHTML = "<div class='leg'>" + ends + bar + times + dist + via + "</div>";
     box.className = "route show";
     drawRouteLine(chain);
   }
