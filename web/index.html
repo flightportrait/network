@@ -2225,10 +2225,22 @@
     var bar = "<div class='leg-bar'><i style='width:" + pct + "'></i>" +
       (flown != null ? "<span class='mark' style='left:" + pct + "'>" + PLANE_SVG + "</span>" : "") +
       "</div>";
-    var times = "<div class='leg-times'>" +
-      "<div><span class='t'>" + (leg.dep || "–") + "</span><span class='lbl'>usually</span></div>" +
-      "<div><span class='lbl'>estimated</span><span class='t est'>" +
-        (etaDate ? hhmm(etaDate, da[5]) : (leg.arr || "–")) + "</span></div></div>";
+    // Departed: the take-off the network heard, when it was near the
+    // origin; otherwise the time the flight usually leaves. Arrived
+    // when the trace ends on the ground; else the estimate.
+    var b = state.bounds && state.bounds.hex === a.hex ? state.bounds : null;
+    var dep = b && b.departure;
+    var depNear = dep && oa.length && kmBetween(dep.lat, dep.lon, oa[1], oa[2]) < 80;
+    var arr = b && b.arrival;
+    var arrNear = arr && da.length && kmBetween(arr.lat, arr.lon, da[1], da[2]) < 80;
+    var left0 = depNear
+      ? "<span class='t'>" + hhmm(new Date(dep.at * 1000), oa[5]) + "</span><span class='lbl'>departed</span>"
+      : "<span class='t'>" + (leg.dep || "–") + "</span><span class='lbl'>usually</span>";
+    var right0 = arrNear
+      ? "<span class='lbl'>arrived</span><span class='t'>" + hhmm(new Date(arr.at * 1000), da[5]) + "</span>"
+      : "<span class='lbl'>estimated</span><span class='t est'>" +
+        (etaDate ? hhmm(etaDate, da[5]) : (leg.arr || "–")) + "</span>";
+    var times = "<div class='leg-times'><div>" + left0 + "</div><div>" + right0 + "</div></div>";
     var dist = flown != null
       ? "<div class='leg-dist'><span>" + Math.round(flown) + " km</span><span>" +
         Math.round(left) + " km" + (eta != null ? ", in " + durationText(eta) : "") +
@@ -2373,15 +2385,25 @@
     if (cs && routeCache[cs]) renderRoute(cs);
   }
 
+  var trailAt = 0, trailFor = null;
   function updateTrail() {
     if (!state.selected || !map.getSource("trail")) return;
+    // the stream can call this several times a second; the trace grows
+    // once a snapshot or so, and the trace bucket is one call a second
+    var now = Date.now();
+    if (trailFor === state.selected && now - trailAt < 5000) return;
+    trailAt = now; trailFor = state.selected;
     fetch(API + "/v1/trace/" + state.selected).then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.json();
     }).then(function (d) {
       if (d.hex !== state.selected) return;
       state.trailPts = d.points || [];
+      state.bounds = { hex: d.hex, departure: d.departure || null,
+                       arrival: d.arrival || null };
       drawTrail();
+      var cs = (findAircraft(d.hex) || {}).flight;
+      if (cs && routeCache[String(cs).trim()]) renderRoute(String(cs).trim());
     }).catch(function () {
       state.trailPts = [];
       drawTrail();

@@ -46,6 +46,11 @@ class ReadsbClient:
     async def clients(self) -> dict:
         return await self._get_json("/data/clients.json")
 
+    async def trace(self, hex_id: str) -> dict:
+        """The day's trace for one aircraft (tar1090's trace_full)."""
+        h = hex_id.strip().lower()
+        return await self._get_json("/data/traces/%s/trace_full_%s.json" % (h[4:6], h))
+
     async def receivers(self) -> dict:
         return await self._get_json("/data/receivers.json")
 

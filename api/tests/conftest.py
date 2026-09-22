@@ -40,6 +40,7 @@ class FakeReadsb:
         self.circle_payload = {"now": time.time(), "aircraft": []}
         self.point_payload = {"now": time.time(), "aircraft": []}
         self.count_payload = 0
+        self.trace_payload = Exception("no trace")
         self.calls = []
 
     async def _serve(self, name, payload):
@@ -60,6 +61,9 @@ class FakeReadsb:
 
     async def clients(self):
         return await self._serve("clients", self.clients_payload)
+
+    async def trace(self, hex_id):
+        return await self._serve("trace", self.trace_payload)
 
     async def receivers(self):
         return await self._serve("receivers", self.receivers_payload)

@@ -245,6 +245,19 @@ SCH_TRACE = _obj({
              _t("number", "Track, degrees true.", nullable=True),
          ]},
         description="[t, lat, lon, alt_baro, track], oldest first."),
+    "departure": {"description": "When and where this flight took off, "
+                                 "from the day's trace: present when the "
+                                 "network heard the take-off (from the "
+                                 "ground or below 5,000 ft). Null when "
+                                 "first heard aloft.",
+                  "oneOf": [_obj({"at": _t("number", "Unix seconds UTC."),
+                                  "lat": _t("number"), "lon": _t("number"),
+                                  "alt_ft": _t("number")}), {"type": "null"}]},
+    "arrival": {"description": "When and where it landed, when the trace "
+                               "ends on the ground.",
+                "oneOf": [_obj({"at": _t("number", "Unix seconds UTC."),
+                                "lat": _t("number"), "lon": _t("number")}),
+                          {"type": "null"}]},
 }, required=["hex", "points"])
 
 EX_TRACE = {
@@ -253,6 +266,8 @@ EX_TRACE = {
         [1787924000.0, 1.48, 103.7, 6000, 84.0],
         [1787924061.0, 1.50, 103.8, 6325, 85.4],
     ],
+    "departure": {"at": 1787923500.0, "lat": 1.36, "lon": 103.99, "alt_ft": 425},
+    "arrival": None,
 }
 
 # The point item is the live aircraft item plus a distance field.

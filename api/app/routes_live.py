@@ -148,7 +148,7 @@ def aircraft(request: Request, response: Response,
                       schema=spec.SCH_TRACE),
     openapi_extra=spec.STABLE,
 )
-def trace(hex: spec.Hex, request: Request, response: Response):
+async def trace(hex: spec.Hex, request: Request, response: Response):
     settings = request.app.state.settings
     ratelimit.throttle(request, settings.trace_rate_limit,
                        settings.rate_window_s, bucket="trace")
@@ -156,8 +156,36 @@ def trace(hex: spec.Hex, request: Request, response: Response):
     if not points:
         raise ApiError(404, "not_found", "no trace")
     response.headers["Cache-Control"] = CACHE_POINT
+    bounds = await _flight_bounds(request.app, hex.strip().lower())
     # points: [t, lat, lon, alt_baro, track], oldest first
-    return {"hex": hex.strip().lower(), "points": points}
+    return {"hex": hex.strip().lower(), "points": points,
+            "departure": bounds.get("departure"),
+            "arrival": bounds.get("arrival")}
+
+
+BOUNDS_TTL_S = 60.0
+
+
+async def _flight_bounds(app, hex_id: str) -> dict:
+    """Departure and arrival from the hub's day trace, held a minute per
+    aircraft so a busy card does not fetch the trace on every poll."""
+    from .departure import flight_bounds
+    cache = getattr(app.state, "flight_bounds", None)
+    if cache is None:
+        cache = app.state.flight_bounds = {}
+    now = time.time()
+    hit = cache.get(hex_id)
+    if hit and now - hit[0] < BOUNDS_TTL_S:
+        return hit[1]
+    result = {}
+    try:
+        result = flight_bounds(await app.state.readsb.trace(hex_id)) or {}
+    except Exception:            # no trace, upstream down: nothing to say
+        result = {}
+    if len(cache) > 5000:
+        cache.clear()
+    cache[hex_id] = (now, result)
+    return result
 
 
 def _distance_nm(lat1, lon1, lat2, lon2) -> float:

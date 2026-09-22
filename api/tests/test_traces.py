@@ -1,5 +1,6 @@
 """The trace book and /v1/trace: recording, dedup, pruning, 404s."""
 import asyncio
+import time
 
 from app.poller import poll_snapshot_once
 from app.snapshot import build_snapshot
@@ -75,3 +76,49 @@ def test_prune_after_retention():
     book.record(_snap(300, [{"hex": "bbb222", "lat": 3.0, "lon": 4.0}]))
     assert book.get("aaa111") is None            # gone after 290s of silence
     assert book.get("bbb222") is not None
+
+
+def _trace(t0, pts):
+    return {"timestamp": t0, "trace": [[dt, lat, lon, alt] for dt, lat, lon, alt in pts]}
+
+
+def test_departure_from_the_ground_and_arrival():
+    from app.departure import flight_bounds
+    b = flight_bounds(_trace(1000.0, [
+        (0, 1.35, 103.99, "ground"), (60, 1.36, 103.99, "ground"),
+        (120, 1.37, 104.0, 800), (600, 1.6, 104.4, 12000),
+        (1500, 2.3, 104.7, 20000), (2400, 2.8, 104.9, 8000),
+        (3000, 3.0, 105.0, 3000), (3300, 3.1, 105.1, "ground"),
+        (3360, 3.1, 105.1, "ground")]))
+    assert b["departure"]["at"] == 1120.0 and b["departure"]["alt_ft"] == 800
+    assert b["arrival"]["at"] == 4300.0
+
+
+def test_first_heard_low_counts_first_heard_high_does_not():
+    from app.departure import flight_bounds
+    low = flight_bounds(_trace(1000.0, [(0, 1.37, 104.0, 900), (600, 1.6, 104.4, 12000)]))
+    assert low["departure"]["at"] == 1000.0
+    high = flight_bounds(_trace(1000.0, [(0, 2.0, 104.5, 36000), (600, 2.6, 105.0, 36000)]))
+    assert high["departure"] is None and high["arrival"] is None
+
+
+def test_an_earlier_flight_of_the_day_is_ignored():
+    from app.departure import flight_bounds
+    b = flight_bounds(_trace(1000.0, [
+        (0, 1.37, 104.0, 600), (1200, 3.0, 105.0, "ground"),
+        # two hours of silence, then the next sector
+        (8400, 3.0, 105.0, "ground"), (8460, 3.05, 105.05, 700), (9000, 4.0, 106.0, 20000)]))
+    assert b["departure"]["at"] == 9460.0 and b["arrival"] is None
+
+
+def test_trace_carries_flight_bounds(ctx):
+    client, app, sm, settings, readsb = ctx
+    book = app.state.traces
+    book.record(_snap(time.time(), [{"hex": "abc123", "lat": 1.5, "lon": 103.9,
+                                     "alt_baro": 9000, "track": 80}]))
+    readsb.trace_payload = _trace(time.time() - 600, [
+        (0, 1.36, 103.99, "ground"), (90, 1.37, 104.0, 500), (600, 1.5, 103.9, 9000)])
+    body = client.get("/v1/trace/abc123").json()
+    assert body["departure"]["alt_ft"] == 500 and body["arrival"] is None
+    readsb.trace_payload = Exception("upstream down")
+    assert client.get("/v1/trace/abc123").json()["departure"]["alt_ft"] == 500  # cached a minute
