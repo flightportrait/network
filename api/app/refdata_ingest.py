@@ -299,7 +299,22 @@ def ingest_boards(session, path):
         select(RefAirline).where(RefAirline.iata.is_not(None))).scalars()}
 
     decorated = added = arrfill = 0
+    # A board's number belongs to its airline: a service is decorated
+    # only by a flight of the same operator (IATA prefix folded to ICAO
+    # through our registry), nearest in time within 45 minutes. Two
+    # carriers five minutes apart on one leg must not swap numbers.
+    # Pins an earlier, airline-blind merge made are undone first.
+    for r in session.execute(
+            select(RefSchedule).where(RefSchedule.source == "both",
+                                      RefSchedule.flight.is_not(None))
+    ).scalars():
+        prefix = "".join(ch for ch in r.flight if ch.isalpha())[:2]
+        icao = iata_icao.get(prefix)
+        if icao and r.airline_icao and r.airline_icao != icao:
+            r.flight, r.source = None, "observed"
     for (flight, org, dst), (sched, _n) in deps.items():
+        prefix = "".join(ch for ch in flight if ch.isalpha())[:2]
+        icao = iata_icao.get(prefix, "")
         rows = session.execute(
             select(RefSchedule).where(RefSchedule.org == org,
                                       RefSchedule.dst == dst,
@@ -307,6 +322,10 @@ def ingest_boards(session, path):
         ).scalars().all()
         best = None
         for r in rows:
+            if icao and r.airline_icao != icao:
+                continue
+            if not icao and r.airline_icao != prefix:
+                continue
             d = abs(r.dep_min - sched)
             if d <= 45 and (best is None or d < best[0]):
                 best = (d, r)
@@ -316,8 +335,6 @@ def ingest_boards(session, path):
             r.source = "both"
             decorated += 1
             continue
-        prefix = "".join(ch for ch in flight if ch.isalpha())[:2]
-        icao = iata_icao.get(prefix, "")
         session.merge(RefSchedule(
             callsign=flight[:12], org=org, dst=dst,
             airline_icao=icao if icao else

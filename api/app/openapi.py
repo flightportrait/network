@@ -371,7 +371,10 @@ SCH_ROUTES = _obj({
 })
 
 SCH_FLIGHT = _obj({
-    "callsign": _t("string"),
+    "callsign": _t("string", "The operating callsign the record is for."),
+    "marketed": _t("string", "The marketed number the request used "
+                             "when it differed (BA272 for BAW272).",
+                   nullable=True),
     "route": {"description": "[origin, ...via, destination], IATA, from "
                              "the derived routes artifact, else from the "
                              "community catalog. Null when unknown or "

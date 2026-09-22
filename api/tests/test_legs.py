@@ -352,3 +352,58 @@ def test_routes_bulk(ctx, tmp_path):
     for _ in range(3):
         client.get("/v1/routes?cs=SQ322")
     assert client.get("/v1/flights/sq322").status_code == 200
+
+
+def test_boards_pin_only_the_same_airline(ctx, tmp_path):
+    import sqlite3 as s3
+    from app import refdata_ingest
+    from app.refdata_models import RefAirline, RefSchedule
+    client, app, sm, settings, readsb = ctx
+    bdb = tmp_path / "boards.db"
+    conn = s3.connect(str(bdb))
+    conn.execute("CREATE TABLE boards (airport TEXT, kind TEXT, flight TEXT,"
+                 " counterpart TEXT, sched_min INT, day TEXT, source TEXT,"
+                 " fetched_at TEXT)")
+    conn.execute("INSERT INTO boards VALUES ('DUB','dep','EI172','LHR',955,"
+                 "'2026-09-22','t','now')")
+    conn.commit(); conn.close()
+    session = sm()
+    try:
+        session.add(RefAirline(icao="EIN", iata="EI", name="Aer Lingus", palette=[]))
+        session.add(RefAirline(icao="BAW", iata="BA", name="British Airways", palette=[]))
+        # British Airways five minutes off, Aer Lingus ten minutes off:
+        # the number belongs to Aer Lingus
+        session.add(RefSchedule(callsign="BAW831", org="DUB", dst="LHR",
+                                airline_icao="BAW", dep_min=950, arr_min=1005,
+                                type_code=None, n_flights=49, flight="EI172",
+                                source="both"))          # an old, wrong pin
+        session.add(RefSchedule(callsign="EIN172", org="DUB", dst="LHR",
+                                airline_icao="EIN", dep_min=965, arr_min=1030,
+                                type_code=None, n_flights=50))
+        session.commit()
+        refdata_ingest.ingest_boards(session, str(bdb))
+        session.commit()
+        ba = session.get(RefSchedule, ("BAW831", "DUB", "LHR"))
+        ei = session.get(RefSchedule, ("EIN172", "DUB", "LHR"))
+        assert ba.flight is None and ba.source == "observed"
+        assert ei.flight == "EI172" and ei.source == "both"
+    finally:
+        session.close()
+
+
+def test_a_marketed_number_resolves_to_its_callsign(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    db = tmp_path / "legs.db"
+    _build(str(db), AIRPORT_LEGS)
+    app.state.legs = LegBook(str(db))
+    app.state.routes = RouteBook(str(tmp_path / "absent.json.gz"))
+    from app.refdata_models import RefSchedule
+    with sm() as session:
+        session.add(RefSchedule(callsign="SQ322", org="SIN", dst="LHR",
+                                airline_icao="SQ3", dep_min=16 * 60,
+                                arr_min=22 * 60 + 35, type_code="A359",
+                                n_flights=30, flight="SQ22", source="both"))
+        session.commit()
+    body = client.get("/v1/flights/sq22").json()
+    assert body["callsign"] == "SQ322" and body["marketed"] == "SQ22"
+    assert body["legs"][0]["flight"] == "SQ22" and body["legs"][0]["times"] == "both"

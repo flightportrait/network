@@ -166,6 +166,17 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
     callsign = callsign.strip().upper()
     if not (2 <= len(callsign) <= 12) or not callsign.isalnum():
         raise ApiError(422, "invalid_request", "invalid flight")
+    # A marketed number (LH996, BA272) resolves to the callsign that
+    # flies it when a board has named the service.
+    marketed = None
+    if not session.execute(
+            select(RefSchedule.callsign).where(RefSchedule.callsign == callsign)
+    ).first():
+        hit = session.execute(
+            select(RefSchedule.callsign).where(RefSchedule.flight == callsign)
+            .order_by(RefSchedule.n_flights.desc())).first()
+        if hit and hit[0] != callsign:
+            marketed, callsign = callsign, hit[0]
 
     routes_book = request.app.state.routes
     legs_book = request.app.state.legs
@@ -190,6 +201,7 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
 
     out = {
         "callsign": callsign,
+        "marketed": marketed,
         "route": route,
         "route_source": route_source,
         "legs": None, "aircraft": None, "recent": None,
