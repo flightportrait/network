@@ -154,6 +154,7 @@
   /* The head: tail mark, callsign, one quiet line for operator, type
      and registration. Everything the top used to say, in two lines. */
   .detail .head{display:flex;align-items:center;gap:10px;padding-right:26px}
+  .detail .photo.show + .head{padding-right:0}
   .detail .head img{width:34px;height:30px;object-fit:contain;display:block;
     flex:none}
   .detail .head-text{min-width:0}
@@ -173,10 +174,10 @@
   .detail a.hist:hover{text-decoration:underline}
   /* The photo at a fixed height with the credit set over its corner,
      so it costs one block, not a block and a line. */
-  .detail .photo{margin:10px 0 0;display:none;position:relative}
+  .detail .photo{margin:-16px -20px 12px;display:none;position:relative}
   .detail .photo.show{display:block}
-  .detail .photo img{width:100%;height:150px;object-fit:cover;border-radius:6px;
-    display:block;border:1px solid var(--line)}
+  .detail .photo img{width:100%;height:170px;object-fit:cover;display:block;
+    border-radius:8px 8px 0 0}
   .detail .credit{position:absolute;right:6px;bottom:6px;
     font-family:'Helvetica Neue',Arial,sans-serif;font-size:10px;
     letter-spacing:.03em;color:var(--quiet);background:rgba(245,241,230,.88);
@@ -491,6 +492,9 @@
   .cardclose{position:absolute;top:8px;right:10px;z-index:2;
     background:none;border:none;color:var(--quiet);font-size:19px;
     cursor:pointer;font-family:inherit;padding:4px 8px;line-height:1}
+  .detail .cardclose{background:rgba(245,241,230,.88);border-radius:50%;
+    width:30px;height:30px;padding:0;display:flex;align-items:center;
+    justify-content:center;color:var(--ink)}
   .cardclose:hover{color:var(--red)}
 
   /* Map-layer switch: a segmented pill ON the map (layer controls
@@ -848,9 +852,11 @@
     .sheet-handle{display:block;width:100%;background:none;border:none;
       padding:9px 0 3px;cursor:grab;touch-action:none;flex:none}
     /* A thumb-sized close: 44 px square, the glyph larger. */
-    #sheet-cards .cardclose{top:2px;right:8px;width:44px;height:44px;
+    #sheet-cards .cardclose{top:8px;right:12px;width:40px;height:40px;
       padding:0;display:flex;align-items:center;justify-content:center;
-      font-size:26px;border-radius:22px}
+      font-size:26px;border-radius:20px}
+    #sheet-cards .detail .photo{margin:0 -20px 12px}
+    #sheet-cards .detail .photo img{height:200px;border-radius:0}
     #sheet-cards .cardclose:active{background:rgba(34,31,26,.08)}
     .sheet-handle::before{content:"";display:block;width:40px;height:4px;
       border-radius:2px;background:rgba(34,31,26,.25);margin:0 auto}
@@ -936,6 +942,7 @@
 </div>
 <div class="detail" id="detail">
   <button class="cardclose" id="d-close" aria-label="Close">&times;</button>
+  <div class="photo" id="d-photo"></div>
   <div class="head" id="d-operator">
     <img id="d-operator-tail" alt="" hidden>
     <div class="head-text">
@@ -944,7 +951,6 @@
     </div>
   </div>
   <div class="alert" id="d-alert" hidden></div>
-  <div class="photo" id="d-photo"></div>
   <div class="route" id="d-route"></div>
   <div class="links"><a id="d-history" class="hist" href="#">Airframe history</a><a id="d-flightlog" class="hist" href="#" hidden>Flight log</a></div>
   <div class="grid" id="d-grid"></div>
