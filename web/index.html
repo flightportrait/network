@@ -155,14 +155,14 @@
      and registration. Everything the top used to say, in two lines. */
   /* The head is one row: the operator's tail mark, the callsign, the
      operator's name. The airframe follows as labelled rows. */
-  .detail .head{display:flex;align-items:center;gap:10px;padding-right:26px;
-    min-height:34px}
+  .detail .head{display:flex;align-items:center;gap:8px;padding-right:26px;
+    line-height:1.15}
   .detail .photo.show + .head{padding-right:0}
-  .detail .head img{width:40px;height:34px;object-fit:contain;display:block;
+  .detail .head img{width:30px;height:26px;object-fit:contain;display:block;
     flex:none}
-  .detail .head .cs{flex:none}
-  .detail .head .op{color:var(--quiet);font-size:14px;margin-left:auto;
-    text-align:right;min-width:0;line-height:1.25}
+  .detail .head .cs{flex:none;font-size:20px}
+  .detail .head .op{color:var(--quiet);font-size:13px;margin-left:auto;
+    text-align:right;min-width:0;line-height:1.2}
   /* Only when it is real: a squawk or transponder emergency */
   .detail .alert{margin-top:10px;padding:8px 12px;border-radius:6px;
     background:var(--red);color:var(--paper);font-size:14px}
@@ -170,24 +170,24 @@
   .detail .sub .stale{color:var(--red)}
   .detail .top{display:flex;justify-content:space-between;align-items:baseline}
   .detail .cs{font-size:22px}
-  .detail .sub{color:var(--quiet);font-size:13px;line-height:1.4;margin-top:4px}
-  .detail .links{display:flex;gap:16px;margin-top:8px}
-  .detail a.hist{color:var(--red);font-size:13px;text-decoration:none;
+  .detail .sub{color:var(--quiet);font-size:12.5px;line-height:1.3;margin-top:3px}
+  .detail .links{display:flex;gap:14px;margin-top:6px}
+  .detail a.hist{color:var(--red);font-size:12px;text-decoration:none;
     font-family:'Helvetica Neue',Arial,sans-serif;letter-spacing:.04em}
   .detail a.hist::after{content:" \2192"}
   .detail a.hist:hover{text-decoration:underline}
   /* The photo at a fixed height with the credit set over its corner,
      so it costs one block, not a block and a line. */
-  .detail .photo{margin:-16px -20px 12px;display:none;position:relative}
+  .detail .photo{margin:-16px -20px 10px;display:none;position:relative}
   .detail .photo.show{display:block}
-  .detail .photo img{width:100%;height:170px;object-fit:cover;display:block;
+  .detail .photo img{width:100%;height:150px;object-fit:cover;display:block;
     border-radius:8px 8px 0 0}
   .detail .credit{position:absolute;right:6px;bottom:6px;
     font-family:'Helvetica Neue',Arial,sans-serif;font-size:10px;
     letter-spacing:.03em;color:var(--quiet);background:rgba(245,241,230,.88);
     padding:2px 6px;border-radius:3px;line-height:1.3}
   .detail .credit a{color:var(--quiet)}
-  .detail .route{font-size:16px;margin-top:10px;display:none}
+  .detail .route{font-size:16px;margin-top:8px;display:none}
   .detail .route.show{display:block}
   /* The leg, laid out the way flight trackers do: two mirrored columns
      split by a rule, the code over the city over the zone, then two
@@ -201,16 +201,16 @@
     align-items:flex-end;gap:12px}
   .detail .leg-end{min-width:0}
   .detail .leg-end.r{text-align:right}
-  .detail .leg-end .apcode{display:block;font-size:21px;line-height:1.1;
+  .detail .leg-end .apcode{display:block;font-size:20px;line-height:1.05;
     letter-spacing:.04em}
-  .detail .leg-end .city{font-size:13px;color:var(--quiet);margin-top:1px;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .detail .leg-end .tz{color:var(--quiet);font-size:10px;margin-top:2px;
-    letter-spacing:.03em;font-family:'Helvetica Neue',Arial,sans-serif;
-    white-space:nowrap}
+  .detail .leg-end .city{font-size:12.5px;color:var(--quiet);margin-top:1px;
+    line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .detail .leg-end .tz{color:var(--quiet);font-size:9.5px;margin-top:1px;
+    line-height:1.2;letter-spacing:.03em;
+    font-family:'Helvetica Neue',Arial,sans-serif;white-space:nowrap}
   .detail .leg-times{display:flex;justify-content:space-between;
-    align-items:baseline;gap:12px}
-  .detail .leg-times .t{font-size:17px;font-variant-numeric:tabular-nums}
+    align-items:baseline;gap:12px;line-height:1.2}
+  .detail .leg-times .t{font-size:16px;font-variant-numeric:tabular-nums}
   .detail .leg-times .est{color:var(--red)}
   .detail .leg-times .lbl{color:var(--quiet);font-size:10.5px;
     letter-spacing:.05em;font-family:'Helvetica Neue',Arial,sans-serif;
@@ -218,7 +218,7 @@
   .detail .leg-times .lbl:last-child{margin-right:0}
   .detail .leg-times .lbl:first-child{margin-left:0}
   .detail .leg-bar{height:3px;background:var(--line);border-radius:2px;
-    margin:10px 0 6px;position:relative}
+    margin:7px 0 5px;position:relative}
   .detail .leg-bar i{display:block;height:100%;background:var(--red);
     border-radius:2px}
   .detail .leg-bar .mark{position:absolute;top:50%;width:18px;height:18px;
@@ -226,12 +226,12 @@
     border-radius:50%;display:flex;align-items:center;justify-content:center}
   .detail .leg-bar .mark svg{width:13px;height:13px;display:block}
   .detail .leg-dist{display:flex;justify-content:space-between;
-    color:var(--quiet);font-size:12px;margin-top:2px}
+    color:var(--quiet);font-size:11.5px;line-height:1.2;margin-top:1px}
   .detail .route .via{color:var(--quiet);font-size:12px;margin-top:4px}
 
-  .detail .grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;
-    margin-top:10px;padding-top:8px;border-top:1px solid var(--line);
-    font-size:14px}
+  .detail .grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;
+    margin-top:8px;padding-top:6px;border-top:1px solid var(--line);
+    font-size:13px;line-height:1.3}
   .detail .grid .k{color:var(--quiet)}
   .detail .grid .v{text-align:right;font-variant-numeric:tabular-nums}
 
@@ -859,8 +859,8 @@
     #sheet-cards .cardclose{top:8px;right:12px;width:40px;height:40px;
       padding:0;display:flex;align-items:center;justify-content:center;
       font-size:26px;border-radius:20px}
-    #sheet-cards .detail .photo{margin:0 -20px 12px}
-    #sheet-cards .detail .photo img{height:200px;border-radius:0}
+    #sheet-cards .detail .photo{margin:0 -20px 10px}
+    #sheet-cards .detail .photo img{height:160px;border-radius:0}
     #sheet-cards .cardclose:active{background:rgba(34,31,26,.08)}
     .sheet-handle::before{content:"";display:block;width:40px;height:4px;
       border-radius:2px;background:rgba(34,31,26,.25);margin:0 auto}
