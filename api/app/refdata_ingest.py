@@ -259,10 +259,12 @@ def ingest_boards(session, path):
     """Merge harvested airport boards (boards.db, the private
     collector's artifact) into the schedule:
 
-    - A published departure that matches an observed service on the
-      same leg within 45 minutes DECORATES that row: the marketed
-      flight number lands in `flight`, source becomes `both`. The
-      observed times stay — observation is the reality check.
+    - A published departure that matches an observed service of the
+      same airline on the same leg within 45 minutes DECORATES that
+      row: the marketed flight number lands in `flight`, source becomes
+      `both`, and the published time replaces the observed one (a
+      board says when the flight is scheduled; observation, which sees
+      wheels-up, was the check that found the row).
     - A published departure with no observed counterpart becomes a new
       row, source `published` — this is where boards extend coverage
       beyond what receivers hear.
@@ -333,6 +335,7 @@ def ingest_boards(session, path):
             r = best[1]
             r.flight = flight[:8]
             r.source = "both"
+            r.dep_min = sched
             decorated += 1
             continue
         session.merge(RefSchedule(
@@ -356,7 +359,7 @@ def ingest_boards(session, path):
         ).scalars().all()
         named = [r for r in rows if r.flight == flight[:8]]
         if named:
-            if named[0].arr_min is None:
+            if named[0].arr_min != arr:
                 named[0].arr_min = arr
                 arrfill += 1
             continue
@@ -372,6 +375,7 @@ def ingest_boards(session, path):
         if best is not None:
             best[1].flight = flight[:8]
             best[1].source = "both"
+            best[1].arr_min = arr
             decorated += 1
         elif not any(r.callsign == flight[:12] for r in rows):
             session.merge(RefSchedule(

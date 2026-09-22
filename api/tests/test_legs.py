@@ -387,6 +387,7 @@ def test_boards_pin_only_the_same_airline(ctx, tmp_path):
         ei = session.get(RefSchedule, ("EIN172", "DUB", "LHR"))
         assert ba.flight is None and ba.source == "observed"
         assert ei.flight == "EI172" and ei.source == "both"
+        assert ei.dep_min == 955                        # the board's time now
     finally:
         session.close()
 
@@ -453,7 +454,7 @@ def test_an_arrivals_board_names_the_service_too(ctx, tmp_path):
         refdata_ingest.ingest_boards(session, str(bdb))
         session.commit()
         ba = session.get(RefSchedule, ("BAW9SW", "SAN", "LHR"))
-        assert ba.flight == "BA272" and ba.source == "both"
+        assert ba.flight == "BA272" and ba.source == "both" and ba.arr_min == 860
         vs = session.get(RefSchedule, ("VS9", "JFK", "LHR"))
         assert vs is not None and vs.arr_min == 600 and vs.source == "published"
     finally:
