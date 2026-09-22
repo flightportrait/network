@@ -34,6 +34,7 @@ class LiveSky:
         self.connected = False
         self.connected_at = 0.0
         self.seed_source = None     # () -> Snapshot, the poll's last word
+        self.seeded = False         # once per connection, at first publish
         self.cond = asyncio.Condition()
 
     # ---- state ---------------------------------------------------------
@@ -123,8 +124,7 @@ async def read_lines(live: LiveSky, host: str, port: int) -> None:
                 asyncio.open_connection(host, port), timeout=10)
             live.connected = True
             live.connected_at = time.time()
-            if live.seed_source is not None:
-                live.seed(live.seed_source(), live.connected_at)
+            live.seeded = False
             backoff = 1.0
             log.info("live sky connected to %s:%s", host, port)
             try:
@@ -158,8 +158,13 @@ async def publish(app, live: LiveSky) -> None:
         await asyncio.sleep(PUBLISH_MIN_S)
         if live.version == seen_version or not live.fresh():
             continue
-        seen_version = live.version
         now = time.time()
+        if not live.seeded and live.seed_source is not None:
+            # the poll has had the warm-up to fetch a whole sky: take
+            # the aircraft the lines have not named yet
+            live.seed(live.seed_source(), now)
+            live.seeded = True
+        seen_version = live.version
         snap = live.snapshot(now)
         app.state.snapshot = snap
         if now - last_trace >= TRACE_EVERY_S:
