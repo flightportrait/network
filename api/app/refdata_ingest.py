@@ -343,15 +343,43 @@ def ingest_boards(session, path):
             type_code=None, flight=flight[:8], source="published",
             n_flights=days.get("|".join((flight, org, dst)), 1)))
         added += 1
+    # Arrivals boards name services too: a same-airline service on the
+    # leg arriving within 45 minutes takes the number and, when it had
+    # none, the arrival time; a service no departure board and no
+    # observation knows becomes a published row with its arrival.
     for (flight, org, dst), arr in arrs.items():
-        row = session.execute(
-            select(RefSchedule).where(RefSchedule.flight == flight[:8],
-                                      RefSchedule.org == org,
+        prefix = "".join(ch for ch in flight if ch.isalpha())[:2]
+        icao = iata_icao.get(prefix, "")
+        rows = session.execute(
+            select(RefSchedule).where(RefSchedule.org == org,
                                       RefSchedule.dst == dst)
-        ).scalars().first()
-        if row is not None and row.arr_min is None:
-            row.arr_min = arr
-            arrfill += 1
+        ).scalars().all()
+        named = [r for r in rows if r.flight == flight[:8]]
+        if named:
+            if named[0].arr_min is None:
+                named[0].arr_min = arr
+                arrfill += 1
+            continue
+        best = None
+        for r in rows:
+            if (icao and r.airline_icao != icao) or (not icao and r.airline_icao != prefix):
+                continue
+            if r.arr_min is None:
+                continue
+            d = abs(r.arr_min - arr)
+            if d <= 45 and (best is None or d < best[0]):
+                best = (d, r)
+        if best is not None:
+            best[1].flight = flight[:8]
+            best[1].source = "both"
+            decorated += 1
+        elif not any(r.callsign == flight[:12] for r in rows):
+            session.merge(RefSchedule(
+                callsign=flight[:12], org=org, dst=dst,
+                airline_icao=icao if icao else (prefix if prefix.isalpha() else ""),
+                dep_min=None, arr_min=arr, type_code=None, flight=flight[:8],
+                source="published", n_flights=1))
+            added += 1
     print("  boards: %d services decorated with flight numbers,"
           " %d published-only added, %d arrivals filled"
           % (decorated, added, arrfill))

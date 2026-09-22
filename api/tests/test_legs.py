@@ -425,3 +425,36 @@ def test_a_published_only_service_answers_from_the_schedule(ctx, tmp_path):
     assert body["coverage"] == "published"
     leg = body["legs"][0]
     assert leg["dep"] == "16:30" and leg["arr"] == "17:40" and leg["times"] == "published"
+
+
+def test_an_arrivals_board_names_the_service_too(ctx, tmp_path):
+    import sqlite3 as s3
+    from app import refdata_ingest
+    from app.refdata_models import RefAirline, RefSchedule
+    client, app, sm, settings, readsb = ctx
+    bdb = tmp_path / "boards.db"
+    conn = s3.connect(str(bdb))
+    conn.execute("CREATE TABLE boards (airport TEXT, kind TEXT, flight TEXT,"
+                 " counterpart TEXT, sched_min INT, day TEXT, source TEXT,"
+                 " fetched_at TEXT)")
+    conn.execute("INSERT INTO boards VALUES ('LHR','arr','BA272','SAN',860,"
+                 "'2026-09-22','t','now')")
+    conn.execute("INSERT INTO boards VALUES ('LHR','arr','VS9','JFK',600,"
+                 "'2026-09-22','t','now')")
+    conn.commit(); conn.close()
+    session = sm()
+    try:
+        session.add(RefAirline(icao="BAW", iata="BA", name="British Airways", palette=[]))
+        session.add(RefAirline(icao="VIR", iata="VS", name="Virgin Atlantic", palette=[]))
+        session.add(RefSchedule(callsign="BAW9SW", org="SAN", dst="LHR",
+                                airline_icao="BAW", dep_min=1195, arr_min=815,
+                                type_code=None, n_flights=29))
+        session.commit()
+        refdata_ingest.ingest_boards(session, str(bdb))
+        session.commit()
+        ba = session.get(RefSchedule, ("BAW9SW", "SAN", "LHR"))
+        assert ba.flight == "BA272" and ba.source == "both"
+        vs = session.get(RefSchedule, ("VS9", "JFK", "LHR"))
+        assert vs is not None and vs.arr_min == 600 and vs.source == "published"
+    finally:
+        session.close()
