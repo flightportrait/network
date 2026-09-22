@@ -94,7 +94,8 @@ async def read_lines(live: LiveSky, host: str, port: int) -> None:
     backoff = 1.0
     while True:
         try:
-            reader, writer = await asyncio.open_connection(host, port)
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port), timeout=10)
             live.connected = True
             backoff = 1.0
             log.info("live sky connected to %s:%s", host, port)
