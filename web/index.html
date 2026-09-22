@@ -2973,10 +2973,12 @@
     });
     return ops;
   };
+  // The age of the sky, shown only when it is behind: within a couple
+  // of seconds it is simply live, and the dot says so.
   function tickUpdated() {
     if (!state.generatedAt) { el("updated").textContent = ""; return; }
     var age = Math.max(0, Math.round(Date.now() / 1000 - state.generatedAt));
-    el("updated").textContent = age + "s ago";
+    el("updated").textContent = age >= 3 ? age + "s ago" : "";
   }
   setInterval(tickUpdated, 1000);
 })();

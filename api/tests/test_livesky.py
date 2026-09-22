@@ -4,7 +4,7 @@ import asyncio
 import json
 import time
 
-from app.livesky import LiveSky, read_lines, FRESH_S
+from app.livesky import LiveSky, read_lines, FRESH_S, WARMUP_S
 from app.snapshot import AIRCRAFT_FIELDS
 
 
@@ -24,6 +24,8 @@ def test_lines_merge_and_age():
     assert a["lat"] == 1.31 and "flight" not in a       # the last line wins whole
     assert a["seen"] == 2.0 and a["seen_pos"] == 2.0     # aged to now
     assert snap.generated_at == t0 + 3
+    assert not live.fresh(t0 + 3), "not before the warm-up"
+    live.connected_at = t0 - WARMUP_S
     assert live.fresh(t0 + 3 + FRESH_S) and not live.fresh(t0 + 3 + FRESH_S + 1)
     # silence: the aircraft expires
     assert live.snapshot(t0 + 3 + 61).aircraft_count == 0
@@ -65,6 +67,11 @@ def test_poll_steps_aside_while_lines_flow(ctx):
     live = app.state.live
     assert live is not None
     before = app.state.snapshot
+    live.ingest({"hex": "dddddd", "seen": 0.0}, time.time())
+    asyncio.run(poll_snapshot_once(app))
+    assert app.state.snapshot is not before               # warming up: the poll still serves
+    before = app.state.snapshot
+    live.connected_at = time.time() - WARMUP_S
     live.ingest({"hex": "dddddd", "seen": 0.0}, time.time())
     asyncio.run(poll_snapshot_once(app))
     assert app.state.snapshot is before                  # untouched

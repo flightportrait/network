@@ -16,6 +16,9 @@ from .snapshot import AIRCRAFT_FIELDS, Snapshot
 log = logging.getLogger("network-api.livesky")
 
 FRESH_S = 10.0          # no line this long: the poll takes over
+WARMUP_S = 12.0         # after a connect, hold the poll until every
+                        # aircraft has spoken (positions every second,
+                        # the silent ones every ten)
 EXPIRE_S = 60.0         # not heard this long: gone
 PUBLISH_MIN_S = 0.25    # rebuild the snapshot at most this often
 TRACE_EVERY_S = 2.0     # trail points at the poll's old cadence
@@ -29,12 +32,16 @@ class LiveSky:
         self.published = 0          # bumped per published snapshot
         self.last_line_at = 0.0     # wall clock of the last line
         self.connected = False
+        self.connected_at = 0.0
         self.cond = asyncio.Condition()
 
     # ---- state ---------------------------------------------------------
     def fresh(self, now: float | None = None) -> bool:
+        """Lines are flowing and have been for the warm-up: the state
+        holds the whole sky, not the first arrivals."""
         now = now or time.time()
-        return self.last_line_at > 0 and now - self.last_line_at <= FRESH_S
+        return (self.last_line_at > 0 and now - self.last_line_at <= FRESH_S
+                and self.connected_at > 0 and now - self.connected_at >= WARMUP_S)
 
     def ingest(self, obj: dict, now: float) -> bool:
         if not isinstance(obj, dict):
@@ -97,6 +104,7 @@ async def read_lines(live: LiveSky, host: str, port: int) -> None:
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(host, port), timeout=10)
             live.connected = True
+            live.connected_at = time.time()
             backoff = 1.0
             log.info("live sky connected to %s:%s", host, port)
             try:
