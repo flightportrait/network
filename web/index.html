@@ -138,6 +138,62 @@
   .maplibregl-ctrl-group button+button{border-top:1px solid var(--line)!important}
   .maplibregl-ctrl-icon{transition:filter .9s ease}
   body.night-ui .maplibregl-ctrl-icon{filter:invert(.92)}
+  .maplibregl-ctrl button.filter-toggle{display:flex;align-items:center;
+    justify-content:center;color:var(--ink)}
+  .maplibregl-ctrl button.filter-toggle.on{color:var(--red)}
+  .maplibregl-ctrl button.filter-toggle:hover{color:var(--red)}
+  .filtercard{position:absolute;right:calc(var(--col-w) + 58px);bottom:24px;
+    z-index:6;width:300px;background:var(--paper);color:var(--ink);
+    border:1px solid var(--line);border-radius:8px;padding:14px 16px 12px;
+    box-shadow:0 4px 24px color-mix(in srgb,var(--shade) 18%,transparent);
+    font-size:13px}
+  .filtercard .cardclose{top:6px;right:8px}
+  .fc-sec{margin-bottom:12px}
+  .fc-h{display:flex;justify-content:space-between;align-items:baseline;
+    margin-bottom:6px;color:var(--quiet)}
+  .fc-h span:last-child{color:var(--ink);font-variant-numeric:tabular-nums}
+  .fc-hist{display:flex;align-items:flex-end;gap:2px;height:34px;
+    padding:0 7px}
+  .fc-hist i{flex:1;background:var(--line);border-radius:1px 1px 0 0;
+    transition:background .2s}
+  .fc-hist i.in{background:color-mix(in srgb,var(--ink) 55%,transparent)}
+  .fc-hist i.g{margin-right:4px}
+  .fc-range{position:relative;height:18px}
+  .fc-range input{position:absolute;inset:0;width:100%;margin:0;
+    background:none;pointer-events:none;-webkit-appearance:none;appearance:none}
+  .fc-range input::-webkit-slider-thumb{pointer-events:auto;-webkit-appearance:none;
+    width:14px;height:14px;border-radius:50%;background:var(--paper);
+    border:1.5px solid var(--ink);cursor:grab}
+  .fc-range input::-moz-range-thumb{pointer-events:auto;width:12px;height:12px;
+    border-radius:50%;background:var(--paper);border:1.5px solid var(--ink);cursor:grab}
+  .fc-range input::-webkit-slider-runnable-track{height:2px;background:var(--line)}
+  .fc-range input::-moz-range-track{height:2px;background:var(--line)}
+  .fc-range input::-webkit-slider-thumb{margin-top:-6px}
+  .fc-kinds{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .fc-kinds button,.fc-airlines button,.fc-seg button,.fc-foot button{
+    font:inherit;color:inherit;background:none;border:1px solid var(--line);
+    border-radius:6px;cursor:pointer}
+  .fc-kinds button{height:36px;display:flex;align-items:center;justify-content:center;
+    opacity:.55}
+  .fc-kinds button img{width:24px;height:24px;transform:rotate(-45deg)}
+  .fc-kinds button.on,.fc-airlines button.on,.fc-seg button.on{
+    border-color:var(--ink);opacity:1;background:var(--card)}
+  .fc-kinds:not(:has(.on)) button{opacity:1}
+  .fc-airlines{display:flex;flex-wrap:wrap;gap:4px}
+  .fc-airlines button{display:flex;align-items:center;gap:4px;padding:3px 7px 3px 4px;
+    font-size:12px;font-variant-numeric:tabular-nums}
+  .fc-airlines button img{width:18px;height:16px;object-fit:contain}
+  .fc-none{color:var(--quiet)}
+  .fc-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+  .fc-seg button{padding:5px 0}
+  .fc-foot{display:flex;justify-content:flex-end}
+  .fc-foot button{padding:4px 12px;color:var(--quiet)}
+  .fc-foot button:hover,.fc-seg button:hover,.fc-airlines button:hover,
+  .fc-kinds button:hover{border-color:var(--ink)}
+  .filterline{display:flex;justify-content:space-between;align-items:center;
+    margin:2px 20px 6px;font-size:13px;color:var(--quiet)}
+  .filterline button{font:inherit;color:var(--red);background:none;border:none;
+    cursor:pointer;padding:0}
   .maplibregl-ctrl button.night-toggle{display:flex;align-items:center;
     justify-content:center;color:color-mix(in srgb,var(--ink) 38%,transparent)}
   .maplibregl-ctrl button.night-toggle.on{color:var(--ink)}
@@ -983,7 +1039,9 @@
     .maplibregl-ctrl-bottom-left{bottom:54px;z-index:1}
     .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group{display:none}
     /* the night switch stays: phones have no other way to it */
-    .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.night-toggle){display:block}
+    .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.night-toggle),
+    .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.filter-toggle){display:block}
+    .filtercard{right:12px;left:12px;width:auto;bottom:auto;top:64px}
   }
   /* The bar spans the map only, so it narrows with the window while the
      column keeps its width: it folds to fit instead of spilling over
@@ -1022,6 +1080,21 @@
 
 <div id="map" aria-label="Live map of aircraft heard by the network"></div>
 <div class="mapnote" id="mapnote"></div>
+<div class="filtercard" id="filtercard" role="dialog" aria-label="Filters" hidden>
+  <button class="cardclose" id="fc-close" aria-label="Close filters">&times;</button>
+  <div class="fc-sec">
+    <div class="fc-h"><span>Altitude</span><span id="fc-altv">All</span></div>
+    <div class="fc-hist" id="fc-hist"></div>
+    <div class="fc-range">
+      <input type="range" id="fc-lo" min="0" max="45000" step="500" aria-label="Lowest altitude">
+      <input type="range" id="fc-hi" min="0" max="45000" step="500" aria-label="Highest altitude">
+    </div>
+  </div>
+  <div class="fc-sec"><div class="fc-h"><span>Aircraft</span></div><div class="fc-kinds" id="fc-kinds"></div></div>
+  <div class="fc-sec"><div class="fc-h"><span>Airline</span></div><div class="fc-airlines" id="fc-airlines"></div></div>
+  <div class="fc-sec"><div class="fc-seg" id="fc-gnd"><button type="button" data-g="all">All</button><button type="button" data-g="air">Airborne</button><button type="button" data-g="ground">On ground</button></div></div>
+  <div class="fc-foot"><button type="button" id="fc-clear">Clear</button></div>
+</div>
 <div class="intro" id="intro" role="dialog" aria-labelledby="intro-h">
   <button class="cardclose" id="intro-close" aria-label="Close">&times;</button>
   <h2 id="intro-h">We draw the sky over our homes</h2>
@@ -1313,6 +1386,7 @@
         <input id="search" type="search" placeholder="Callsign, type, registration"
                autocomplete="off" spellcheck="false" aria-label="Search aircraft">
       </div>
+      <div class="filterline" id="filter-line" hidden><span></span><button type="button" id="filter-clear">Clear</button></div>
       <div class="blockhead caps listhead"><span class="h-who" id="list-head"></span><span class="h-route">route</span><span class="h-alt">ft</span></div>
       <ul class="aclist" id="aclist"></ul>
     </div>
@@ -2070,6 +2144,134 @@
     }, 60000);
     nightSync(map);
   }
+  // The filter card: one small panel over the map, drawn from what is
+  // in view — the altitude histogram, the classes as silhouettes, the
+  // airlines as tails — so it reads without a manual.
+  function applyFilter() {
+    saveFilter();
+    gpuSync();
+    pushPositions();
+    renderList();
+    paintFilterCard();
+    var b = document.querySelector(".filter-toggle");
+    if (b) b.classList.toggle("on", filterActive());
+  }
+  function inViewNow() {
+    return state.aircraft.filter(function (a) { return a.lat != null && inView(a); });
+  }
+  function fmtFt(v) {
+    return v >= ALT_TOP ? "45,000+" : v.toLocaleString();
+  }
+  function paintFilterCard() {
+    var card = el("filtercard");
+    if (!card || card.hidden) return;
+    var f = skyFilter, sky = inViewNow();
+    // altitude: 2,500 ft bands over the traffic in view, ground first
+    var bins = new Array(19).fill(0);
+    sky.forEach(function (a) {
+      if (a.alt_baro === "ground") bins[0]++;
+      else if (typeof a.alt_baro === "number") {
+        bins[1 + Math.min(17, Math.max(0, Math.floor(a.alt_baro / 2500)))]++;
+      }
+    });
+    var top = Math.max.apply(null, bins) || 1;
+    el("fc-hist").innerHTML = bins.map(function (n, i) {
+      var lo = i === 0 ? 0 : (i - 1) * 2500, hi = i === 0 ? 0 : i * 2500;
+      var inside = i === 0 ? f.lo === 0 && f.gnd !== "air"
+        : hi > f.lo && (f.hi >= ALT_TOP || lo < f.hi);
+      return "<i class='" + (i === 0 ? "g " : "") + (inside ? "in" : "") +
+        "' style='height:" + Math.max(2, Math.round(n / top * 100)) + "%'></i>";
+    }).join("");
+    el("fc-lo").value = f.lo; el("fc-hi").value = f.hi;
+    el("fc-altv").textContent = f.lo === 0 && f.hi >= ALT_TOP ? "All"
+      : fmtFt(f.lo) + " – " + fmtFt(f.hi) + " ft";
+    // classes
+    el("fc-kinds").innerHTML = Object.keys(SKY_KINDS).map(function (k) {
+      var on = f.kinds.indexOf(k) >= 0;
+      return "<button type='button' data-k='" + k + "' class='" + (on ? "on" : "") +
+        "' aria-pressed='" + on + "' title='" + SKY_KINDS[k] + "' aria-label='" +
+        SKY_KINDS[k] + "'><img alt='' src='assets/icons/" + k + ".png'></button>";
+    }).join("");
+    // airlines in the sky, busiest first; the chosen one always shown
+    var count = {};
+    sky.forEach(function (a) { var op = operatorOf(a); if (op) count[op] = (count[op] || 0) + 1; });
+    var ops = Object.keys(count).sort(function (x, y) { return count[y] - count[x]; }).slice(0, 12);
+    if (f.al && ops.indexOf(f.al) < 0) ops.unshift(f.al);
+    el("fc-airlines").innerHTML = ops.length ? ops.map(function (op) {
+      var url = window.__tailURL(op), on = f.al === op;
+      var name = operatorName(op) || op;
+      return "<button type='button' data-al='" + op + "' class='" + (on ? "on" : "") +
+        "' aria-pressed='" + on + "' title='" + esc(name) + "'>" +
+        (url ? "<img alt='' src='" + esc(url) + "'>" : "") + "<span>" + op + "</span></button>";
+    }).join("") : "<span class='fc-none'>No airlines in view</span>";
+    [].forEach.call(el("fc-gnd").children, function (b) {
+      var on = b.getAttribute("data-g") === f.gnd;
+      b.classList.toggle("on", on); b.setAttribute("aria-pressed", on);
+    });
+  }
+  function toggleFilterCard(open) {
+    var card = el("filtercard");
+    if (!card) return;
+    card.hidden = open === undefined ? !card.hidden : !open;
+    paintFilterCard();
+  }
+  (function wireFilterCard() {
+    var card = el("filtercard");
+    if (!card) return;
+    function range() {
+      var lo = +el("fc-lo").value, hi = +el("fc-hi").value;
+      if (lo > hi) { var t = lo; lo = hi; hi = t; }
+      skyFilter.lo = lo; skyFilter.hi = hi;
+      applyFilter();
+    }
+    el("fc-lo").addEventListener("input", range);
+    el("fc-hi").addEventListener("input", range);
+    card.addEventListener("click", function (e) {
+      var k = e.target.closest("[data-k]"), al = e.target.closest("[data-al]"),
+          g = e.target.closest("[data-g]");
+      if (k) {
+        var kind = k.getAttribute("data-k"), i = skyFilter.kinds.indexOf(kind);
+        if (i >= 0) skyFilter.kinds.splice(i, 1); else skyFilter.kinds.push(kind);
+      } else if (al) {
+        var op = al.getAttribute("data-al");
+        skyFilter.al = skyFilter.al === op ? "" : op;
+      } else if (g) {
+        skyFilter.gnd = g.getAttribute("data-g");
+      } else if (e.target.id === "fc-clear") {
+        skyFilter = { lo: 0, hi: ALT_TOP, kinds: [], al: "", gnd: "all" };
+      } else if (e.target.id === "fc-close") {
+        toggleFilterCard(false); return;
+      } else {
+        return;
+      }
+      applyFilter();
+    });
+    el("filter-clear").addEventListener("click", function () {
+      skyFilter = { lo: 0, hi: ALT_TOP, kinds: [], al: "", gnd: "all" };
+      applyFilter();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !card.hidden) toggleFilterCard(false);
+    });
+  })();
+  function FilterControl(map) { this.map = map; }
+  FilterControl.prototype.onAdd = function () {
+    var box = document.createElement("div");
+    box.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "filter-toggle" + (filterActive() ? " on" : "");
+    b.setAttribute("aria-label", "Filters");
+    b.title = "Filters";
+    b.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">' +
+      '<path d="M3 4.5h14l-5.4 6.3v4.9l-3.2 1.6v-6.5z" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    b.addEventListener("click", function () { toggleFilterCard(); });
+    box.appendChild(b);
+    return box;
+  };
+  FilterControl.prototype.onRemove = function () {};
+
   function NightControl(map) { this.map = map; }
   NightControl.prototype.onAdd = function () {
     var map = this.map;
@@ -2100,6 +2302,150 @@
     return box;
   };
   NightControl.prototype.onRemove = function () {};
+
+  // ---- estimated positions ------------------------------------------
+  // Aircraft the network stopped hearing while cruising, drawn where they
+  // most likely are (/v1/estimated: last position, last speed, toward the
+  // route's destination). Grey ink, never the sky's red, "est" beside
+  // the callsign, a card that says what was observed and when. Never in
+  // the counts or the lists; a switch hides them, remembered here.
+  var est = { on: true, timer: null, data: [] };
+  try { est.on = localStorage.getItem("fp-estimated") !== "0"; } catch (e) {}
+  function greyIcon(bm) {
+    var d = bm.data, c = document.createElement("canvas");
+    c.width = d.width; c.height = d.height;
+    var g = c.getContext("2d");
+    if (d instanceof ImageData) g.putImageData(d, 0, 0);
+    else g.drawImage(d, 0, 0);
+    g.globalCompositeOperation = "source-in";
+    g.fillStyle = "#6B665E";
+    g.fillRect(0, 0, c.width, c.height);
+    return g.getImageData(0, 0, c.width, c.height);
+  }
+  function setupEstimates(map) {
+    ICON_KINDS.forEach(function (k) {
+      if (iconBitmaps[k] && !map.hasImage("est-" + k)) {
+        try {
+          map.addImage("est-" + k, greyIcon(iconBitmaps[k]),
+                       { pixelRatio: iconBitmaps[k].pixelRatio });
+        } catch (e) {}
+      }
+    });
+    map.addSource("estimated", { type: "geojson",
+      data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({ id: "estimated", type: "symbol", source: "estimated",
+      layout: {
+        "icon-image": ["concat", "est-", ["get", "kind"]],
+        "icon-size": 1.0,
+        "icon-rotate": ["coalesce", ["get", "track"], 0],
+        "icon-rotation-alignment": "map",
+        "icon-allow-overlap": true,
+        "visibility": est.on ? "visible" : "none"
+      },
+      paint: { "icon-opacity": 0.55 } });
+    if (map.getStyle().glyphs) {
+      map.addLayer({ id: "estimated-labels", type: "symbol",
+        source: "estimated", minzoom: 5,
+        layout: {
+          "text-field": ["concat", ["get", "flight"], " · est"],
+          "text-font": ["Noto Sans Regular"], "text-size": 11,
+          "text-offset": [0, 1.7], "text-anchor": "top",
+          "text-optional": true,
+          "visibility": est.on ? "visible" : "none"
+        },
+        paint: { "text-color": "rgba(34,31,26,.55)",
+                 "text-halo-color": "rgba(245,241,230,.85)",
+                 "text-halo-width": 1.2 } });
+    }
+    map.on("click", "estimated", function (e) {
+      var hex = e.features[0].properties.hex;
+      var a = est.data.filter(function (x) { return x.hex === hex; })[0];
+      if (a) estimatePopup(map, a);
+    });
+    map.on("mouseenter", "estimated", function () {
+      map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", "estimated", function () {
+      map.getCanvas().style.cursor = ""; });
+    map.addControl(new EstimateControl(map), "bottom-right");
+    pollEstimates(map);
+    est.timer = setInterval(function () { pollEstimates(map); }, 30000);
+  }
+  function pollEstimates(map) {
+    if (!est.on || document.hidden || !map.getSource("estimated")) return;
+    fetch(API + "/v1/estimated").then(function (r) {
+      return r.ok ? r.json() : { aircraft: [] };
+    }).then(function (d) {
+      // an aircraft the sky hears again is live, never drawn twice
+      var live = {};
+      (state.aircraft || []).forEach(function (a) { live[a.hex] = 1; });
+      est.data = (d.aircraft || []).filter(function (a) { return !live[a.hex]; });
+      map.getSource("estimated").setData({ type: "FeatureCollection",
+        features: est.data.map(function (a) {
+          return { type: "Feature", properties: { hex: a.hex,
+              flight: a.flight || a.hex, track: a.track, kind: iconFor(a) },
+            geometry: { type: "Point", coordinates: [a.lon, a.lat] } };
+        }) });
+    }).catch(function () {});
+  }
+  function hhmm(t) {
+    return new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit",
+      minute: "2-digit" });
+  }
+  function estimatePopup(map, a) {
+    var ago = Math.max(1, Math.round((Date.now() / 1000 - a.last_seen.at) / 60));
+    var alt = typeof a.alt_baro === "number"
+      ? (a.alt_baro >= 10000 ? "FL" + Math.round(a.alt_baro / 100)
+                             : a.alt_baro.toLocaleString() + " ft") : "";
+    var typeName = (a.t && typeNames[a.t] && typeNames[a.t][0]) || a.t || "";
+    new maplibregl.Popup({ closeButton: true, offset: 14, maxWidth: "280px" })
+      .setLngLat([a.lon, a.lat])
+      .setHTML("<div style='font-size:16px'>" + esc(a.flight || a.hex) +
+        " <span style='color:var(--quiet)'>estimated</span></div>" +
+        "<div>Last heard " + hhmm(a.last_seen.at) + ", " + ago + " min ago</div>" +
+        "<div>Heading for " + esc(a.destination) + ", arriving about " +
+        hhmm(a.eta) + "</div>" +
+        "<div style='color:var(--quiet)'>" + esc([typeName, a.r, alt ? alt + " when last heard" : ""]
+          .filter(Boolean).join(" · ")) + "</div>" +
+        "<div style='margin-top:6px'><a href='plane.html?hex=" + esc(a.hex) +
+        "' style='color:var(--red);text-decoration:none'>Aircraft &rarr;</a></div>" +
+        "<div style='color:var(--quiet);font-size:12.5px;margin-top:6px'>Not observed: " +
+        "placed from its last position, speed and route.</div>")
+      .addTo(map);
+  }
+  function EstimateControl(map) { this.map = map; }
+  EstimateControl.prototype.onAdd = function () {
+    var map = this.map;
+    var box = document.createElement("div");
+    box.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "night-toggle est-toggle";
+    b.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">' +
+      '<circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.6" stroke-dasharray="2.4 2.2"/>' +
+      '<circle cx="10" cy="10" r="1.8" fill="currentColor"/></svg>';
+    function paint() {
+      b.classList.toggle("on", est.on);
+      b.setAttribute("aria-pressed", est.on ? "true" : "false");
+      b.setAttribute("aria-label", est.on ? "Hide estimated positions"
+                                          : "Show estimated positions");
+      b.title = b.getAttribute("aria-label");
+    }
+    b.addEventListener("click", function () {
+      est.on = !est.on;
+      try { localStorage.setItem("fp-estimated", est.on ? "1" : "0"); } catch (e) {}
+      ["estimated", "estimated-labels"].forEach(function (id) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility",
+                                                   est.on ? "visible" : "none");
+      });
+      paint();
+      if (est.on) pollEstimates(map);
+    });
+    paint();
+    box.appendChild(b);
+    return box;
+  };
+  EstimateControl.prototype.onRemove = function () {};
 
   // Where the map opens. A returning visitor finds the view they left;
   // a first visit opens on the whole world turned to their side of it
@@ -2183,6 +2529,7 @@
       // as flight paths; the sky owns dashed lines here
       if (map.getLayer("ferry")) map.setLayoutProperty("ferry", "visibility", "none");
       addNight(map);
+      map.addControl(new FilterControl(map), "bottom-right");
       map.addSource("aircraft", { type: "geojson",
         data: { type: "FeatureCollection", features: [] } });
       map.addSource("trail", { type: "geojson",
@@ -2296,6 +2643,7 @@
         if (hoverHex) { el("tip").style.display = "none"; hoverHex = null; }
       });
       gpuStart();
+      setupEstimates(map);
 
       // Airports: fixed quiet marks under the moving sky — paper
       // beacons ringed in ink, every one a door into the airport card.
@@ -3356,6 +3704,62 @@
   // drawn ranks a little higher, so one near the cut does not flicker;
   // and the selected aircraft and emergency squawks always stay. Close
   // in (SKY_BUDGET_MAXZOOM) overlap is real proximity and all are drawn.
+  // Filters: which aircraft the visitor asked to see. Applied before the
+  // budget, so narrowing the sky brings back aircraft the budget had
+  // held back. Kept in the URL (a filtered view is shareable) and per
+  // browser; the selected aircraft always passes.
+  var ALT_TOP = 45000;
+  var SKY_KINDS = { narrow: "Narrowbody", wide: "Widebody",
+    wide4: "Four-engine widebody", bizjet: "Business jet",
+    prop: "Turboprop", ga: "Light aircraft", heli: "Helicopter" };
+  var skyFilter = readFilter();
+  function readFilter() {
+    var f = { lo: 0, hi: ALT_TOP, kinds: [], al: "", gnd: "all" };
+    var q = new URLSearchParams(location.search), src = null;
+    if (q.has("fa") || q.has("fk") || q.has("fl") || q.has("fg")) {
+      src = { fa: q.get("fa"), fk: q.get("fk"), fl: q.get("fl"), fg: q.get("fg") };
+    } else {
+      try { src = JSON.parse(localStorage.getItem("fp-filter") || "null"); } catch (e) {}
+    }
+    if (!src) return f;
+    var fa = /^(\d+)-(\d+)$/.exec(src.fa || "");
+    if (fa) { f.lo = Math.min(+fa[1], ALT_TOP); f.hi = Math.min(Math.max(+fa[2], f.lo), ALT_TOP); }
+    f.kinds = String(src.fk || "").split(".").filter(function (k) { return SKY_KINDS[k]; });
+    f.al = /^[A-Z]{3}$/.test(src.fl || "") ? src.fl : "";
+    f.gnd = src.fg === "air" || src.fg === "ground" ? src.fg : "all";
+    return f;
+  }
+  function filterParams(f) {
+    var o = {};
+    if (f.lo > 0 || f.hi < ALT_TOP) o.fa = f.lo + "-" + f.hi;
+    if (f.kinds.length) o.fk = f.kinds.join(".");
+    if (f.al) o.fl = f.al;
+    if (f.gnd !== "all") o.fg = f.gnd;
+    return o;
+  }
+  function filterActive() { return Object.keys(filterParams(skyFilter)).length > 0; }
+  function saveFilter() {
+    var o = filterParams(skyFilter), q = new URLSearchParams(location.search);
+    ["fa", "fk", "fl", "fg"].forEach(function (k) {
+      if (o[k]) q.set(k, o[k]); else q.delete(k);
+    });
+    var qs = q.toString();
+    if (history.replaceState) {
+      history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+    }
+    try { localStorage.setItem("fp-filter", JSON.stringify(o)); } catch (e) {}
+  }
+  function passesFilter(a) {
+    if (a.hex === state.selected) return true;
+    var f = skyFilter, ground = a.alt_baro === "ground";
+    if (f.gnd === "air" && ground) return false;
+    if (f.gnd === "ground" && !ground) return false;
+    var alt = ground ? 0 : (typeof a.alt_baro === "number" ? a.alt_baro : null);
+    if (alt != null && (alt < f.lo || (f.hi < ALT_TOP && alt > f.hi))) return false;
+    if (f.kinds.length && f.kinds.indexOf(iconFor(a)) < 0) return false;
+    if (f.al && operatorOf(a) !== f.al) return false;
+    return true;
+  }
   var SKY_CELL = 64, SKY_PX_PER_AIRCRAFT = 700, SKY_BUDGET_MAXZOOM = 11;
   var skyShown = {}, skyGone = {};
   function skyRank(a) {
@@ -3457,7 +3861,8 @@
       }
       cands.push(a);
     });
-    var keep = skyBudget(cands), nowS = Date.now() / 1000 - gpu.epoch;
+    var keep = skyBudget(cands.filter(passesFilter));
+    var nowS = Date.now() / 1000 - gpu.epoch;
     var shown = {}, fading = false;
     cands.forEach(function (a) {
       var uv = gpu.uv[iconFor(a)] || gpu.uv.narrow;
@@ -3554,7 +3959,8 @@
       inBox.push([a, c]);
     });
     // labels (and the icon fallback) follow the same drawn sky
-    var keep = skyBudget(inBox.map(function (p) { return p[0]; }));
+    var keep = skyBudget(inBox.map(function (p) { return p[0]; })
+      .filter(passesFilter));
     inBox.forEach(function (p) {
       var a = p[0], c = p[1];
       if (!keep.has(a.hex)) return;
@@ -3877,14 +4283,23 @@
     var ul = el("aclist");
     var head = el("list-head");
     var q = el("search").value.trim();
-    var list = q ? filteredAircraft() : state.aircraft.filter(inView);
+    if (el("filtercard") && !el("filtercard").hidden) paintFilterCard();
+    var unfiltered = q ? filteredAircraft() : state.aircraft.filter(inView);
+    var list = unfiltered.filter(passesFilter);
     head.textContent = q ? "Matching" : "In view";
+    var fl = el("filter-line");
+    if (fl) {
+      fl.hidden = !filterActive();
+      fl.firstChild.textContent = list.length + " of " + unfiltered.length;
+    }
     if (!list.length) {
       ul.innerHTML = "";
       ul.dataset.key = "";
       var li = document.createElement("li");
       li.className = "empty";
-      li.textContent = q ? "Nothing matches that search."
+      li.textContent = unfiltered.length && filterActive()
+        ? "Nothing here matches the filters."
+        : q ? "Nothing matches that search."
         : (state.aircraft.length ? "Nothing in view. Pan the map."
                                  : "A quiet sky right now.");
       ul.appendChild(li);
