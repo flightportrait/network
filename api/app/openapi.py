@@ -62,7 +62,10 @@ DESCRIPTION = (
     "operation notes its bucket and default limit. 429 means wait for "
     "`Retry-After` seconds.\n"
     "\n"
-    "Data is ODbL 1.0. Credit \"FlightPortrait network feeders\".\n"
+    "Data is ODbL 1.0. Credit \"FlightPortrait network feeders\" and link "
+    "the credits page, which lists every source the data draws on and "
+    "the credit each one asks for; republishing carries them too.\n"
+    "Credits: https://flightportrait.com/network/credits.html\n"
     "Terms: https://flightportrait.com/network/terms"
 )
 
@@ -743,9 +746,13 @@ SCH_INDEX = _obj({
     "swagger": _t("string", "Interactive spec UI path."),
     "source": _t("string", "Public repository (map client and API service)."),
     "terms": _t("string"),
-    "attribution": _t("string", "The ODbL credit line."),
+    "attribution": _t("string", "The short credit line; the credits page "
+                                "holds each source's own credit."),
+    "credits": _t("string", "Every source the data draws on, with its "
+                            "licence and credit."),
     "feed": _t("string", "Where to point an antenna."),
-}, required=["name", "docs", "openapi", "terms", "attribution", "feed"])
+}, required=["name", "docs", "openapi", "terms", "attribution", "credits",
+             "feed"])
 
 SCH_HEALTHZ = _obj({"ok": _t("boolean")}, required=["ok"])
 
@@ -756,7 +763,9 @@ EX_INDEX = {
     "swagger": "/docs",
     "source": "https://github.com/flightportrait/network",
     "terms": "https://flightportrait.com/network/terms",
-    "attribution": "Data (c) FlightPortrait network feeders, ODbL 1.0",
+    "attribution": "Data (c) FlightPortrait network feeders and credited "
+                   "sources, ODbL 1.0",
+    "credits": "https://flightportrait.com/network/credits.html",
     "feed": "feed.flightportrait.com:30004 (beast_reduce_plus_out)",
 }
 

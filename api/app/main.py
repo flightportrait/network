@@ -162,7 +162,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
 
     @app.get("/", tags=["Meta"], summary="Index",
              description="Name, docs, spec, source, terms, attribution, "
-                         "and the feed address.",
+                         "credits, and the feed address.",
              operation_id="index",
              responses=spec.ok(spec.EX_INDEX, schema=spec.SCH_INDEX),
              openapi_extra=spec.HIDDEN)
@@ -175,6 +175,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
             "source": settings.source_url,
             "terms": settings.terms_url,
             "attribution": settings.attribution,
+            "credits": settings.credits_url,
             "feed": "feed.flightportrait.com:30004 (beast_reduce_plus_out)",
         }
 

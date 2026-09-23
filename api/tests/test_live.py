@@ -26,6 +26,7 @@ def test_healthz_and_index(ctx):
     assert index["source"] == "https://github.com/flightportrait/network"
     assert "feed.flightportrait.com" in index["feed"]
     assert "ODbL" in index["attribution"]
+    assert index["credits"].endswith("/network/credits.html")
 
 
 def test_now_counts_and_cache(ctx):

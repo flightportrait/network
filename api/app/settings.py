@@ -199,7 +199,12 @@ class Settings:
         "https://flightportrait.com/network/terms"))
     attribution: str = field(default_factory=lambda: _env(
         "NETWORK_API_ATTRIBUTION",
-        "Data (c) FlightPortrait network feeders, ODbL 1.0"))
+        "Data (c) FlightPortrait network feeders and credited sources, "
+        "ODbL 1.0"))
+    # Every source the served data draws on, with its licence and credit.
+    credits_url: str = field(default_factory=lambda: _env(
+        "NETWORK_API_CREDITS_URL",
+        "https://flightportrait.com/network/credits.html"))
 
     @property
     def cors_origin_list(self):

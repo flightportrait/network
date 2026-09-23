@@ -287,7 +287,7 @@
     }
     if (!html) html = "<div class='empty'>Nothing observed for this airline yet. The log grows nightly.</div>";
     html += "<div class='note foot'>Observed flights from openly licensed trace archives and the network's receivers; " +
-      "a route the archives did not see is not listed. Data ODbL.</div>";
+      "a route the archives did not see is not listed. Data ODbL &middot; <a href=\'/network/credits.html\'>Credits</a>.</div>";
     el("body").innerHTML = html;
 
     var more = el("more-routes");

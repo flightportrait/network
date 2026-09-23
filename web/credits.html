@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlightPortrait network credits</title>
+<meta name="theme-color" content="#F5F1E6">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E;
+    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);
+    font:17px/1.65 Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:640px;margin:0 auto;padding:24px}
+  .caps{font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:12px;letter-spacing:.1em}
+  .topbar{position:sticky;top:0;z-index:5;background:var(--paper);
+    border-bottom:1px solid var(--line)}
+  .topbar .inner{max-width:1000px;margin:0 auto;display:flex;
+    align-items:center;justify-content:space-between;height:56px;
+    padding:0 24px;gap:16px}
+  .wordmark{display:flex;align-items:center;gap:10px;text-decoration:none;
+    color:var(--ink);font-size:16px}
+  .wordmark img{width:22px;height:22px;display:block;border-radius:5px}
+  .wordmark .net{color:var(--quiet)}
+  .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
+  .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
+    white-space:nowrap}
+  .topnav a:hover{color:var(--red)}
+  .back{display:inline-flex;align-items:center;gap:6px;margin-top:28px;
+    color:var(--red);text-decoration:none;font-size:15px}
+  .back::before{content:"\2190"}
+  .back:hover{text-decoration:underline}
+  h1{font-size:34px;line-height:1.1;font-weight:400;margin:24px 0 8px}
+  h2{font-size:19px;font-weight:400;margin:30px 0 8px}
+  p{margin-bottom:12px}
+  a{color:var(--ink)}
+  .meta{color:var(--quiet);font-size:14px;margin-bottom:8px}
+  footer{padding:40px 0;color:var(--quiet);font-size:14px}
+  .src{border-top:1px solid var(--line);padding:14px 0}
+  .src h3{font-size:17px;font-weight:400}
+  .src p{margin:2px 0 0;color:var(--quiet);font-size:15px}
+  .src .credit{color:var(--ink)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="inner">
+    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span class="net">network</span></a>
+    <nav class="topnav" aria-label="Network">
+      <a href="/network/">Live map</a>
+      <a href="/network/?mode=airlines">Airlines</a>
+      <a href="/network/?mode=join">Join</a>
+      <a href="/network/search.html">Search</a>
+      <a href="https://docs.flightportrait.com">Docs</a>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+
+  <a class="back" href="/network/" id="back">Back to the map</a>
+  <h1>Credits.</h1>
+  <p class="meta">Where the network's data comes from, and the licence each part arrives under. What we serve is published as open data under ODbL 1.0; every source below keeps its own credit, and anyone republishing our data carries these credits with it.</p>
+
+  <h2>Our own data</h2>
+  <div class="src">
+    <h3><a href="/network/?mode=join">FlightPortrait network feeders</a></h3>
+    <p>Live positions, flights, routes, each aircraft's history and the emergency codes it squawked.</p>
+    <p class="credit">Data &copy; FlightPortrait network feeders, <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a></p>
+  </div>
+  <div class="src">
+    <h3><a href="https://adsb.lol">adsb.lol</a></h3>
+    <p>The daily archive our flight history and routes are built from.</p>
+    <p class="credit">&copy; adsb.lol, <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a></p>
+  </div>
+
+  <h2>Aircraft and registries</h2>
+  <div class="src">
+    <h3><a href="https://github.com/Mictronics/aircraft-database">Mictronics aircraft database</a>, via <a href="https://github.com/wiedehopf/tar1090-db">tar1090-db</a></h3>
+    <p>Registrations, aircraft types, owners and build years.</p>
+    <p class="credit">Mictronics aircraft database, <a href="https://opendatacommons.org/licenses/by/1-0/">ODC-By 1.0</a></p>
+  </div>
+  <div class="src">
+    <h3><a href="https://registry.faa.gov/aircraftinquiry/">FAA Aircraft Registry</a></h3>
+    <p>For US aircraft: serial numbers, build years, registration and airworthiness dates, models and engines.</p>
+    <p class="credit">US Federal Aviation Administration, public domain</p>
+  </div>
+  <div class="src">
+    <h3><a href="https://open.canada.ca/data/en/dataset/a348c1d1-2392-4595-b5e2-c6a244a7e87f">Transport Canada CADORS</a></h3>
+    <p>Occurrence reports for aircraft in Canadian airspace or at Canadian aerodromes.</p>
+    <p class="credit">Contains information licensed under the <a href="https://open.canada.ca/en/open-government-licence-canada">Open Government Licence &ndash; Canada</a></p>
+  </div>
+  <div class="src">
+    <h3>ICAO Annex 10</h3>
+    <p>The country of registration, read from the block each aircraft address belongs to.</p>
+    <p class="credit">International Civil Aviation Organization address allocation</p>
+  </div>
+
+  <h2>Airports and airlines</h2>
+  <div class="src">
+    <h3><a href="https://ourairports.com">OurAirports</a></h3>
+    <p>Airports, their names, codes and positions.</p>
+    <p class="credit">OurAirports, public domain</p>
+  </div>
+  <div class="src">
+    <h3><a href="https://openflights.org/data">OpenFlights</a></h3>
+    <p>Airport time zones and airline names.</p>
+    <p class="credit">OpenFlights, <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a> and <a href="https://opendatacommons.org/licenses/dbcl/1-0/">DbCL 1.0</a></p>
+  </div>
+  <div class="src">
+    <h3><a href="https://github.com/vradarserver/standing-data">Virtual Radar Server standing data</a></h3>
+    <p>Airline designators and names.</p>
+    <p class="credit"><a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0</a></p>
+  </div>
+  <div class="src">
+    <h3>Star Alliance, SkyTeam and oneworld</h3>
+    <p>Alliance membership, from each alliance's published member list.</p>
+  </div>
+
+  <h2>Map and photos</h2>
+  <div class="src">
+    <h3><a href="https://openfreemap.org">OpenFreeMap</a></h3>
+    <p>The basemap.</p>
+    <p class="credit">OpenFreeMap, <a href="https://openmaptiles.org">&copy; OpenMapTiles</a>, data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></p>
+  </div>
+  <div class="src">
+    <h3><a href="https://www.planespotters.net">planespotters.net</a></h3>
+    <p>Aircraft photos, each credited to its photographer and linked where it appears.</p>
+  </div>
+
+  <footer>Something missing or credited wrong: hello@flightportrait.com &middot; <a href="/network/terms.html">Feeder terms</a> &middot; <a href="/network/privacy.html">Privacy</a></footer>
+  <p><a class="back" href="/network/" id="back-foot">Back to the map</a></p>
+</div>
+<script>
+  // Arrived from the map or its menu: going back restores where they
+  // were (mode, card, position). Arrived from anywhere else: the map.
+  (function () {
+    var fromNetwork = /\/network\/?(\?|#|$)/.test(document.referrer) &&
+      history.length > 1;
+    if (!fromNetwork) return;
+    ["back", "back-foot"].forEach(function (id) {
+      document.getElementById(id).addEventListener("click", function (e) {
+        e.preventDefault(); history.back();
+      });
+    });
+  })();
+</script>
+</body>
+</html>
