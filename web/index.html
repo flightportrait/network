@@ -148,6 +148,7 @@
     box-shadow:0 4px 24px color-mix(in srgb,var(--shade) 18%,transparent);
     font-size:13px}
   .filtercard .cardclose{top:6px;right:8px}
+  .filtercard .fc-sec:first-of-type .fc-h{padding-right:28px}
   .fc-sec{margin-bottom:12px}
   .fc-h{display:flex;justify-content:space-between;align-items:baseline;
     margin-bottom:6px;color:var(--quiet)}
@@ -1134,16 +1135,23 @@
     .viewpill button{font-size:11.5px;padding:6px 13px}
     /* Attribution above the tab bar, UNDER the sheet; zoom buttons off
        (pinch is the mobile zoom). */
-    .maplibregl-ctrl-bottom-right{bottom:54px;z-index:1}
-    .maplibregl-ctrl-bottom-left{bottom:54px;z-index:1}
+    /* above the sheet's 150 px peek (and the tab bar under it), so the
+       stack of map buttons never slips behind it */
+    .maplibregl-ctrl-bottom-right{bottom:calc(212px + env(safe-area-inset-bottom));z-index:1}
+    .maplibregl-ctrl-bottom-left{bottom:calc(204px + env(safe-area-inset-bottom));z-index:1}
     .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group{display:none}
     /* the night switch stays: phones have no other way to it */
     .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.night-toggle),
     .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.filter-toggle),
     .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.replay-toggle){display:block}
-    .replaybar{left:8px;right:8px;top:62px;bottom:auto;flex-wrap:wrap;gap:8px 10px;padding:8px 10px}
+    .replaybar{left:8px;right:8px;top:62px;bottom:auto;flex-wrap:wrap;gap:6px 8px;padding:8px 10px}
     .rp-track{order:5;flex-basis:100%}
     .rp-speeds button[data-s="1"]{display:none}
+    .rp-clock{min-width:0;flex:1}
+    .rp-time{font-size:20px}
+    .rp-date{font-size:11px}
+    .rp-speeds button{padding:4px 6px}
+    .rp-live{padding:4px 8px}
     .filtercard{right:12px;left:12px;width:auto;bottom:auto;top:64px}
   }
   /* The bar spans the map only, so it narrows with the window while the
@@ -2835,6 +2843,12 @@
         if (hoverHex) { el("tip").style.display = "none"; hoverHex = null; }
       });
       gpuStart();
+      // on a phone the credits start folded behind their (i), still one
+      // tap away; expanded they cover the foot of the map above the sheet
+      if (window.matchMedia && window.matchMedia("(max-width: 760px)").matches) {
+        var attrib = document.querySelector(".maplibregl-ctrl-attrib");
+        if (attrib) attrib.classList.remove("maplibregl-compact-show");
+      }
       var linked = new URLSearchParams(location.search);
       if (linked.get("t") && isFinite(Date.parse(linked.get("t")))) {
         var sp = +linked.get("speed");
