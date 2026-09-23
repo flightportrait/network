@@ -239,6 +239,31 @@
   .rp-live{flex:none;color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
   .rp-days button:not(:disabled):hover,.rp-speeds button:hover,.rp-live:hover{border-color:var(--ink)}
   @media(max-width:1100px){.rp-speeds button[data-s="1"],.rp-days{display:none}}
+  .rflight{margin:10px 0 4px;padding-top:10px;border-top:1px solid var(--line);
+    font-size:12.5px}
+  .rf-times{display:flex;justify-content:space-between;color:var(--quiet);
+    font-variant-numeric:tabular-nums;margin-bottom:6px}
+  .rf-bar{position:relative;height:14px;cursor:ew-resize;touch-action:none}
+  .rf-bar::before{content:"";position:absolute;left:0;right:0;top:6px;height:2px;
+    background:var(--line);border-radius:1px}
+  .rf-bar i{position:absolute;left:0;top:6px;height:2px;background:var(--red);
+    border-radius:1px}
+  .rf-bar b{position:absolute;top:2px;width:10px;height:10px;margin-left:-5px;
+    border-radius:50%;background:var(--red)}
+  .rf-profile{position:relative;height:44px;margin-top:6px;cursor:ew-resize;
+    touch-action:none}
+  .rf-profile svg{width:100%;height:100%;display:block}
+  .rf-profile .rf-all{fill:none;stroke:var(--line);stroke-width:1.4;
+    vector-effect:non-scaling-stroke}
+  .rf-profile .rf-done{fill:none;stroke:var(--ink);stroke-width:1.6;
+    vector-effect:non-scaling-stroke}
+  .rf-mark{position:absolute;top:0;bottom:0;width:1px;background:var(--red);
+    pointer-events:none}
+  .rf-foot{display:flex;justify-content:space-between;align-items:center;
+    margin-top:4px;color:var(--quiet)}
+  .rf-foot button{font:inherit;color:inherit;background:none;cursor:pointer;
+    border:1px solid var(--line);border-radius:6px;padding:2px 9px}
+  .rf-foot button.on{color:var(--red);border-color:var(--red)}
   .filterline{display:flex;justify-content:space-between;align-items:center;
     margin:2px 20px 6px;font-size:13px;color:var(--quiet)}
   .filterline button{font:inherit;color:var(--red);background:none;border:none;
@@ -1195,6 +1220,12 @@
   <a class="dhist" id="d-hist" href="#" hidden></a>
   <div class="photo" id="d-photo"></div>
   <div class="route" id="d-route"></div>
+  <div class="rflight" id="d-replay" hidden>
+    <div class="rf-times"><span id="d-rf-from"></span><span id="d-rf-to"></span></div>
+    <div class="rf-bar" id="d-rf-bar"><i id="d-rf-fill"></i><b id="d-rf-knob"></b></div>
+    <div class="rf-profile" id="d-rf-profile"></div>
+    <div class="rf-foot"><span id="d-rf-top"></span><button type="button" id="d-rf-follow" aria-pressed="false">Follow</button></div>
+  </div>
   <div class="links"><a id="d-history" class="hist" href="#">Airframe history</a><a id="d-flightlog" class="hist" href="#" hidden>Flight log</a></div>
   <div class="grid" id="d-grid"></div>
 </div>
@@ -1857,6 +1888,12 @@
   }
   // where night starts to show and where it is complete (sun altitude)
   var NIGHT_FROM = 0.5, NIGHT_FULL = -10;
+  // dusk before the swap: the day map dims from just above the horizon
+  // to civil twilight's end; golden light reaches a few degrees higher
+  // and the night palette takes over from a little below it (the
+  // planes and the page still turn at NIGHT_FROM)
+  var TWILIGHT_DIM_FROM = 1.5, TWILIGHT_DIM_TO = -6, TWILIGHT_FROM = 7,
+      TWILIGHT_SWAP_FROM = -1.5;
   // the night map's two ends, as linear RGB: the darkest tone (open
   // water) and the lightest before roads and lights (land). Dark enough
   // for the city lights to glow, light enough that coast and land still
@@ -1903,15 +1940,37 @@
     "  vec2 uv = gl_FragCoord.xy / u_size;" +
     "  vec3 full = texture2D(u_full, uv).rgb;" +   // the day map as drawn
     "  float alt = sunAlt(v_merc, u_sun);" +
+    // Twilight in stages, the way dusk actually falls, instead of one
+    // crossfade from paper to navy (which went through a muddy grey
+    // with every label doubled):
+    //   warm  the day map takes low golden light while the sun is
+    //         still up, strongest a couple of degrees above the horizon
+    //   dim   past sunset the day map darkens and cools, multiplied,
+    //         so it is already near the night's lightness ...
+    //   n     ... when the night palette takes over underneath it
+    //   rose  a faint rose band just past the terminator, where the
+    //         sky is still lit from below the horizon
+    //   lights come on over the dimmed dusk, not after the swap
+    // Labels switch palette over a narrow part of the swap instead of
+    // fading through each other.
+    "  float warm = u_amount * exp(-pow((alt - 2.0) / 2.6, 2.0));" +
+    "  float dim = u_amount * (1.0 - smoothstep(" + TWILIGHT_DIM_TO.toFixed(1) +
+          ", " + TWILIGHT_DIM_FROM.toFixed(1) + ", alt));" +
     "  float n = (1.0 - smoothstep(" + NIGHT_FULL.toFixed(1) + ", " +
-          NIGHT_FROM.toFixed(1) + ", alt)) * u_amount;" +
-    // golden hour: a faint amber band where the sun sits on the
-    // horizon, so the terminator reads as a place, not a blur
-    "  float gold = u_amount * exp(-pow((alt + 1.0) / 2.4, 2.0));" +
-    "  if ((n <= 0.0 && gold < 0.01) || v_merc.y < 0.0 || v_merc.y > 1.0) {" +
+          TWILIGHT_SWAP_FROM.toFixed(1) + ", alt)) * u_amount;" +
+    "  float rose = u_amount * exp(-pow((alt + 2.5) / 2.2, 2.0));" +
+    "  float lights = u_amount * (1.0 - smoothstep(-6.5, -1.0, alt));" +
+    "  if ((warm < 0.03 && dim <= 0.0 && n <= 0.0) ||" +
+    "      v_merc.y < 0.0 || v_merc.y > 1.0) {" +
     "    gl_FragColor = vec4(full, 1.0); return; }" +
     "  vec3 base = texture2D(u_base, uv).rgb;" +   // shapes, no labels
     "  vec3 lit = texture2D(u_lit, uv).rgb;" +     // Black Marble
+    // dusk light over the day map: golden while the sun is up, then
+    // dimmed and cooled toward slate, a touch of rose at the edge
+    "  vec3 tint = mix(vec3(1.0), vec3(1.0, 0.90, 0.74), warm * 0.55);" +
+    "  tint *= mix(vec3(1.0), vec3(0.42, 0.43, 0.56), dim);" +
+    "  tint *= mix(vec3(1.0), vec3(1.10, 0.90, 1.02), rose * 0.45);" +
+    "  vec3 dayBase = base * tint, dayFull = full * tint;" +
     // the basemap's lightness order kept, dropped into ink-navy:
     // water darkest, land above it, white roads faintly lit and warm
     "  float L = dot(base, LUM);" +
@@ -1920,20 +1979,21 @@
     "                 smoothstep(0.62, 1.0, L));" +
     "  col += c * 0.22 + max(c.r - c.b, 0.0) * vec3(0.22, 0.13, 0.02);" +
     "  col += smoothstep(0.975, 1.0, L) * vec3(0.07, 0.058, 0.04);" +
-    // city lights, screened on
+    "  col *= mix(vec3(1.0), vec3(1.10, 0.92, 1.05), rose * 0.6);" +
+    "  vec3 bg = mix(dayBase, col, n);" +
+    // city lights, screened on as the dusk deepens
     "  float g = smoothstep(0.16, 0.75, dot(lit, LUM));" +
-    "  vec3 glow = g * mix(vec3(1.0, 0.78, 0.46), lit, 0.35);" +
-    "  col = 1.0 - (1.0 - col) * (1.0 - glow);" +
-    // labels: whatever the label pass changed, lightness inverted, so
-    // ink text on paper halos becomes paper text on ink halos
+    "  vec3 glow = g * lights * mix(vec3(1.0, 0.78, 0.46), lit, 0.35);" +
+    "  bg = 1.0 - (1.0 - bg) * (1.0 - glow);" +
+    // labels: whatever the label pass changed. By day, the dusk-lit
+    // label as drawn; by night, lightness inverted, so ink text on
+    // paper halos becomes paper text on ink halos
     "  vec3 d = abs(full - base);" +
     "  float lab = smoothstep(0.02, 0.14, max(d.r, max(d.g, d.b)));" +
     "  vec3 txt = mix(vec3(0.94, 0.91, 0.84), vec3(0.05, 0.06, 0.085)," +
     "                 dot(full, LUM));" +
-    "  col = mix(col, txt, lab);" +
-    "  vec3 outc = mix(full, col, n);" +
-    "  outc = mix(outc, outc * vec3(1.0, 0.86, 0.70) + vec3(0.10, 0.05, 0.0)," +
-    "             gold * 0.5);" +
+    "  vec3 labc = mix(dayFull, txt, smoothstep(0.4, 0.6, n));" +
+    "  vec3 outc = mix(bg, labc, lab);" +
     "  gl_FragColor = vec4(outc, 1.0); }";
   function nightShader(gl, vs, fs) {
     function sh(type, src) {
@@ -2057,7 +2117,7 @@
     for (var i = 0; i <= 6; i++) {
       for (var j = 0; j <= 6; j++) {
         if (sunAltAt(sun, s + (n - s) * i / 6, w + (e - w) * j / 6) <
-            NIGHT_FROM + 2) return true;
+            TWILIGHT_FROM) return true;
       }
     }
     return false;
@@ -2442,9 +2502,7 @@
                  "text-halo-width": 1.2 } });
     }
     map.on("click", "estimated", function (e) {
-      var hex = e.features[0].properties.hex;
-      var a = est.data.filter(function (x) { return x.hex === hex; })[0];
-      if (a) estimatePopup(map, a);
+      select(e.features[0].properties.hex);
     });
     map.on("mouseenter", "estimated", function () {
       map.getCanvas().style.cursor = "pointer"; });
@@ -2521,26 +2579,22 @@
     return new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit",
       minute: "2-digit" });
   }
-  function estimatePopup(map, a) {
-    var ago = Math.max(1, Math.round((Date.now() / 1000 - a.last_seen.at) / 60));
-    var alt = typeof a.alt_baro === "number"
-      ? (a.alt_baro >= 10000 ? "FL" + Math.round(a.alt_baro / 100)
-                             : a.alt_baro.toLocaleString() + " ft") : "";
-    var typeName = (a.t && typeNames[a.t] && typeNames[a.t][0]) || a.t || "";
-    new maplibregl.Popup({ closeButton: true, offset: 14, maxWidth: "280px" })
-      .setLngLat(glided(a, estElapsed()))
-      .setHTML("<div style='font-size:16px'>" + esc(a.flight || a.hex) +
-        " <span style='color:var(--quiet)'>estimated</span></div>" +
-        "<div>Last heard " + estClock(a.last_seen.at) + ", " + ago + " min ago</div>" +
-        "<div>Heading for " + esc(a.destination) + ", arriving about " +
-        estClock(a.eta) + "</div>" +
-        "<div style='color:var(--quiet)'>" + esc([typeName, a.r, alt ? alt + " when last heard" : ""]
-          .filter(Boolean).join(" · ")) + "</div>" +
-        "<div style='margin-top:6px'><a href='plane.html?hex=" + esc(a.hex) +
-        "' style='color:var(--red);text-decoration:none'>Aircraft &rarr;</a></div>" +
-        "<div style='color:var(--quiet);font-size:12.5px;margin-top:6px'>Not observed: " +
-        "placed from its last position, speed and route.</div>")
-      .addTo(map);
+  // The card's view of an estimate: where it is drawn now, "heard" now
+  // so the trail's live head does not fling it further.
+  function estimateOf(hex) {
+    if (!estShown()) return null;
+    for (var i = 0; i < est.data.length; i++) {
+      if (est.data[i].hex !== hex) continue;
+      var a = est.data[i], p = glided(a, estElapsed()), out = {};
+      for (var k in a) out[k] = a[k];
+      out.lon = p[0]; out.lat = p[1]; out.seen_pos = 0; out._heard = Date.now();
+      return out;
+    }
+    return null;
+  }
+  function estAgo(a) {
+    var m = Math.max(1, Math.round((Date.now() / 1000 - a.last_seen.at) / 60));
+    return m + " min ago";
   }
   function EstimateControl(map) { this.map = map; }
   EstimateControl.prototype.onAdd = function () {
@@ -2604,7 +2658,14 @@
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }),
                    "bottom-right");
-    map.on("dragstart", function () { state.touched = true; });
+    map.on("dragstart", function () {
+      state.touched = true;
+      if (replay.follow) {
+        replay.follow = false;
+        var fb = el("d-rf-follow");
+        if (fb) { fb.classList.remove("on"); fb.setAttribute("aria-pressed", "false"); }
+      }
+    });
     map.on("moveend", function () {
       if (!state.touched) return;
       var c = map.getCenter();
@@ -2727,12 +2788,16 @@
         select(e.features[0].properties.hex, "map");
       });
       map.on("click", function (e) {
+        // an estimate under the tap opens its own card (its layer's
+        // handler); only an empty tap closes the card
+        var onEstimate = map.getLayer("estimated") &&
+          map.queryRenderedFeatures(e.point, { layers: ["estimated"] }).length;
         if (gpu.active) {
           var hit = gpuHit(e.point);
-          if (hit) select(hit, "map"); else deselect();
+          if (hit) select(hit, "map"); else if (!onEstimate) deselect();
           return;
         }
-        if (!map.queryRenderedFeatures(e.point,
+        if (!onEstimate && !map.queryRenderedFeatures(e.point,
               { layers: ["planes"] }).length) deselect();
       });
       map.on("mouseenter", "planes", function () {
@@ -3252,7 +3317,7 @@
       left = kmBetween(now[1], now[0], da[1], da[2]);
       if (a.gs > 60) eta = left / (a.gs * 1.852) * 60;      // minutes
     }
-    var etaDate = eta != null ? new Date(Date.now() + eta * 60000) : null;
+    var etaDate = eta != null ? new Date(skyNow() + eta * 60000) : null;
     // The timeline: the bar is the layout. Each end stacks code, city
     // and zone; under the bar, the time the flight usually keeps at the
     // origin and the estimated arrival; then the distances.
@@ -3300,7 +3365,7 @@
     for (var i = 0; i < state.aircraft.length; i++) {
       if (state.aircraft[i].hex === hex) return state.aircraft[i];
     }
-    return null;
+    return estimateOf(hex);            // lost from the sky, still drawn
   }
 
   // How the camera answers a selection depends on where it came from.
@@ -3476,8 +3541,11 @@
     var posAge = a.seen_pos != null
       ? a.seen_pos + (Date.now() - (a._heard || state.fetchedAt)) / 1000 : null;
     var stale = posAge != null && posAge >= 30;
-    el("d-sub").hidden = !stale;
-    if (stale) {
+    el("d-sub").hidden = !stale && !a.estimated;
+    if (a.estimated) {
+      el("d-sub").innerHTML = "<span class='stale'>estimated position &middot; " +
+        "last heard " + estClock(a.last_seen.at) + ", " + estAgo(a) + "</span>";
+    } else if (stale) {
       el("d-sub").innerHTML = "<span class='stale'>position " +
         Math.round(posAge) + " s old</span>";
     }
@@ -3516,6 +3584,15 @@
       ["Position", a.lat != null
         ? a.lat.toFixed(3) + ", " + a.lon.toFixed(3) : "no fix"]
     );
+    // an estimate says what was last heard and where it is going, and
+    // nothing it cannot know now (climb, squawk)
+    // (the route bar above carries destination and arrival)
+    if (a.estimated) rows = [
+      ["Last altitude", alt],
+      ["Last speed", a.gs != null ? Math.round(a.gs) + " kt" : "–"],
+      ["Hex", a.hex],
+      ["Position", "estimated"]
+    ];
     rows = facts.concat(rows);
     el("d-grid").innerHTML = rows.map(function (r) {
       return "<span class='k'>" + r[0] + "</span><span class='v'>" +
@@ -3529,8 +3606,9 @@
   function updateTrail() {
     if (!state.selected || !map.getSource("trail")) return;
     if (replay.on) {
-      state.trailPts = replayTrail(state.selected);
+      state.trailPts = replayFlightTrail() || replayTrail(state.selected);
       drawTrail();
+      replayFutureLine();
       return;
     }
     // the stream can call this several times a second; the trace grows
@@ -3570,7 +3648,9 @@
           coordinates: [[a[2], a[1]], [b[2], b[1]]] } });
     }
     var sel = state.selected && findAircraft(state.selected);
-    if (sel && sel.lat != null && pts.length) {
+    // the heard trail ends where the aircraft was last heard: no line
+    // is drawn on to an estimate, the route's dotted line says the rest
+    if (sel && sel.lat != null && pts.length && !sel.estimated) {
       var last = pts[pts.length - 1];
       var head = projected(sel);
       var altH = typeof last[3] === "number" ? last[3] : 0;
@@ -3584,7 +3664,8 @@
 
   // ---- motion ---------------------------------------------------------
   function projected(a) {
-    if (a.lat == null || reducedMotion) return [a.lon, a.lat];
+    // playback places every aircraft exactly; only the live sky drifts
+    if (a.lat == null || reducedMotion || replay.on) return [a.lon, a.lat];
     var age = (Date.now() - (a._heard || state.fetchedAt)) / 1000 + (a.seen_pos || 0);
     if (a.gs == null || a.track == null || age > 90) return [a.lon, a.lat];
     var nm = a.gs * Math.min(age, 90) / 3600;
@@ -4528,6 +4609,12 @@
       data: { type: "FeatureCollection", features: [] } });
     var before = map.getLayer("sky-gpu") ? "sky-gpu"
       : (map.getLayer("plane-labels") ? "plane-labels" : undefined);
+    map.addSource("replay-future", { type: "geojson",
+      data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({ id: "replay-future", type: "line", source: "replay-future",
+      layout: { "line-cap": "round" },
+      paint: { "line-color": "rgba(184,64,46,.45)", "line-width": 1.4,
+               "line-dasharray": [1.5, 2.5] } }, before);
     map.addLayer({ id: "replay-tails", type: "line", source: "replay-tails",
       layout: { "line-cap": "round", "line-join": "round" },
       paint: { "line-width": 1.6,
@@ -4561,6 +4648,24 @@
         if (state.selected) { renderDetail(); updateTrail(); }
       }
       if (now - replayWork.tails > 250) { replayWork.tails = now; replayTails(); }
+      if (state.selected && (!replay.flight || replay.flight.hex !== state.selected)) {
+        replayLoadFlight(state.selected);
+      } else if (!state.selected && replay.flight) {
+        replay.flight = null; replayFutureLine(); replayPaintFlight();
+      }
+      if (replay.flight && replay.flight.leg) {
+        var lg = replay.flight.leg;
+        // playing past the leg's ends picks up the aircraft's next leg
+        if ((replay.t > lg[lg.length - 1][0] + 1800 || replay.t < lg[0][0] - 1800) &&
+            Math.abs(replay.t - replay.flight.at) > 1800) {
+          replayLoadFlight(replay.flight.hex);
+        }
+        replayPaintFlight();
+        if (replay.follow) {
+          var fa = findAircraft(replay.flight.hex);
+          if (fa && fa.lat != null && !map.isMoving()) map.jumpTo({ center: [fa.lon, fa.lat] });
+        }
+      }
     }
     if (now - replayWork.night > 1000) { replayWork.night = now; nightSync(map); }
     if (now - replayWork.url > 1500 && !replay.playing) {
@@ -4612,6 +4717,9 @@
     if (map && map.getSource("replay-tails")) {
       map.getSource("replay-tails").setData({ type: "FeatureCollection", features: [] });
     }
+    replay.flight = null;
+    replayFutureLine();
+    replayPaintFlight();
     replaySaveURL();
     var live = replay.live;
     replay.live = null;
@@ -4768,6 +4876,201 @@
     });
     window.addEventListener("resize", function () { if (replay.on) replayPaintRibbon(); });
   })();
+  // ---- playback: the selected flight ---------------------------------
+  // Selecting an aircraft in playback loads its whole day (one track
+  // shard, the neighbouring day's too when the flight crosses midnight),
+  // cuts the day into legs at gaps and ground stops, and takes the leg
+  // under the playhead: flown part solid, the rest faint ahead of it, and
+  // on the card the leg's own timeline and altitude profile, both a place
+  // to scrub. Follow keeps the aircraft in view while it plays.
+  var replayTracks = {};                    // "day/xx" -> shard | promise
+  function replayShard(day, hex) {
+    var key = day + "/" + hex.slice(-2);
+    if (replayTracks[key]) return Promise.resolve(replayTracks[key]);
+    return fetch(REPLAY_BASE + "/" + key.replace("/", "/tracks/") + ".json")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (d) { replayTracks[key] = d || { ac: {} }; return replayTracks[key]; });
+  }
+  function replayHasDay(day) {
+    return (replay.days || []).some(function (d) { return d.day === day; });
+  }
+  // [t, lat, lon, alt (ft, null on the ground), gs] for one aircraft, one day
+  function trackPoints(shard, hex) {
+    var tr = shard && shard.ac[hex];
+    if (!tr) return { pts: [], cs: [], r: "", t: "" };
+    var p = tr[3], pts = [];
+    for (var i = 0; i < p.length; i += 5) {
+      pts.push([shard.t0 + p[i] * shard.step, p[i + 1] / 1e5, p[i + 2] / 1e5,
+                p[i + 3] === REPLAY_GROUND ? null : p[i + 3], p[i + 4]]);
+    }
+    return { pts: pts, r: tr[0], t: tr[1],
+             cs: tr[2].map(function (c) { return [shard.t0 + c[0] * shard.step, c[1]]; }) };
+  }
+  // legs: split at a silence of 20 minutes, or a ground stop of 10
+  function trackLegs(pts) {
+    var legs = [], cur = [];
+    for (var i = 0; i < pts.length; i++) {
+      var p = pts[i], prev = cur[cur.length - 1];
+      if (prev && p[0] - prev[0] > 1200) { legs.push(cur); cur = []; }
+      cur.push(p);
+    }
+    if (cur.length) legs.push(cur);
+    var out = [];
+    legs.forEach(function (leg) {
+      var start = 0, groundFrom = null;
+      for (var j = 0; j < leg.length; j++) {
+        if (leg[j][3] == null) {
+          if (groundFrom === null) groundFrom = j;
+        } else {
+          if (groundFrom !== null && leg[j][0] - leg[groundFrom][0] > 600 && groundFrom > start) {
+            out.push(leg.slice(start, groundFrom + 1));     // landed
+            start = j - 1;                                  // next takeoff roll
+          }
+          groundFrom = null;
+        }
+      }
+      out.push(leg.slice(start));
+    });
+    return out.filter(function (l) {
+      return l.length > 1 && l.some(function (p) { return p[3] != null; });
+    });
+  }
+  function replayLoadFlight(hex) {
+    var t = replay.t, day = replayDay(t);
+    replay.flight = { hex: hex, loading: true };
+    replayShard(day, hex).then(function (sh) {
+      var a = trackPoints(sh, hex), jobs = [];
+      var d0 = Date.parse(day + "T00:00:00Z") / 1000;
+      // a leg that runs into either edge of the day continues next door
+      if (a.pts.length && a.pts[0][0] - d0 < 1800) {
+        var prev = replayDay(d0 - 1);
+        if (replayHasDay(prev)) jobs.push(replayShard(prev, hex).then(function (s) { return trackPoints(s, hex); }));
+      }
+      if (a.pts.length && d0 + 86400 - a.pts[a.pts.length - 1][0] < 1800) {
+        var next = replayDay(d0 + 86400);
+        if (replayHasDay(next)) jobs.push(replayShard(next, hex).then(function (s) { return trackPoints(s, hex); }));
+      }
+      return Promise.all(jobs).then(function (more) {
+        more.forEach(function (m) { a.pts = a.pts.concat(m.pts); a.cs = a.cs.concat(m.cs); });
+        a.pts.sort(function (x, y) { return x[0] - y[0]; });
+        a.cs.sort(function (x, y) { return x[0] - y[0]; });
+        return a;
+      });
+    }).then(function (a) {
+      if (!replay.flight || replay.flight.hex !== hex) return;
+      var legs = trackLegs(a.pts), leg = null;
+      legs.forEach(function (l) {
+        if (!leg && replay.t >= l[0][0] - 60 && replay.t <= l[l.length - 1][0] + 60) leg = l;
+      });
+      if (!leg) {                                         // the nearest one
+        var best = 1e12;
+        legs.forEach(function (l) {
+          var d = Math.min(Math.abs(l[0][0] - replay.t), Math.abs(l[l.length - 1][0] - replay.t));
+          if (d < best) { best = d; leg = l; }
+        });
+      }
+      var mid = leg ? (leg[0][0] + leg[leg.length - 1][0]) / 2 : 0, cs = "";
+      a.cs.forEach(function (c) { if (c[0] <= mid) cs = c[1]; });
+      replay.flight = { hex: hex, leg: leg, cs: cs || (a.cs[0] && a.cs[0][1]) || "",
+                        r: a.r, t: a.t, maxAlt: 0, at: replay.t };
+      if (leg) leg.forEach(function (p) { replay.flight.maxAlt = Math.max(replay.flight.maxAlt, p[3] || 0); });
+      replayPaintFlight(true);
+    });
+  }
+  // the leg's points up to the playhead, for the trail
+  function replayFlightTrail() {
+    var f = replay.flight;
+    if (!f || !f.leg) return null;
+    return f.leg.filter(function (p) { return p[0] <= replay.t; })
+      .map(function (p) { return [p[0], p[1], p[2], p[3] || 0]; });
+  }
+  function replayFutureLine() {
+    if (!map || !map.getSource("replay-future")) return;
+    var f = replay.flight, coords = [];
+    if (f && f.leg && replay.on) {
+      var a = findAircraft(f.hex);
+      if (a && a.lat != null) coords.push([a.lon, a.lat]);
+      f.leg.forEach(function (p) { if (p[0] > replay.t) coords.push([p[2], p[1]]); });
+    }
+    map.getSource("replay-future").setData({ type: "FeatureCollection",
+      features: coords.length > 1 ? [{ type: "Feature", properties: {},
+        geometry: { type: "LineString", coordinates: coords } }] : [] });
+  }
+  // the card's flight block: times, a bar, the altitude profile
+  function replayPaintFlight(rebuild) {
+    var box = el("d-replay");
+    if (!box) return;
+    var f = replay.flight;
+    if (!replay.on || !f || !f.leg || f.hex !== state.selected) {
+      box.hidden = true;
+      return;
+    }
+    var leg = f.leg, t0 = leg[0][0], t1 = leg[leg.length - 1][0];
+    var span = Math.max(60, t1 - t0);
+    box.hidden = false;
+    if (rebuild || box.dataset.leg !== f.hex + t0) {
+      box.dataset.leg = f.hex + t0;
+      var top = Math.max(10000, Math.ceil(f.maxAlt / 5000) * 5000);
+      var W = 280, H = 44, path = "";
+      leg.forEach(function (p, i) {
+        var x = (p[0] - t0) / span * W, y = H - 2 - (p[3] || 0) / top * (H - 6);
+        path += (i ? "L" : "M") + x.toFixed(1) + "," + y.toFixed(1);
+      });
+      var took = leg[0][3] == null, landed = leg[leg.length - 1][3] == null;
+      el("d-rf-from").textContent = clockFmt.format(new Date(t0 * 1000)) + (took ? " takeoff" : "");
+      el("d-rf-to").textContent = (landed ? "landing " : "") + clockFmt.format(new Date(t1 * 1000));
+      el("d-rf-profile").innerHTML =
+        "<svg viewBox='0 0 " + W + " " + H + "' preserveAspectRatio='none'>" +
+        "<defs><clipPath id='rf-flown'><rect id='rf-clip' x='0' y='0' width='0' height='" + H + "'/></clipPath></defs>" +
+        "<path d='" + path + "' class='rf-all'/>" +
+        "<path d='" + path + "' class='rf-done' clip-path='url(#rf-flown)'/></svg>" +
+        "<i class='rf-mark' id='rf-mark'></i>";
+      el("d-rf-top").textContent = (top / 1000) + "k ft";
+      el("d-rf-follow").classList.toggle("on", !!replay.follow);
+    }
+    var x = Math.min(1, Math.max(0, (replay.t - t0) / span));
+    var clip = document.getElementById("rf-clip");
+    if (clip) clip.setAttribute("width", (x * 280).toFixed(1));
+    var mark = el("rf-mark");
+    if (mark) mark.style.left = (x * 100) + "%";
+    el("d-rf-fill").style.width = (x * 100) + "%";
+    el("d-rf-knob").style.left = (x * 100) + "%";
+  }
+  (function wireFlight() {
+    var box = el("d-replay");
+    if (!box) return;
+    function seekFrom(ev, elx) {
+      var f = replay.flight;
+      if (!f || !f.leg) return;
+      var r = elx.getBoundingClientRect();
+      var x = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+      var t0 = f.leg[0][0], t1 = f.leg[f.leg.length - 1][0];
+      replaySeek(t0 + x * (t1 - t0));
+    }
+    ["d-rf-bar", "d-rf-profile"].forEach(function (id) {
+      var elx = el(id);
+      elx.addEventListener("pointerdown", function (ev) {
+        replay.scrubbing = true; elx.setPointerCapture(ev.pointerId); seekFrom(ev, elx);
+      });
+      elx.addEventListener("pointermove", function (ev) { if (replay.scrubbing) seekFrom(ev, elx); });
+      elx.addEventListener("pointerup", function () { replay.scrubbing = false; replaySaveURL(); });
+      elx.addEventListener("pointercancel", function () { replay.scrubbing = false; });
+    });
+    el("d-rf-follow").addEventListener("click", function () {
+      replay.follow = !replay.follow;
+      el("d-rf-follow").classList.toggle("on", replay.follow);
+      el("d-rf-follow").setAttribute("aria-pressed", replay.follow);
+      // from afar there is nothing to follow: come in close enough to
+      // watch the flight, still inside the night view
+      var fa = replay.follow && replay.flight && findAircraft(replay.flight.hex);
+      if (fa && fa.lat != null && map.getZoom() < 5) {
+        map.easeTo({ center: [fa.lon, fa.lat], zoom: 5,
+                     duration: reducedMotion ? 0 : 900 });
+      }
+    });
+  })();
+
   function ReplayControl(map) { this.map = map; }
   ReplayControl.prototype.onAdd = function () {
     var box = document.createElement("div");
@@ -4836,12 +5139,20 @@
     fpSearch(el("q"), el("q-list"), {
       local: function (q) {
         var lq = q.toLowerCase();
-        return state.aircraft.filter(function (a) { return matchesQuery(a, lq); })
+        var hits = state.aircraft.filter(function (a) { return matchesQuery(a, lq); })
           .slice(0, 5).map(function (a) {
             return { kind: "live", id: a.hex,
                      label: (a.flight || "").trim() || (a.r || a.hex.toUpperCase()),
                      detail: [a.r, shortType(a.t)].filter(Boolean).join(" · ") };
           });
+        // estimated aircraft answer too, after the heard ones, said so
+        (estShown() ? est.data : []).filter(function (a) { return matchesQuery(a, lq); })
+          .slice(0, 5 - hits.length).forEach(function (a) {
+            hits.push({ kind: "live", id: a.hex,
+                        label: (a.flight || "").trim() || (a.r || a.hex.toUpperCase()),
+                        detail: ["estimated", a.r, shortType(a.t)].filter(Boolean).join(" · ") });
+          });
+        return hits;
       },
       pick: function (r) {
         if (r.kind !== "live") return false;
