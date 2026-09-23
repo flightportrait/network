@@ -14,7 +14,7 @@ posture sours: DELETE WHERE source = X, re-derive, done.
 import datetime
 
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, \
-    JSON, String, UniqueConstraint
+    JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -459,4 +459,27 @@ class LiveState(Base):
     key: Mapped[str] = mapped_column(String(40), primary_key=True)
     value: Mapped[list | dict] = mapped_column(JSON, nullable=False)
     updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class NatMessage(Base):
+    """One North Atlantic track message as published (app.nat): the
+    day's westbound (Shanwick) or eastbound (Gander) set of tracks, kept
+    so past days can be scored and replayed."""
+    __tablename__ = "nat_messages"
+    __table_args__ = (UniqueConstraint("issuer", "valid_from",
+                                       name="uq_nat_messages"),)
+
+    id: Mapped[int] = mapped_column(PKBigInt, primary_key=True,
+                                    autoincrement=True)
+    issuer: Mapped[str] = mapped_column(String(8), nullable=False)
+    tmi: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    valid_from: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True)
+    valid_to: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False)
+    tracks: Mapped[list] = mapped_column(JSON, nullable=False)
+    # the message as published, so a better parser can re-read old days
+    raw: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fetched_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow)

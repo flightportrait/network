@@ -60,6 +60,9 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
                 import asyncio
                 from .estimate_store import keep
                 tasks.append(asyncio.create_task(keep(app, app.state.estimates)))
+                # the North Atlantic track messages, kept from today on
+                from .nat import collect
+                tasks.append(asyncio.create_task(collect(app)))
         try:
             yield
         finally:
@@ -89,6 +92,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     # estimated positions for aircraft that left coverage: our own sky
     # only, like the squawk watcher (a remote aggregator is not ours)
     app.state.estimates = None
+    app.state.nat = []
     if settings.source_mode != "point":
         from .estimate import EstimateBook
         from .routes_live import airport_coords, route_of
