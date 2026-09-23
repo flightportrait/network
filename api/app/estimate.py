@@ -239,3 +239,94 @@ class EstimateBook:
                 "eta": round(now + rem / (obs["gs"] * KT_TO_KMS)),
             })
         return out
+
+
+# ---- the North Atlantic tracks ------------------------------------------
+# A flight crossing the North Atlantic in the busy hours flies one of the
+# day's published tracks (app.nat), not the great circle. The match and
+# its tolerance are chosen on tools/nat_backtest.py.
+NAT_MATCH_DEG = 0.5            # predicted vs track latitude at its first point
+NAT_ON_TRACK_DEG = 0.4         # already over the ocean: distance to the track
+NAT_LEVEL_SLACK = 10           # flight levels either side of the published set
+
+
+def _direction(track_deg):
+    if 200 <= track_deg <= 340:
+        return "W"
+    if 20 <= track_deg <= 160:
+        return "E"
+    return None
+
+
+def _lat_on(points, lon):
+    """Latitude of the track polyline at a longitude, or None outside."""
+    for (la1, lo1), (la2, lo2) in zip(points, points[1:]):
+        if min(lo1, lo2) <= lon <= max(lo1, lo2) and lo1 != lo2:
+            f = (lon - lo1) / (lo2 - lo1)
+            return la1 + f * (la2 - la1)
+    return None
+
+
+def match_nat(obs, tracks):
+    """The published track the aircraft is flying, as the ordered list of
+    points still ahead of it, or None. tracks: app.nat.active() output."""
+    d = _direction(obs["track"])
+    if d is None or not isinstance(obs.get("alt"), (int, float)):
+        return None
+    fl = round(obs["alt"] / 100.0)
+    best = None
+    for t in tracks:
+        if t.get("direction") != d:
+            continue
+        levels = t["west_levels"] if d == "W" else t["east_levels"]
+        if not levels or not (min(levels) - NAT_LEVEL_SLACK <= fl <=
+                              max(levels) + NAT_LEVEL_SLACK):
+            continue
+        pts = sorted((tuple(p) for p in t["points"]),
+                     key=lambda p: -p[1] if d == "W" else p[1])
+        first = pts[0]
+        ahead = (obs["lon"] > first[1]) if d == "W" else (obs["lon"] < first[1])
+        if ahead:
+            # before the ocean: where would it cross the first point's
+            # longitude on its present heading?
+            dist = haversine_km(obs["lat"], obs["lon"], first[0], first[1])
+            if dist > 1500:
+                continue
+            want = bearing_deg(obs["lat"], obs["lon"], first[0], first[1])
+            if abs(angle_diff(obs["track"], want)) > 25:
+                continue
+            la, _ = forward(obs["lat"], obs["lon"], obs["track"], dist)
+            off = abs(la - first[0])
+            if off <= NAT_MATCH_DEG and (best is None or off < best[0]):
+                best = (off, list(pts))
+        else:
+            on = _lat_on(list(pts), obs["lon"])
+            if on is None:
+                continue
+            off = abs(obs["lat"] - on)
+            if off <= NAT_ON_TRACK_DEG and (best is None or off < best[0]):
+                rest = [p for p in pts if (p[1] < obs["lon"]) == (d == "W")]
+                if rest:
+                    best = (off, rest)
+    return best[1] if best else None
+
+
+def project_path(obs, waypoints, dt_s):
+    """Fly dt_s from obs through waypoints [(lat, lon), ...] at the last
+    speed, great circle between them. Returns (lat, lon, heading,
+    remaining_km along the path)."""
+    lat, lon, hdg = obs["lat"], obs["lon"], obs["track"]
+    left = obs["gs"] * KT_TO_KMS * dt_s
+    pts = list(waypoints)
+    for i, (wla, wlo) in enumerate(pts):
+        seg = haversine_km(lat, lon, wla, wlo)
+        hdg = bearing_deg(lat, lon, wla, wlo) if seg > 0.5 else hdg
+        if left < seg:
+            lat, lon = forward(lat, lon, hdg, left)
+            rem = haversine_km(lat, lon, wla, wlo) + sum(
+                haversine_km(a[0], a[1], b[0], b[1])
+                for a, b in zip(pts[i:], pts[i + 1:]))
+            return lat, lon, hdg, rem
+        left -= seg
+        lat, lon = wla, wlo
+    return lat, lon, hdg, 0.0
