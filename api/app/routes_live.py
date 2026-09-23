@@ -230,7 +230,9 @@ def _latest_accuracy(app):
     ten minutes: {day, n, median_km, by_gap_min}, or null before the
     first night."""
     now = time.time()
-    if now - _ACCURACY["at"] > 600:
+    # a found score is kept ten minutes, the lack of one a minute: the
+    # first night's row must not wait behind a cached null
+    if now - _ACCURACY["at"] > (600 if _ACCURACY["value"] else 60):
         _ACCURACY["at"] = now
         try:
             from .refdata_models import EstimateScore
