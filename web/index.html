@@ -29,25 +29,46 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
 <style>
+  /* The palette is registered so it can ease: at night (body.night-ui,
+     set by the night layer when most of the view is dark) everything
+     over the map turns to ink with paper type in one 0.9 s move. The
+     desktop column sits beside the map, not on it, and keeps the day. */
+  @property --paper{syntax:'<color>';inherits:true;initial-value:#F5F1E6}
+  @property --ink{syntax:'<color>';inherits:true;initial-value:#221F1A}
+  @property --red{syntax:'<color>';inherits:true;initial-value:#B8402E}
+  @property --card{syntax:'<color>';inherits:true;initial-value:#FAF7EE}
+  @property --shade{syntax:'<color>';inherits:true;initial-value:#221F1A}
   :root{
     --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E;
-    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
-    --card:#FAF7EE; --sea:#E9E2D0; --land:#EDE7D6;
+    --card:#FAF7EE; --shade:#221F1A; --sea:#E9E2D0; --land:#EDE7D6;
     --col-w:380px; --detail-w:320px;
   }
+  body.night-ui{--paper:#11141B;--ink:#EFE9DC;--red:#E0705A;
+    --card:#171B23;--shade:#000}
+  @media(min-width:761px){
+    .col{--paper:#F5F1E6;--ink:#221F1A;--red:#B8402E;--card:#FAF7EE;
+      --shade:#221F1A}
+  }
+  /* tones derived from the palette, declared wherever it changes so
+     they follow it */
+  :root,body,.col{
+    --line:color-mix(in srgb,var(--ink) 14%,transparent);
+    --quiet:color-mix(in srgb,var(--ink) 72%,transparent)}
   [hidden]{display:none!important}
   *{margin:0;padding:0;box-sizing:border-box;
-    scrollbar-width:thin;scrollbar-color:rgba(34,31,26,.22) transparent}
+    scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink) 22%,transparent) transparent}
   ::-webkit-scrollbar{width:8px;height:8px}
   ::-webkit-scrollbar-track{background:transparent}
-  ::-webkit-scrollbar-thumb{background:rgba(34,31,26,.2);
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ink) 20%,transparent);
     border-radius:4px;border:2px solid transparent;
     background-clip:content-box}
-  ::-webkit-scrollbar-thumb:hover{background:rgba(34,31,26,.4);
+  ::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--ink) 40%,transparent);
     border:2px solid transparent;background-clip:content-box}
   ::-webkit-scrollbar-corner{background:transparent}
   html,body{height:100%}
   body{background:var(--paper);color:var(--ink);overflow:hidden;
+    transition:--paper .9s ease,--ink .9s ease,--red .9s ease,
+      --card .9s ease,--shade .9s ease;
     font:16px/1.55 Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
     -webkit-font-smoothing:antialiased}
   .caps{font-family:'Helvetica Neue',Arial,sans-serif;
@@ -56,25 +77,17 @@
   /* Top bar: floats over the map at the very top, paper fading to
      nothing beneath it so the sky shows through. Every surface we ship
      gets its slot here instead of a buried link. */
-  /* When night lies under it (body.night-hdr, set by the night layer)
-     the bar turns to ink with paper type. Its colours are registered
-     properties so the gradient and everything on it ease across
-     together; without @property the switch is simply instant. */
-  @property --hdr-bg{syntax:'<color>';inherits:true;initial-value:#F5F1E6}
-  @property --hdr-ink{syntax:'<color>';inherits:true;initial-value:#221F1A}
-  @property --hdr-accent{syntax:'<color>';inherits:true;initial-value:#B8402E}
+  /* The bar follows the night palette with everything else (see
+     :root); its gradient is built from it. */
   .topbar{position:absolute;top:0;left:0;right:var(--col-w);height:88px;
     z-index:5;pointer-events:none;
     --hdr-bg:var(--paper);--hdr-ink:var(--ink);--hdr-accent:var(--red);
-    transition:--hdr-bg .9s ease,--hdr-ink .9s ease,--hdr-accent .9s ease;
     background:linear-gradient(to bottom,
       color-mix(in srgb,var(--hdr-bg) 94%,transparent) 0%,
       color-mix(in srgb,var(--hdr-bg) 75%,transparent) 45%,
       color-mix(in srgb,var(--hdr-bg) 0%,transparent) 100%);
     display:flex;align-items:flex-start;justify-content:space-between;
     padding:16px 20px 0;gap:16px}
-  body.night-hdr .topbar{--hdr-bg:#11141B;--hdr-ink:#EFE9DC;
-    --hdr-accent:#E0705A}
   .topbar .wordmark,.topnav{pointer-events:auto}
   .topbar .wordmark{flex-shrink:0;font-size:20px;color:var(--hdr-ink)}
   .topbar .wordmark .net{color:color-mix(in srgb,var(--hdr-ink) 72%,transparent)}
@@ -92,7 +105,7 @@
     left:calc((100% - var(--col-w)) / 2);
     z-index:3;background:var(--paper);border:1px solid var(--line);
     border-radius:6px;padding:8px 14px;font-size:14px;color:var(--quiet);
-    box-shadow:0 1px 8px rgba(34,31,26,.12);display:none;pointer-events:none;
+    box-shadow:0 1px 8px color-mix(in srgb,var(--shade) 12%,transparent);display:none;pointer-events:none;
     max-width:80%;text-align:center}
   .mapnote.show{display:block}
   /* First visit: one card on the sky that says what this is, then
@@ -102,7 +115,7 @@
   .intro{position:absolute;left:18px;top:74px;z-index:4;width:400px;
     max-width:calc(100% - var(--col-w) - 36px);
     background:var(--paper);border:1px solid var(--line);border-radius:8px;
-    padding:18px 22px 16px;box-shadow:0 4px 24px rgba(34,31,26,.18);
+    padding:18px 22px 16px;box-shadow:0 4px 24px color-mix(in srgb,var(--shade) 18%,transparent);
     display:none;font-size:15px;line-height:1.55}
   .intro.show{display:block}
   .intro h2{font-size:22px;line-height:1.15;font-weight:400;margin:0 0 8px;
@@ -121,19 +134,21 @@
   .intro .acts button:hover{background:var(--red)}
   body.mode-airlines .intro,body.mode-join .intro{display:none}
   .maplibregl-canvas:focus-visible{outline:2px solid var(--red)}
-  .maplibregl-ctrl-attrib{background:rgba(245,241,230,.8)!important;
+  .maplibregl-ctrl-attrib{background:color-mix(in srgb,var(--paper) 80%,transparent)!important;
     color:var(--quiet)!important;font-size:11px}
   .maplibregl-ctrl-attrib a{color:var(--quiet)!important}
   .maplibregl-ctrl-group{background:var(--paper)!important;
     box-shadow:0 0 0 1px var(--line)!important}
   .maplibregl-ctrl-group button+button{border-top:1px solid var(--line)!important}
+  .maplibregl-ctrl-icon{transition:filter .9s ease}
+  body.night-ui .maplibregl-ctrl-icon{filter:invert(.92)}
   .maplibregl-ctrl button.night-toggle{display:flex;align-items:center;
-    justify-content:center;color:rgba(34,31,26,.38)}
+    justify-content:center;color:color-mix(in srgb,var(--ink) 38%,transparent)}
   .maplibregl-ctrl button.night-toggle.on{color:var(--ink)}
   .maplibregl-ctrl button.night-toggle:hover{color:var(--red)}
   .maplibregl-popup-content{background:var(--paper);color:var(--ink);
     border-radius:6px;padding:12px 16px;font:14px/1.5 Palatino,Georgia,serif;
-    box-shadow:0 2px 14px rgba(34,31,26,.25)}
+    box-shadow:0 2px 14px color-mix(in srgb,var(--shade) 25%,transparent)}
   .maplibregl-popup-tip{border-top-color:var(--paper)!important;
     border-bottom-color:var(--paper)!important}
 
@@ -166,7 +181,7 @@
   .detail{position:absolute;left:18px;top:74px;z-index:4;width:300px;
     max-width:calc(100% - var(--col-w) - 36px);
     background:var(--paper);border:1px solid var(--line);border-radius:8px;
-    padding:16px 20px;box-shadow:0 4px 24px rgba(34,31,26,.18);display:none}
+    padding:16px 20px;box-shadow:0 4px 24px color-mix(in srgb,var(--shade) 18%,transparent);display:none}
   .detail.show{display:block}
   /* The head: tail mark, callsign, one quiet line for operator, type
      and registration. Everything the top used to say, in two lines. */
@@ -212,7 +227,7 @@
   .detail .photo img{width:100%;height:150px;object-fit:cover;display:block}
   .detail .credit{position:absolute;right:6px;bottom:6px;
     font-family:'Helvetica Neue',Arial,sans-serif;font-size:10px;
-    letter-spacing:.03em;color:var(--quiet);background:rgba(245,241,230,.88);
+    letter-spacing:.03em;color:var(--quiet);background:color-mix(in srgb,var(--paper) 88%,transparent);
     padding:2px 6px;border-radius:3px;line-height:1.3}
   .detail .credit a{color:var(--quiet)}
   .detail .route{font-size:16px;margin-top:8px;display:none}
@@ -339,13 +354,13 @@
      and the moment the antenna connects, the proof is right there. */
   /* A soft scrim keeps the live sky visible but yields the focus. */
   .joinscrim{position:absolute;inset:0;z-index:40;
-    background:rgba(34,31,26,.5);display:none}
+    background:color-mix(in srgb,var(--shade) 50%,transparent);display:none}
   body.mode-join .joinscrim{display:block}
   .joinpanel{position:absolute;top:84px;bottom:26px;z-index:41;
     left:50%;transform:translateX(-50%);
     width:700px;max-width:calc(100% - 36px);
     background:var(--paper);border:1px solid var(--line);border-radius:8px;
-    padding:26px 30px;box-shadow:0 10px 40px rgba(34,31,26,.28);
+    padding:26px 30px;box-shadow:0 10px 40px color-mix(in srgb,var(--shade) 28%,transparent);
     overflow-y:auto;overscroll-behavior:contain;display:none;
     font-size:16px;line-height:1.6}
   body.mode-join .joinpanel{display:block}
@@ -360,10 +375,10 @@
     background:var(--card);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
   .prewrap{position:relative}
   .prewrap .copy{position:absolute;top:10px;right:10px;padding:4px 11px;font-size:13px;
-    background:var(--paper);color:var(--ink);border:1px solid rgba(245,241,230,.35)}
+    background:var(--paper);color:var(--ink);border:1px solid color-mix(in srgb,var(--paper) 35%,transparent)}
   .prewrap .copy:hover{background:var(--paper);color:var(--ink);border-color:var(--paper)}
   .prewrap .copy.done{background:var(--ink);color:var(--paper);border-color:var(--paper)}
-  .joinpanel pre{background:var(--ink);color:rgba(245,241,230,.9);white-space:pre;overflow-x:auto;padding-top:44px;
+  .joinpanel pre{background:var(--ink);color:color-mix(in srgb,var(--paper) 90%,transparent);white-space:pre;overflow-x:auto;padding-top:44px;
     border-radius:6px;padding:14px 18px;overflow-x:auto;margin:12px 0;
     font:12.5px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   .joinpanel pre .v{color:#E5B24A}
@@ -431,7 +446,7 @@
     width:var(--detail-w);max-width:calc(100% - var(--col-w) - 36px);
     max-height:calc(100vh - 110px);overflow-y:auto;overscroll-behavior:contain;
     background:var(--paper);border:1px solid var(--line);border-radius:8px;
-    padding:16px 20px;box-shadow:0 4px 24px rgba(34,31,26,.18)}
+    padding:16px 20px;box-shadow:0 4px 24px color-mix(in srgb,var(--shade) 18%,transparent)}
   .aldetail .nm{font-size:22px;line-height:1.25}
   .alidentity{display:grid;grid-template-columns:92px minmax(0,1fr);
     gap:12px;align-items:center;min-height:72px;padding-right:18px}
@@ -474,7 +489,7 @@
   .bcols .r,.brow .ac{text-align:right}
   .brows{max-height:360px;overflow-y:auto;overscroll-behavior:contain}
   .brow{padding-top:7px;padding-bottom:7px;font-size:14px;
-    border-bottom:1px solid rgba(34,31,26,.06);cursor:pointer;
+    border-bottom:1px solid color-mix(in srgb,var(--ink) 6%,transparent);cursor:pointer;
     position:relative}
   .brow:hover .fn{color:var(--red)}
   .brow.past{opacity:.55}
@@ -527,7 +542,7 @@
   .afhist .tl{list-style:none;border-top:1px solid var(--line)}
   .afhist .tl li{display:grid;grid-template-columns:minmax(0,1fr) auto;
     grid-template-areas:"when src" "what what";gap:1px 10px;padding:7px 0;
-    border-bottom:1px solid rgba(34,31,26,.06);font-size:14px;line-height:1.35}
+    border-bottom:1px solid color-mix(in srgb,var(--ink) 6%,transparent);font-size:14px;line-height:1.35}
   .afhist .tl .when{grid-area:when;color:var(--quiet);font-size:12px;
     font-family:'Helvetica Neue',Arial,sans-serif}
   .afhist .tl .src{grid-area:src;color:var(--quiet);font-size:10.5px}
@@ -558,7 +573,7 @@
   .viewpill{position:absolute;top:76px;z-index:4;display:none;
     left:calc((100% - var(--col-w)) / 2);transform:translateX(-50%);
     border:1px solid var(--line);border-radius:20px;overflow:hidden;
-    background:var(--paper);box-shadow:0 2px 12px rgba(34,31,26,.15);
+    background:var(--paper);box-shadow:0 2px 12px color-mix(in srgb,var(--shade) 15%,transparent);
     font-family:'Helvetica Neue',Arial,sans-serif}
   body.al-on .viewpill{display:inline-flex}
   body.af-open .viewpill{display:none!important}
@@ -574,7 +589,7 @@
   .routes[hidden]{display:none}
   .rrow{display:grid;grid-template-columns:1fr auto;gap:10px;
     align-items:baseline;font-size:14px;padding:4px 0;
-    border-bottom:1px solid rgba(34,31,26,.06);cursor:pointer}
+    border-bottom:1px solid color-mix(in srgb,var(--ink) 6%,transparent);cursor:pointer}
   .rrow:hover{color:var(--red)}
   .rrow .pair{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rrow .pair .arrow{color:var(--quiet);margin:0 5px}
@@ -596,7 +611,7 @@
     max-height:calc(100vh - 110px);overflow-y:auto;
     overscroll-behavior:contain;
     background:var(--paper);border:1px solid var(--line);border-radius:8px;
-    padding:16px 20px;box-shadow:0 6px 30px rgba(34,31,26,.24);
+    padding:16px 20px;box-shadow:0 6px 30px color-mix(in srgb,var(--shade) 24%,transparent);
     display:flex;flex-direction:column;align-items:stretch;gap:14px}
   .routebar[hidden]{display:none}
   body:has(#routecard:not([hidden])) #al-detail{display:none}
@@ -658,7 +673,7 @@
     margin:0 0 8px}
   .sched-row{display:grid;grid-template-columns:96px 1fr auto;gap:12px;
     align-items:baseline;padding:4px 0;
-    border-bottom:1px solid rgba(34,31,26,.06);font-size:13.5px}
+    border-bottom:1px solid color-mix(in srgb,var(--ink) 6%,transparent);font-size:13.5px}
   .sched-row .t{font-variant-numeric:tabular-nums;font-weight:600}
   .sched-row .fn{font-family:'IBM Plex Mono','SFMono-Regular',Menlo,monospace;
     font-size:12.5px}
@@ -723,7 +738,7 @@
     line-height:1.5}
   #tip{position:fixed;z-index:6;pointer-events:none;display:none;
     background:var(--paper);border:1px solid var(--line);border-radius:6px;
-    padding:7px 12px;font-size:14px;box-shadow:0 2px 14px rgba(34,31,26,.2)}
+    padding:7px 12px;font-size:14px;box-shadow:0 2px 14px color-mix(in srgb,var(--shade) 20%,transparent)}
   #tip .m{color:var(--quiet);font-size:12.5px}
   .allist{list-style:none;margin-top:6px}
   .allist .group{padding:14px 20px 6px;color:var(--quiet);cursor:default;
@@ -732,7 +747,7 @@
   .allist .group:hover{background:none}
   .allist .group .n{color:var(--quiet);margin-left:6px}
   .allist li{padding:5px 20px;display:flex;align-items:center;gap:11px;
-    cursor:pointer;border-bottom:1px solid rgba(34,31,26,.06)}
+    cursor:pointer;border-bottom:1px solid color-mix(in srgb,var(--ink) 6%,transparent)}
   .allist li:hover,.allist li.sel{background:var(--card)}
   .allist li:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
   .allist .chip{width:11px;height:11px;border-radius:2px;flex:none;
@@ -769,7 +784,7 @@
     margin:0 -4px}
   .agmember{display:grid;grid-template-columns:42px minmax(0,1fr);
     align-items:center;gap:8px;padding:5px 4px;border-bottom:1px solid
-    rgba(34,31,26,.06);cursor:pointer;min-width:0}
+    color-mix(in srgb,var(--ink) 6%,transparent);cursor:pointer;min-width:0}
   .agmember:hover .agmember-name{color:var(--red)}
   .agmember .tailmark{width:42px;height:38px;display:grid;place-items:center}
   .agmember .tailmark img{display:block;width:42px;height:38px;object-fit:contain}
@@ -799,13 +814,13 @@
   .searchbox.hdr input:focus{border-color:var(--ink)}
   .s-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;
     background:var(--paper);border:1px solid var(--line);border-radius:6px;
-    box-shadow:0 8px 24px rgba(34,31,26,.12);max-height:60vh;overflow:auto;
+    box-shadow:0 8px 24px color-mix(in srgb,var(--shade) 12%,transparent);max-height:60vh;overflow:auto;
     min-width:280px;text-align:left}
   .s-kind{padding:10px 12px 4px;color:var(--quiet)}
   .s-row{display:flex;align-items:center;gap:12px;padding:7px 12px;text-decoration:none;color:var(--ink)}
   .s-pic{width:34px;height:34px;flex:0 0 34px;object-fit:contain;border-radius:6px}
   .s-text{min-width:0}
-  .s-row:hover,.s-row.active{background:rgba(34,31,26,.06)}
+  .s-row:hover,.s-row.active{background:color-mix(in srgb,var(--ink) 6%,transparent)}
   .s-label{display:block;font-size:16px}
   .s-detail{display:block;font-size:13px;color:var(--quiet)}
   .s-empty{padding:14px 12px;color:var(--quiet);font-size:15px}
@@ -846,12 +861,12 @@
     /* Slides in from the right; the scrim fades. [hidden] only after
        the slide-out has finished (the script waits for transitionend). */
     .menuscrim{display:block;position:fixed;inset:0;z-index:9;
-      background:rgba(34,31,26,.28);opacity:0;transition:opacity .25s ease;
+      background:color-mix(in srgb,var(--shade) 28%,transparent);opacity:0;transition:opacity .25s ease;
       pointer-events:none}
     .menu{display:flex;flex-direction:column;gap:2px;position:fixed;
       top:0;right:0;bottom:0;z-index:10;width:min(300px,84vw);
       background:var(--paper);border-left:1px solid var(--line);
-      padding:64px 26px 26px;box-shadow:-8px 0 30px rgba(34,31,26,.18);
+      padding:64px 26px 26px;box-shadow:-8px 0 30px color-mix(in srgb,var(--shade) 18%,transparent);
       padding-bottom:calc(26px + env(safe-area-inset-bottom));
       transform:translateX(100%);
       transition:transform .28s cubic-bezier(.2,.8,.2,1)}
@@ -903,7 +918,7 @@
       /* before the script sizes it: a 150 px peek, no flash of sheet */
       transform:translateY(calc(70vh - 150px));will-change:transform;
       transition:transform .28s cubic-bezier(.2,.8,.2,1);
-      box-shadow:0 -4px 20px rgba(34,31,26,.12);
+      box-shadow:0 -4px 20px color-mix(in srgb,var(--shade) 12%,transparent);
       touch-action:pan-y;overscroll-behavior:contain}
     .col.dragging{transition:none}
     @media(prefers-reduced-motion:reduce){.col{transition:none}}
@@ -915,9 +930,9 @@
       font-size:26px;border-radius:20px}
     #sheet-cards .detail .photo{margin:8px -20px 0}
     #sheet-cards .detail .photo img{height:160px}
-    #sheet-cards .cardclose:active{background:rgba(34,31,26,.08)}
+    #sheet-cards .cardclose:active{background:color-mix(in srgb,var(--ink) 8%,transparent)}
     .sheet-handle::before{content:"";display:block;width:40px;height:4px;
-      border-radius:2px;background:rgba(34,31,26,.25);margin:0 auto}
+      border-radius:2px;background:color-mix(in srgb,var(--ink) 25%,transparent);margin:0 auto}
     .head{padding:4px 20px 12px}
     .headline .n{font-size:30px}
     .subline{margin-top:6px}
@@ -1671,7 +1686,7 @@
     t = Math.min(Math.max(t, 0), 1);
     return 1 - t * t * (3 - 2 * t);
   }
-  var night = { on: true, live: false, broken: false, tex: {},
+  var night = { on: true, live: false, ui: false, broken: false, tex: {},
                 copy: true, captured: false, dirtyUntil: 0, last: null };
   try { night.on = localStorage.getItem("fp-night") !== "0"; } catch (e) {}
   var NIGHT_SUN_GLSL =
@@ -1700,9 +1715,13 @@
     "void main(){" +
     "  vec2 uv = gl_FragCoord.xy / u_size;" +
     "  vec3 full = texture2D(u_full, uv).rgb;" +   // the day map as drawn
+    "  float alt = sunAlt(v_merc, u_sun);" +
     "  float n = (1.0 - smoothstep(" + NIGHT_FULL.toFixed(1) + ", " +
-          NIGHT_FROM.toFixed(1) + ", sunAlt(v_merc, u_sun))) * u_amount;" +
-    "  if (n <= 0.0 || v_merc.y < 0.0 || v_merc.y > 1.0) {" +
+          NIGHT_FROM.toFixed(1) + ", alt)) * u_amount;" +
+    // golden hour: a faint amber band where the sun sits on the
+    // horizon, so the terminator reads as a place, not a blur
+    "  float gold = u_amount * exp(-pow((alt + 1.0) / 2.4, 2.0));" +
+    "  if ((n <= 0.0 && gold < 0.01) || v_merc.y < 0.0 || v_merc.y > 1.0) {" +
     "    gl_FragColor = vec4(full, 1.0); return; }" +
     "  vec3 base = texture2D(u_base, uv).rgb;" +   // shapes, no labels
     "  vec3 lit = texture2D(u_lit, uv).rgb;" +     // Black Marble
@@ -1725,7 +1744,10 @@
     "  vec3 txt = mix(vec3(0.94, 0.91, 0.84), vec3(0.05, 0.06, 0.085)," +
     "                 dot(full, LUM));" +
     "  col = mix(col, txt, lab);" +
-    "  gl_FragColor = vec4(mix(full, col, n), 1.0); }";
+    "  vec3 outc = mix(full, col, n);" +
+    "  outc = mix(outc, outc * vec3(1.0, 0.86, 0.70) + vec3(0.10, 0.05, 0.0)," +
+    "             gold * 0.5);" +
+    "  gl_FragColor = vec4(outc, 1.0); }";
   function nightShader(gl, vs, fs) {
     function sh(type, src) {
       var s = gl.createShader(type);
@@ -1853,25 +1875,111 @@
     }
     return false;
   }
-  // how much of what lies under the top bar is night, at this zoom
-  function nightUnderHeader(map) {
+  // How much of the view is night, at this zoom: past half, the page
+  // itself goes to night (body.night-ui) — the top bar, the cards, the
+  // controls and our own map layers — with a little hysteresis so a
+  // view sitting on the terminator does not flicker between the two.
+  function nightShare(map) {
     var amount = nightAmount(map);
     if (!amount) return 0;
-    var c = map.getCanvas(), w = c.clientWidth, sun = sunNow(Date.now());
-    var sum = 0, k = 0;
-    for (var i = 0; i <= 8; i++) {
-      [24, 64].forEach(function (y) {
-        var p = map.unproject([w * i / 8, y]);
+    var c = map.getCanvas(), w = c.clientWidth, h = c.clientHeight;
+    var sun = sunNow(Date.now()), sum = 0, k = 0;
+    for (var i = 0; i <= 6; i++) {
+      for (var j = 0; j <= 6; j++) {
+        var p = map.unproject([w * i / 6, h * j / 6]);
         var t = (sunAltAt(sun, p.lat, p.lng) - NIGHT_FULL) /
                 (NIGHT_FROM - NIGHT_FULL);
         t = Math.min(Math.max(t, 0), 1);
         sum += 1 - t * t * (3 - 2 * t); k++;
-      });
+      }
     }
     return amount * sum / k;
   }
+  // Our own layers carry the day palette in their paint; at night each
+  // colour moves to its night twin (ink to paper, paper to ink-navy,
+  // red to the lit coral), eased by MapLibre's paint transitions. The
+  // day values are kept per layer, so layers added later (airline,
+  // airport and flight views) are caught up on the next style change.
+  var NIGHT_TWINS = {
+    "34,31,26": [239, 233, 220], "245,241,230": [17, 20, 27],
+    "250,247,238": [23, 27, 35], "184,64,46": [224, 112, 90],
+    "61,122,80": [95, 168, 115]
+  };
+  function nightTwin(v) {
+    if (Array.isArray(v)) return v.map(nightTwin);
+    if (typeof v !== "string") return v;
+    var m = /^#([0-9a-f]{6})$/i.exec(v), rgb, a = 1;
+    if (m) {
+      rgb = [0, 2, 4].map(function (i) { return parseInt(m[1].substr(i, 2), 16); });
+    } else if ((m = /^rgba?\(([^)]+)\)$/.exec(v))) {
+      var parts = m[1].split(",").map(Number);
+      rgb = parts.slice(0, 3);
+      if (parts.length > 3) a = parts[3];
+    } else {
+      return v;
+    }
+    var twin = NIGHT_TWINS[rgb.join(",")];
+    return twin ? "rgba(" + twin.join(",") + "," + a + ")" : v;
+  }
+  // the same drawing in the night palette: tones swapped along the
+  // ink-paper axis, so a pale fill turns ink-navy and the ink turns paper
+  function nightIcon(img) {
+    var c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    var g = c.getContext("2d");
+    g.drawImage(img, 0, 0);
+    var d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+    for (var i = 0; i < px.length; i += 4) {
+      var L = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]);
+      var t = Math.min(Math.max((L - 31) / (240 - 31), 0), 1);
+      px[i] = 239 + (17 - 239) * t;
+      px[i + 1] = 233 + (20 - 233) * t;
+      px[i + 2] = 220 + (27 - 220) * t;
+    }
+    return d;
+  }
+  var nightLayers = {};
+  function nightPaint(map) {
+    var order = map.getLayersOrder ? map.getLayersOrder() : map.style._order;
+    var at = order.indexOf("night");
+    if (at < 0) return;
+    order.slice(at + 1).forEach(function (id) {
+      var layer = map.getLayer(id);
+      if (!layer || layer.type === "custom") return;
+      var st = nightLayers[id];
+      if (!st) {
+        st = nightLayers[id] = { night: false, day: {} };
+        var paint = layer.serialize().paint || {};
+        Object.keys(paint).forEach(function (k) {
+          if (!/-color$/.test(k)) return;
+          if (JSON.stringify(nightTwin(paint[k])) === JSON.stringify(paint[k])) return;
+          st.day[k] = paint[k];
+          map.setPaintProperty(id, k + "-transition", { duration: 900, delay: 0 });
+        });
+      }
+      if (st.night === night.ui) return;
+      st.night = night.ui;
+      Object.keys(st.day).forEach(function (k) {
+        map.setPaintProperty(id, k, night.ui ? nightTwin(st.day[k]) : st.day[k]);
+      });
+      if (map.getLayoutProperty(id, "icon-image") === (night.ui
+            ? "airport-tower" : "airport-tower-night") &&
+          map.hasImage("airport-tower-night")) {
+        map.setLayoutProperty(id, "icon-image",
+          night.ui ? "airport-tower-night" : "airport-tower");
+      }
+    });
+  }
   function nightSync(map) {
-    document.body.classList.toggle("night-hdr", nightUnderHeader(map) > 0.5);
+    var share = nightShare(map);
+    var ui = night.ui ? share > 0.45 : share > 0.55;
+    if (ui !== night.ui) {
+      night.ui = ui;
+      document.body.classList.toggle("night-ui", ui);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", ui ? "#11141B" : "#F5F1E6");
+      nightPaint(map);
+    }
     var live = nightAmount(map) > 0 && nightInView(map);
     if (live === night.live) return;
     night.live = live;
@@ -1915,6 +2023,8 @@
     ["move", "data", "styledata", "resize"].forEach(function (ev) {
       map.on(ev, nightMarkDirty);
     });
+    // layers added while it is night join it
+    map.on("styledata", function () { if (night.ui) nightPaint(map); });
     // zoom as well as moveend, so zooming out fades night in as it goes
     map.on("zoom", function () { nightSync(map); });
     map.on("moveend", function () { nightSync(map); });
@@ -2001,6 +2111,8 @@
       iconLoads.push(map.loadImage("assets/icons/airport.png")
         .then(function (resp) {
           map.addImage("airport-tower", resp.data, { pixelRatio: 3 });
+          map.addImage("airport-tower-night", nightIcon(resp.data),
+                       { pixelRatio: 3 });
         }).catch(function () {}));
       Promise.all(iconLoads).then(initLayers);
     });
