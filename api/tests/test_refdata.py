@@ -119,6 +119,16 @@ def test_precedence_merge(ctx, tmp_path):
         new = session.get(RefAirframe, "3c6675")
         assert new.type_code == "A388" and new.source == "fp-dump"
 
+        # The observed operator is ours: a later artifact moves it even
+        # on a registry-ranked row (the airframe changed airlines).
+        art.write_bytes(gzip.compress(json.dumps(
+            {"76cd01": [None, None, "TGW"]}).encode()))
+        assert refdata_ingest.ingest_airframes(session, str(art)) == 1
+        session.commit()
+        moved = session.get(RefAirframe, "76cd01")
+        assert moved.operator_icao == "TGW" and moved.source == "tar1090"
+        assert moved.registration == "9V-SHA"
+
         # An override outranks and overwrites.
         refdata_ingest._merge_airframes(
             session, {"76cd01": {"type_code": "A35K"}}, "override")

@@ -46,6 +46,11 @@ CHUNK = 5000
 # Airframe fields the precedence merge applies to.
 _MERGE_FIELDS = ("registration", "type_code", "operator_name",
                  "operator_norm", "operator_icao", "year", "flags")
+# Fields only our observation can know: the fp-dump artifact's value
+# replaces the stored one whatever the row's rank (an airframe that
+# changed airlines must not keep the old one because a registry owns
+# the row). Registries never carry these, so nothing is laundered.
+_OBSERVED_FIELDS = {"fp-dump": ("operator_icao",)}
 
 
 def _clean(value, limit):
@@ -64,6 +69,7 @@ def _merge_airframes(session, incoming, source):
     stream CHUNK-sized batches — the full registry never sits in memory
     at once, so the service stays within a small memory budget."""
     rank = SOURCE_RANK[source]
+    observed = _OBSERVED_FIELDS.get(source, ())
     written = 0
     hexes = list(incoming)
     for start in range(0, len(hexes), CHUNK):
@@ -86,7 +92,8 @@ def _merge_airframes(session, incoming, source):
                 value = fields.get(name)
                 if value is None:
                     continue
-                if outranked and getattr(row, name) is not None:
+                if (outranked and name not in observed
+                        and getattr(row, name) is not None):
                     continue          # lower rank only fills silence
                 if getattr(row, name) != value:
                     setattr(row, name, value)
