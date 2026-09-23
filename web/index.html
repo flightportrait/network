@@ -56,22 +56,35 @@
   /* Top bar: floats over the map at the very top, paper fading to
      nothing beneath it so the sky shows through. Every surface we ship
      gets its slot here instead of a buried link. */
+  /* When night lies under it (body.night-hdr, set by the night layer)
+     the bar turns to ink with paper type. Its colours are registered
+     properties so the gradient and everything on it ease across
+     together; without @property the switch is simply instant. */
+  @property --hdr-bg{syntax:'<color>';inherits:true;initial-value:#F5F1E6}
+  @property --hdr-ink{syntax:'<color>';inherits:true;initial-value:#221F1A}
+  @property --hdr-accent{syntax:'<color>';inherits:true;initial-value:#B8402E}
   .topbar{position:absolute;top:0;left:0;right:var(--col-w);height:88px;
     z-index:5;pointer-events:none;
+    --hdr-bg:var(--paper);--hdr-ink:var(--ink);--hdr-accent:var(--red);
+    transition:--hdr-bg .9s ease,--hdr-ink .9s ease,--hdr-accent .9s ease;
     background:linear-gradient(to bottom,
-      rgba(245,241,230,.94) 0%, rgba(245,241,230,.75) 45%,
-      rgba(245,241,230,0) 100%);
+      color-mix(in srgb,var(--hdr-bg) 94%,transparent) 0%,
+      color-mix(in srgb,var(--hdr-bg) 75%,transparent) 45%,
+      color-mix(in srgb,var(--hdr-bg) 0%,transparent) 100%);
     display:flex;align-items:flex-start;justify-content:space-between;
     padding:16px 20px 0;gap:16px}
+  body.night-hdr .topbar{--hdr-bg:#11141B;--hdr-ink:#EFE9DC;
+    --hdr-accent:#E0705A}
   .topbar .wordmark,.topnav{pointer-events:auto}
-  .topbar .wordmark{flex-shrink:0;font-size:20px}
+  .topbar .wordmark{flex-shrink:0;font-size:20px;color:var(--hdr-ink)}
+  .topbar .wordmark .net{color:color-mix(in srgb,var(--hdr-ink) 72%,transparent)}
   .topbar .wordmark img{width:27px;height:27px}
   .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
-  .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
+  .topnav a{color:var(--hdr-ink);text-decoration:none;font-size:15px;
     white-space:nowrap;
-    text-shadow:0 0 6px var(--paper),0 0 2px var(--paper)}
-  .topnav a:hover{color:var(--red)}
-  .topnav a.here{color:var(--red)}
+    text-shadow:0 0 6px var(--hdr-bg),0 0 2px var(--hdr-bg)}
+  .topnav a:hover{color:var(--hdr-accent)}
+  .topnav a.here{color:var(--hdr-accent)}
 
   #map{position:absolute;inset:0 var(--col-w) 0 0}
   /* On-map state: why the sky is empty, said on the sky itself. */
@@ -114,6 +127,10 @@
   .maplibregl-ctrl-group{background:var(--paper)!important;
     box-shadow:0 0 0 1px var(--line)!important}
   .maplibregl-ctrl-group button+button{border-top:1px solid var(--line)!important}
+  .maplibregl-ctrl button.night-toggle{display:flex;align-items:center;
+    justify-content:center;color:rgba(34,31,26,.38)}
+  .maplibregl-ctrl button.night-toggle.on{color:var(--ink)}
+  .maplibregl-ctrl button.night-toggle:hover{color:var(--red)}
   .maplibregl-popup-content{background:var(--paper);color:var(--ink);
     border-radius:6px;padding:12px 16px;font:14px/1.5 Palatino,Georgia,serif;
     box-shadow:0 2px 14px rgba(34,31,26,.25)}
@@ -748,10 +765,12 @@
     min-width:150px;margin:-4px 26px 0 auto}
   .topnav{flex-shrink:0}
   .searchbox.hdr input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
-    padding:6px 11px;border:1px solid rgba(34,31,26,.22);border-radius:999px;
-    background:rgba(245,241,230,.6);color:var(--ink);outline:none}
-  .searchbox.hdr input::placeholder{color:var(--quiet)}
-  .searchbox.hdr input:focus{background:var(--paper);border-color:var(--ink)}
+    padding:6px 11px;border:1px solid color-mix(in srgb,var(--hdr-ink) 22%,transparent);
+    border-radius:999px;
+    background:color-mix(in srgb,var(--hdr-bg) 60%,transparent);
+    color:var(--hdr-ink);outline:none}
+  .searchbox.hdr input::placeholder{color:color-mix(in srgb,var(--hdr-ink) 72%,transparent)}
+  .searchbox.hdr input:focus{background:var(--hdr-bg);border-color:var(--hdr-ink)}
   .searchbox.hdr input:focus{border-color:var(--ink)}
   .s-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;
     background:var(--paper);border:1px solid var(--line);border-radius:6px;
@@ -796,7 +815,7 @@
     .topbar .wordmark span.net{display:none}
     .topnav a{display:none}
     .burger{display:block;pointer-events:auto;background:none;border:none;
-      color:var(--ink);width:40px;height:40px;padding:8px;margin:-6px -8px 0 0;
+      color:var(--hdr-ink);width:40px;height:40px;padding:8px;margin:-6px -8px 0 0;
       cursor:pointer}
     .burger svg{width:24px;height:24px;display:block}
     /* Slides in from the right; the scrim fades. [hidden] only after
@@ -1572,12 +1591,22 @@
   }
 
   // ---- night ----------------------------------------------------------
-  // Where the sun is down, as FR24 shows it but in our ink: four nested
-  // washes, one per twilight edge (sun at 0°, -6°, -12°, -18°), so dusk
-  // deepens softly into night instead of meeting day at a hard line.
-  // Each edge is a spherical cap around the antisolar point, radius
-  // 90° + edge altitude.
-  var NIGHT_EDGES = [0, -6, -12, -18];
+  // The map at night where it is night: the sun's real altitude over
+  // every pixel (date and season included) decides between the day map
+  // and a night version of it, blended through twilight. MapLibre
+  // cannot paint a layer differently on either side of the terminator,
+  // so the frame is captured twice as it renders — once after the
+  // basemap's shapes, once after its labels — then NASA's Black Marble
+  // city lights are drawn, and a final pass rebuilds every pixel from
+  // the three: day untouched, night as ink-navy land and water with
+  // the roads faintly lit, the lights glowing through and the labels
+  // turned to paper on dark halos. Our own layers (airports, trails,
+  // planes) draw after it, the planes carrying their own night look.
+  // It belongs to the world view: from NIGHT_ZOOM_FULL it fades out and
+  // is gone by NIGHT_ZOOM_OFF, where the lights would only be stretched
+  // blur and the flat map reads better. Off (the moon control,
+  // remembered per browser), zoomed in, or with no night on screen, the
+  // captures and lights stand down entirely.
   function sunNow(t) {
     // low-precision solar position (NOAA), good to a few arcminutes
     var d = t / 86400000 - 10957.5;           // days since J2000.0
@@ -1592,61 +1621,310 @@
     var lon = ((ra - gmst) % 360 + 540) % 360 - 180;
     return { lat: dec / rad, lon: lon };
   }
-  function nightCap(sun, radius) {
+  function sunAltAt(sun, lat, lon) {
     var rad = Math.PI / 180;
-    // keep the centre off the equator so the cap never grazes both poles
-    var cLat = -sun.lat, cLon = sun.lon + 180;
-    if (Math.abs(cLat) < 0.01) cLat = cLat < 0 ? -0.01 : 0.01;
-    var p1 = cLat * rad, r = radius * rad, ring = [], prev = null, acc = 0;
-    for (var i = 0; i <= 360; i += 2) {
-      var b = i * rad;
-      var p2 = Math.asin(Math.sin(p1) * Math.cos(r) +
-                         Math.cos(p1) * Math.sin(r) * Math.cos(b));
-      var dl = Math.atan2(Math.sin(b) * Math.sin(r) * Math.cos(p1),
-                          Math.cos(r) - Math.sin(p1) * Math.sin(p2));
-      var lon = cLon + dl / rad;
-      // unwrap so the ring runs continuously; geojson-vt folds the
-      // overflow into the neighbouring world copies
-      if (prev !== null) {
-        while (lon - prev > 180) lon -= 360;
-        while (lon - prev < -180) lon += 360;
-        acc += lon - prev;
-      }
-      prev = lon;
-      ring.push([lon, p2 / rad]);
-    }
-    // a cap that swallows a pole wraps all the way around: close it
-    // over that pole rather than across the map
-    if (Math.abs(acc) > 180) {
-      var pole = cLat > 0 ? 90 : -90;
-      var last = ring[ring.length - 1][0], first = ring[0][0];
-      ring.push([last, pole], [first, pole], ring[0]);
-    }
-    return ring;
+    return Math.asin(Math.sin(lat * rad) * Math.sin(sun.lat * rad) +
+      Math.cos(lat * rad) * Math.cos(sun.lat * rad) *
+      Math.cos((lon - sun.lon) * rad)) / rad;
   }
-  function nightData() {
-    var sun = sunNow(Date.now());
-    return { type: "FeatureCollection", features: NIGHT_EDGES.map(function (h) {
-      return { type: "Feature", properties: { h: h },
-        geometry: { type: "Polygon", coordinates: [nightCap(sun, 90 + h)] } };
-    }) };
+  // where night starts to show and where it is complete (sun altitude)
+  var NIGHT_FROM = 0.5, NIGHT_FULL = -10;
+  var NIGHT_ZOOM_FULL = 5, NIGHT_ZOOM_OFF = 6.5;
+  var NIGHT_TILES = window.FP_NIGHT_TILES ||
+    "https://tiles.flightportrait.com/night/2016/{z}/{x}/{y}.webp";
+  var NIGHT_TILES_MAXZOOM = 8;
+  function nightAmount(map) {
+    if (!night.on || night.broken) return 0;
+    var t = (map.getZoom() - NIGHT_ZOOM_FULL) /
+            (NIGHT_ZOOM_OFF - NIGHT_ZOOM_FULL);
+    t = Math.min(Math.max(t, 0), 1);
+    return 1 - t * t * (3 - 2 * t);
+  }
+  var night = { on: true, live: false, broken: false, tex: {},
+                copy: true, captured: false, dirtyUntil: 0, last: null };
+  try { night.on = localStorage.getItem("fp-night") !== "0"; } catch (e) {}
+  var NIGHT_SUN_GLSL =
+    // mercator (0..1) -> sun altitude in degrees
+    "float sunAlt(vec2 m, vec2 sun){" +
+    "  float lon = m.x * 6.2831853 - 3.1415927;" +
+    "  float k = 3.1415927 * (1.0 - 2.0 * m.y);" +
+    "  float lat = atan(0.5 * (exp(k) - exp(-k)));" +
+    "  float s = sin(lat) * sin(sun.x) + cos(lat) * cos(sun.x) * cos(lon - sun.y);" +
+    "  return degrees(asin(clamp(s, -1.0, 1.0))); }";
+  var NIGHT_VS =
+    "precision highp float;" +
+    "attribute vec2 a_merc;" +
+    "uniform mat4 u_matrix;" +
+    "varying vec2 v_merc;" +
+    "void main(){ v_merc = a_merc;" +
+    "  gl_Position = u_matrix * vec4(a_merc, 0.0, 1.0); }";
+  var NIGHT_FS =
+    "precision highp float;" +
+    "varying vec2 v_merc;" +
+    "uniform sampler2D u_base, u_full, u_lit;" +
+    "uniform vec2 u_size, u_sun;" +
+    "uniform float u_amount;" +
+    NIGHT_SUN_GLSL +
+    "const vec3 LUM = vec3(0.299, 0.587, 0.114);" +
+    "void main(){" +
+    "  vec2 uv = gl_FragCoord.xy / u_size;" +
+    "  vec3 full = texture2D(u_full, uv).rgb;" +   // the day map as drawn
+    "  float n = (1.0 - smoothstep(" + NIGHT_FULL.toFixed(1) + ", " +
+          NIGHT_FROM.toFixed(1) + ", sunAlt(v_merc, u_sun))) * u_amount;" +
+    "  if (n <= 0.0 || v_merc.y < 0.0 || v_merc.y > 1.0) {" +
+    "    gl_FragColor = vec4(full, 1.0); return; }" +
+    "  vec3 base = texture2D(u_base, uv).rgb;" +   // shapes, no labels
+    "  vec3 lit = texture2D(u_lit, uv).rgb;" +     // Black Marble
+    // the basemap's lightness order kept, dropped into ink-navy:
+    // water darkest, land above it, white roads faintly lit and warm
+    "  float L = dot(base, LUM);" +
+    "  vec3 c = base - L;" +
+    "  vec3 col = mix(vec3(0.035, 0.045, 0.072), vec3(0.118, 0.124, 0.146)," +
+    "                 smoothstep(0.62, 1.0, L));" +
+    "  col += c * 0.22 + max(c.r - c.b, 0.0) * vec3(0.22, 0.13, 0.02);" +
+    "  col += smoothstep(0.975, 1.0, L) * vec3(0.07, 0.058, 0.04);" +
+    // city lights, screened on
+    "  float g = smoothstep(0.16, 0.75, dot(lit, LUM));" +
+    "  vec3 glow = g * mix(vec3(1.0, 0.78, 0.46), lit, 0.35);" +
+    "  col = 1.0 - (1.0 - col) * (1.0 - glow);" +
+    // labels: whatever the label pass changed, lightness inverted, so
+    // ink text on paper halos becomes paper text on ink halos
+    "  vec3 d = abs(full - base);" +
+    "  float lab = smoothstep(0.02, 0.14, max(d.r, max(d.g, d.b)));" +
+    "  vec3 txt = mix(vec3(0.94, 0.91, 0.84), vec3(0.05, 0.06, 0.085)," +
+    "                 dot(full, LUM));" +
+    "  col = mix(col, txt, lab);" +
+    "  gl_FragColor = vec4(mix(full, col, n), 1.0); }";
+  function nightShader(gl, vs, fs) {
+    function sh(type, src) {
+      var s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(s));
+      }
+      return s;
+    }
+    var prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(prog));
+    }
+    return prog;
+  }
+  // Copies the frame as rendered so far into night.tex[key]. The
+  // captures only depend on the camera, the tiles and the sun, while
+  // the planes above animate every frame: so a frame whose camera
+  // matches the last capture, with no tile or label change still
+  // settling, keeps the textures it has and skips all three copies —
+  // the common case of a still map with moving aircraft.
+  function nightMarkDirty() { night.dirtyUntil = Date.now() + 700; }
+  function nightCapture(id, key) {
+    return {
+      id: id, type: "custom", renderingMode: "2d",
+      onAdd: function (m, gl) {
+        this.tex = night.tex[key] = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.tex);
+        [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER].forEach(function (p) {
+          gl.texParameteri(gl.TEXTURE_2D, p, gl.NEAREST);
+        });
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        this.w = this.h = 0;
+      },
+      render: function (gl, matrix) {
+        if (!night.live) return;
+        var w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+        if (key === "base") {
+          var m = Array.prototype.join.call(matrix, ",") + "|" + w + "x" + h;
+          night.copy = !night.captured || m !== night.last ||
+                       Date.now() < night.dirtyUntil;
+          night.last = m;
+        }
+        if (!night.copy) return;
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.tex);
+        if (w !== this.w || h !== this.h) {
+          gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, w, h, 0);
+          this.w = w; this.h = h;
+        } else {
+          gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
+        }
+        if (key === "full") {
+          // the lights draw next onto black, so a tile still on its way
+          // reads as no light rather than as the day map lit up
+          gl.disable(gl.SCISSOR_TEST);
+          gl.colorMask(true, true, true, true);
+          gl.clearColor(0, 0, 0, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+        if (key === "lit") night.captured = true;
+      }
+    };
+  }
+  var nightComposite = {
+    id: "night", type: "custom", renderingMode: "2d",
+    onAdd: function (m, gl) {
+      this.map = m;
+      this.prog = nightShader(gl, NIGHT_VS, NIGHT_FS);
+      this.a_merc = gl.getAttribLocation(this.prog, "a_merc");
+      this.u = {};
+      var self = this;
+      ["u_matrix", "u_base", "u_full", "u_lit", "u_size", "u_sun",
+       "u_amount"]
+        .forEach(function (n) {
+          self.u[n] = gl.getUniformLocation(self.prog, n);
+        });
+      // the mercator square, its neighbours and the space past the
+      // poles, so every pixel is rebuilt (the lights pass cleared them)
+      this.buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -3, -3, 4, -3, 4, 4, -3, -3, 4, 4, -3, 4]), gl.STATIC_DRAW);
+    },
+    render: function (gl, matrix) {
+      if (!night.live) return;
+      var sun = sunNow(Date.now()), rad = Math.PI / 180, u = this.u;
+      gl.useProgram(this.prog);
+      gl.disable(gl.BLEND);
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.STENCIL_TEST);
+      gl.uniformMatrix4fv(u.u_matrix, false, matrix);
+      gl.uniform2f(u.u_size, gl.drawingBufferWidth, gl.drawingBufferHeight);
+      gl.uniform2f(u.u_sun, sun.lat * rad, sun.lon * rad);
+      gl.uniform1f(u.u_amount, nightAmount(this.map));
+      [["u_base", "base"], ["u_full", "full"], ["u_lit", "lit"]]
+        .forEach(function (t, i) {
+          gl.activeTexture(gl.TEXTURE0 + i);
+          gl.bindTexture(gl.TEXTURE_2D, night.tex[t[1]]);
+          gl.uniform1i(u[t[0]], i);
+        });
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+      gl.enableVertexAttribArray(this.a_merc);
+      gl.vertexAttribPointer(this.a_merc, 2, gl.FLOAT, false, 0, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.disableVertexAttribArray(this.a_merc);
+    }
+  };
+  // is any of the view past sunset? A coarse grid is plenty: night
+  // bands are thousands of kilometres wide.
+  function nightInView(map) {
+    var b = map.getBounds(), sun = sunNow(Date.now());
+    var w = b.getWest(), e = b.getEast();
+    var s = Math.max(b.getSouth(), -85), n = Math.min(b.getNorth(), 85);
+    for (var i = 0; i <= 6; i++) {
+      for (var j = 0; j <= 6; j++) {
+        if (sunAltAt(sun, s + (n - s) * i / 6, w + (e - w) * j / 6) <
+            NIGHT_FROM + 2) return true;
+      }
+    }
+    return false;
+  }
+  // how much of what lies under the top bar is night, at this zoom
+  function nightUnderHeader(map) {
+    var amount = nightAmount(map);
+    if (!amount) return 0;
+    var c = map.getCanvas(), w = c.clientWidth, sun = sunNow(Date.now());
+    var sum = 0, k = 0;
+    for (var i = 0; i <= 8; i++) {
+      [24, 64].forEach(function (y) {
+        var p = map.unproject([w * i / 8, y]);
+        var t = (sunAltAt(sun, p.lat, p.lng) - NIGHT_FULL) /
+                (NIGHT_FROM - NIGHT_FULL);
+        t = Math.min(Math.max(t, 0), 1);
+        sum += 1 - t * t * (3 - 2 * t); k++;
+      });
+    }
+    return amount * sum / k;
+  }
+  function nightSync(map) {
+    document.body.classList.toggle("night-hdr", nightUnderHeader(map) > 0.5);
+    var live = nightAmount(map) > 0 && nightInView(map);
+    if (live === night.live) return;
+    night.live = live;
+    night.captured = false;
+    if (map.getLayer("night-lights")) {
+      map.setLayoutProperty("night-lights", "visibility",
+                            live ? "visible" : "none");
+    }
+    map.triggerRepaint();
   }
   function addNight(map) {
-    // under the basemap's own labels, so city names stay crisp at night
-    var before;
-    map.getStyle().layers.some(function (l) {
-      if (l.type === "symbol") { before = l.id; return true; }
+    var layers = map.getStyle().layers, firstLabel;
+    layers.some(function (l) {
+      if (l.type === "symbol") { firstLabel = l.id; return true; }
     });
-    map.addSource("night", { type: "geojson", data: nightData() });
-    map.addLayer({ id: "night", type: "fill", source: "night",
-      paint: { "fill-color": "#221F1A", "fill-opacity": 0.055,
-               "fill-antialias": false } }, before);
+    try {
+      map.addLayer(nightCapture("night-base", "base"), firstLabel);
+      map.addLayer(nightCapture("night-full", "full"));
+      // our own copy of NASA's tiles (tools/night_lights.py), served
+      // cached from our domain: GIBS is slow and marks them uncacheable
+      map.addSource("night-lights", { type: "raster", tileSize: 256,
+        maxzoom: NIGHT_TILES_MAXZOOM,
+        attribution: "City lights: NASA Black Marble",
+        tiles: [NIGHT_TILES] });
+      map.addLayer({ id: "night-lights", type: "raster",
+        source: "night-lights", layout: { visibility: "none" },
+        paint: { "raster-fade-duration": 300 } });
+      map.addLayer(nightCapture("night-lit", "lit"));
+      map.addLayer(nightComposite);
+    } catch (e) {
+      // without the rebuild pass the lights would cover the map: take
+      // every piece back out and stay a day map
+      console.warn("night: unavailable", e);
+      night.broken = true;
+      ["night", "night-lit", "night-lights", "night-full", "night-base"]
+        .forEach(function (id) { if (map.getLayer(id)) map.removeLayer(id); });
+      if (map.getSource("night-lights")) map.removeSource("night-lights");
+      return;
+    }
+    map.addControl(new NightControl(map), "bottom-right");
+    ["move", "data", "styledata", "resize"].forEach(function (ev) {
+      map.on(ev, nightMarkDirty);
+    });
+    // zoom as well as moveend, so zooming out fades night in as it goes
+    map.on("zoom", function () { nightSync(map); });
+    map.on("moveend", function () { nightSync(map); });
+    // the sun moves a quarter degree a minute; follow it
     setInterval(function () {
       if (document.hidden) return;
-      var src = map.getSource("night");
-      if (src) src.setData(nightData());
+      nightSync(map);
+      if (night.live) { nightMarkDirty(); map.triggerRepaint(); }
     }, 60000);
+    nightSync(map);
   }
+  function NightControl(map) { this.map = map; }
+  NightControl.prototype.onAdd = function () {
+    var map = this.map;
+    var box = document.createElement("div");
+    box.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "night-toggle";
+    b.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" ' +
+      'aria-hidden="true"><path d="M13.6 12.9A6 6 0 0 1 8.1 4.4a6 6 0 1 0 ' +
+      '7.5 7.9 6 6 0 0 1-2 .6z" fill="currentColor"/></svg>';
+    function paint() {
+      b.classList.toggle("on", night.on);
+      b.setAttribute("aria-pressed", night.on ? "true" : "false");
+      b.setAttribute("aria-label", night.on ? "Hide night" : "Show night");
+      b.title = night.on ? "Hide night" : "Show night";
+    }
+    b.addEventListener("click", function () {
+      night.on = !night.on;
+      try { localStorage.setItem("fp-night", night.on ? "1" : "0"); }
+      catch (e) {}
+      paint();
+      nightSync(map);
+      map.triggerRepaint();
+    });
+    paint();
+    box.appendChild(b);
+    return box;
+  };
+  NightControl.prototype.onRemove = function () {};
 
   function startMap(style) {
     window.__fpMap = map = new maplibregl.Map({
@@ -2585,7 +2863,10 @@
     "attribute float a_alpha; attribute float a_rot0; attribute float a_rott;",
     "uniform mat4 u_matrix; uniform float u_now; uniform float u_bearing;",
     "uniform vec2 u_viewport; uniform float u_dpr;",
+    "uniform vec2 u_sun; uniform float u_night;",
     "varying vec2 v_uv; varying float v_alpha;",
+    "varying vec2 v_corner; varying float v_night; varying float v_phase;",
+    NIGHT_SUN_GLSL,
     "void main() {",
     "  float dt = clamp(u_now - a_t0, 0.0, 90.0);",
     "  vec2 p = a_pos + a_vel * dt;",
@@ -2601,12 +2882,29 @@
     "  v_uv = mix(a_uv.xy, a_uv.zw, a_corner + 0.5);",
     "  float age = u_now - a_t0;",
     "  v_alpha = a_alpha * (1.0 - 0.6 * smoothstep(30.0, 90.0, age));",
+    // night where this aircraft is; each strobe keeps its own rhythm
+    "  v_corner = a_corner;",
+    "  v_night = u_night * (1.0 - smoothstep(" + NIGHT_FULL.toFixed(1) + ", " +
+         NIGHT_FROM.toFixed(1) + ", sunAlt(p, u_sun)));",
+    "  v_phase = fract(sin(dot(a_pos, vec2(12.9898, 78.233))) * 43758.5453);",
     "}"].join("\n");
   var FS = [
     "precision mediump float;",
-    "uniform sampler2D u_tex;",
+    "uniform sampler2D u_tex; uniform highp float u_now; uniform float u_blink;",
     "varying vec2 v_uv; varying float v_alpha;",
-    "void main() { gl_FragColor = texture2D(u_tex, v_uv) * v_alpha; }"
+    "varying vec2 v_corner; varying float v_night; varying float v_phase;",
+    "void main() {",
+    "  vec4 c = texture2D(u_tex, v_uv);",
+    // at night the red lifts to a lit coral against the dark map, and
+    // a white anti-collision strobe flashes on the fuselage (steady
+    // for reduced motion)
+    "  c.rgb *= mix(1.0, 1.4, v_night);",
+    "  float flash = mix(0.55, step(0.9, fract(u_now * 0.9 + v_phase)), u_blink);",
+    "  float strobe = (1.0 - smoothstep(0.035, 0.075, length(v_corner)))",
+    "              * flash * v_night * step(0.1, c.a);",
+    "  c = vec4(min(c.rgb + strobe, vec3(1.0)), max(c.a, strobe));",
+    "  gl_FragColor = c * v_alpha;",
+    "}"
   ].join("\n");
   var STRIDE = 15;   // floats per instance
   var skyLayer = {
@@ -2652,7 +2950,8 @@
        "a_alpha", "a_rot0", "a_rott"].forEach(function (n) {
         self.loc[n] = gl.getAttribLocation(prog, n);
       });
-      ["u_matrix", "u_now", "u_bearing", "u_viewport", "u_dpr", "u_tex"].forEach(
+      ["u_matrix", "u_now", "u_bearing", "u_viewport", "u_dpr", "u_tex",
+       "u_sun", "u_night", "u_blink"].forEach(
         function (n) { self.loc[n] = gl.getUniformLocation(prog, n); });
       this.quad = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
@@ -2694,6 +2993,11 @@
       var c = map.getCanvas();
       gl.uniform2f(this.loc.u_viewport, c.width, c.height);
       gl.uniform1f(this.loc.u_dpr, window.devicePixelRatio || 1);
+      var sun = sunNow(Date.now());
+      gl.uniform2f(this.loc.u_sun, sun.lat * Math.PI / 180,
+                   sun.lon * Math.PI / 180);
+      gl.uniform1f(this.loc.u_night, nightAmount(map));
+      gl.uniform1f(this.loc.u_blink, reducedMotion ? 0 : 1);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.tex);
       gl.uniform1i(this.loc.u_tex, 0);
