@@ -128,6 +128,19 @@
   .foot{padding:0 0 60px}
   .note.foot{padding:32px 0 60px}
   .more{color:var(--red);text-decoration:none;font-size:15px;cursor:pointer;background:none;border:none;font-family:inherit;padding:0}
+  /* the aircraft: one row each, sortable, the airframe's record in brief */
+  .sorts{display:inline-flex;gap:14px;margin-left:14px;font-size:15px}
+  .sorts button{background:none;border:none;padding:0;cursor:pointer;
+    font:inherit;color:var(--quiet)}
+  .sorts button.on{color:var(--ink);text-decoration:underline;
+    text-underline-offset:4px}
+  .sorts button:hover{color:var(--red)}
+  .flag{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;
+    margin-left:6px;cursor:default}
+  table.legs td.reg a{color:var(--ink);text-decoration:none}
+  table.legs td.reg a:hover{color:var(--red)}
+  table.legs .tag{font-size:13px;color:var(--quiet);white-space:nowrap}
+  table.legs .tag.hi{color:var(--red)}
 </style>
 </head>
 <body>
@@ -165,6 +178,7 @@
   </div>
 </main>
 
+<script src="assets/history.js"></script>
 <script>
 (function () {
   "use strict";
@@ -212,6 +226,43 @@
     return Math.floor(min / 60) + "h" + ("0" + Math.round(min % 60)).slice(-2);
   }
 
+  // One row per aircraft. "by <date>" when the stint starts where the
+  // network's view of the airframe starts: already with the airline then.
+  var planeSort = "joined", planesAll = false;
+  var SORTS = {
+    joined: function (a, b) { return String(b.since).localeCompare(String(a.since)); },
+    oldest: function (a, b) { return (a.built_year || 9999) - (b.built_year || 9999); },
+    newest: function (a, b) { return (b.built_year || 0) - (a.built_year || 0); },
+    reg: function (a, b) { return String(a.reg).localeCompare(String(b.reg)); }
+  };
+  function renderPlanes(planes) {
+    var H = window.fpHistory, rows = planes.slice().sort(SORTS[planeSort]);
+    el("planes").innerHTML = rows.map(function (p, i) {
+      var tags = [];
+      if (p.airlines > 1) tags.push("<span class='tag'>" + p.airlines + " airlines</span>");
+      if (p.notable) tags.push("<span class='tag hi'>" + p.notable +
+        (p.notable > 1 ? " reports" : " report") + "</span>");
+      var since = H ? H.day(p.since) : p.since;
+      return "<tr" + (!planesAll && i >= 25 ? " hidden" : "") + ">" +
+        "<td class='reg'><a href='plane.html?hex=" + esc(p.hex) + "'>" + esc(p.reg) + "</a>" +
+        (H && p.country ? H.flag(p.country) : "") + "</td>" +
+        "<td>" + esc(p.type || "") + "</td>" +
+        "<td class='num'>" + (p.built_year || "") + "</td>" +
+        "<td class='date'>" + (p.since_first_seen ? "by " : "") + esc(since) + "</td>" +
+        "<td class='date'>" + esc(H ? H.day(p.last_seen) : p.last_seen) + "</td>" +
+        "<td>" + tags.join(" ") + "</td></tr>";
+    }).join("");
+    document.querySelectorAll("#sorts button").forEach(function (b) {
+      b.className = b.dataset.sort === planeSort ? "on" : "";
+      b.onclick = function () { planeSort = b.dataset.sort; renderPlanes(planes); };
+    });
+    var more = el("more-planes");
+    if (more) {
+      more.parentNode.hidden = planesAll;
+      more.onclick = function () { planesAll = true; renderPlanes(planes); };
+    }
+  }
+
   var get = function (path) {
     return fetch(API + path).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
   };
@@ -231,10 +282,12 @@
     return Promise.all([
       get("/v1/airlines/" + icao + "/fleet").catch(function () { return null; }),
       get("/v1/airlines/" + icao + "/routes").catch(function () { return null; }),
-      get("/v1/airlines/" + icao + "/countries").catch(function () { return null; })
+      get("/v1/airlines/" + icao + "/countries").catch(function () { return null; }),
+      get("/v1/airlines/" + icao + "/airframes").catch(function () { return null; })
     ]);
   }).then(function (parts) {
     var fleet = parts[0], routes = parts[1], countries = parts[2];
+    var planes = (parts[3] && parts[3].airframes) || [];
     var html = "";
     if (fleet) el("s-fleet").textContent = fleet.n_airframes;
     var legs = (routes && routes.legs) || [];
@@ -257,6 +310,20 @@
       });
       if (fleet.unknown_type) html += "<tr><td class='date'>type unknown</td><td class='num'>" + fleet.unknown_type + "</td><td></td></tr>";
       html += "</tbody></table></div></section>";
+    }
+    // the aircraft themselves, from the airframe record
+    if (planes.length) {
+      html += "<section class='block'><h2>Aircraft<span class='sorts' id='sorts'>" +
+        "<button data-sort='joined' class='on'>newest joined</button>" +
+        "<button data-sort='oldest'>oldest built</button>" +
+        "<button data-sort='newest'>newest built</button>" +
+        "<button data-sort='reg'>registration</button></span></h2>" +
+        "<div class='tablewrap'><table class='legs'><thead><tr>" +
+        "<th>Registration</th><th>Type</th><th class='num'>Built</th>" +
+        "<th>With the airline</th><th>Last seen</th><th></th></tr></thead>" +
+        "<tbody id='planes'></tbody></table></div>" +
+        (planes.length > 25 ? "<p style='margin-top:10px'><button class='more' id='more-planes'>All " +
+          planes.length + " aircraft</button></p>" : "") + "</section>";
     }
     // routes, busiest first
     if (legs.length) {
@@ -289,6 +356,7 @@
     html += "<div class='note foot'>Observed flights from openly licensed trace archives and the network's receivers; " +
       "a route the archives did not see is not listed. Data ODbL &middot; <a href=\'/network/credits.html\'>Credits</a>.</div>";
     el("body").innerHTML = html;
+    if (planes.length) renderPlanes(planes);
 
     var more = el("more-routes");
     if (more) more.addEventListener("click", function () {

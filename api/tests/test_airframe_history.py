@@ -146,3 +146,28 @@ def test_airframe_endpoint_serves_the_history(ctx, tmp_path):
         session.add(RefAirframe(hex="abc123", registration="N1", source="tar1090"))
         session.commit()
     assert client.get("/v1/airframes/abc123").json()["history"] is None
+
+
+def test_airline_airframes_lists_the_current_fleet(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    from app.refdata_models import RefAirframe, RefAirline
+    with sm() as session:
+        airframe_history.ingest_history(session, _write(tmp_path, DOC))
+        for icao, name in (("TVS", "Smartwings"), ("KNE", "flynas"),
+                           ("SWR", "Swiss")):
+            session.add(RefAirline(icao=icao, name=name, palette=[]))
+        session.add(RefAirframe(hex="49d283", registration="OK-TVY",
+                                year=2016, source="tar1090"))
+        session.commit()
+    body = client.get("/v1/airlines/TVS/airframes").json()
+    assert body["as_of"] == "2026-09-21"
+    [tvy] = body["airframes"]
+    assert (tvy["hex"], tvy["reg"], tvy["country"]) == \
+        ("49d283", "OK-TVY", "CZ")
+    assert tvy["since"] == "2026-05-08" and not tvy["since_first_seen"]
+    assert tvy["airlines"] == 2 and tvy["built_year"] == 2016
+    # flynas had it, but it has moved on: not flynas's aircraft any more
+    assert client.get("/v1/airlines/KNE/airframes").status_code == 404
+    swiss = client.get("/v1/airlines/SWR/airframes").json()["airframes"]
+    assert [a["reg"] for a in swiss] == ["HB-JDB"]
+    assert swiss[0]["since_first_seen"] is True

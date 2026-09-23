@@ -403,6 +403,16 @@ EX_AIRFRAME = {
     },
 }
 
+EX_AIRLINE_AIRFRAMES = {
+    "icao": "TVS", "as_of": "2026-09-22", "current_days": 60,
+    "airframes": [{
+        "hex": "49d283", "reg": "OK-TVY", "type": "B738", "country": "CZ",
+        "built_year": None, "msn": None, "since": "2026-05-08",
+        "since_first_seen": False, "last_seen": "2026-09-21",
+        "airlines": 3, "notable": 0,
+    }],
+}
+
 SCH_ROUTES = _obj({
     "routes": {"description": "Callsign (upper case) to [origin, ...via, "
                               "destination] IATA, or null when unknown. "

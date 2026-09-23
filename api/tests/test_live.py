@@ -146,6 +146,7 @@ OPENAPI_PATHS = {
     "/v1/airlines/{icao}/schedule/{org}/{dst}",
     "/v1/airlines/{icao}/countries",
     "/v1/airlines/{icao}/fleet",
+    "/v1/airlines/{icao}/airframes",
     "/v1/airlines/{icao}/fleet/{designator}",
     "/v1/alliances",
     "/v1/alliances/{slug}",

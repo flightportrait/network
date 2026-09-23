@@ -3,6 +3,8 @@ airlines, alliances, types. Everything here is slow-moving open data,
 so responses cache hard; a table nobody has ingested yet just 404s and
 the consumer degrades — same posture as the RouteBook file.
 """
+import datetime
+
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import and_, func, or_, select
 
@@ -10,7 +12,9 @@ from . import openapi as spec
 from . import ratelimit
 from .db import get_session
 from .errors import ApiError
-from .refdata_models import (RefAirframe, RefAirline, RefAirlineCountry,
+from .address_blocks import state_of
+from .refdata_models import (Airframe, AirframeEvent, AirframeSpell,
+                             RefAirframe, RefAirline, RefAirlineCountry,
                              RefAlliance, RefAllianceMembership, RefAirport,
                              RefLegStat, RefRoute, RefSchedule, RefType)
 
@@ -592,6 +596,124 @@ def airline_fleet_type(icao: spec.AirlineICAO, designator: spec.TypeCode,
     return {"icao": row.icao, "type": designator, "type_name": name,
             "window_days": book.window_days() if book.available() else None,
             "airframes": out}
+
+
+# An airframe still flies for an airline when its latest airline stint
+# is that airline's and the record saw it within this many days of its
+# newest observation.
+CURRENT_DAYS = 60
+
+
+@router.get(
+    "/v1/airlines/{icao}/airframes", summary="Airline aircraft",
+    description="The aircraft the network currently observes flying this "
+                "airline's callsigns, from the airframe lifetime record: "
+                "an airframe counts when its latest airline stint is this "
+                "airline's and it was seen in the record's last 60 days. "
+                "Per aircraft: hex, reg, type, country (address block), "
+                "built_year (registry, else tar1090), msn, since (start of "
+                "the stint; since_first_seen true when that is simply "
+                "where the network's view of the airframe begins), "
+                "last_seen, airlines (distinct airlines the record saw it "
+                "fly for) and notable (public incident reports and "
+                "squawks). Observation, not a published fleet list. "
+                "Rate: 300 per 600 s (bucket `refdata`). Cache: 1 h edge.",
+    operation_id="airline_airframes",
+    responses=spec.ok(spec.EX_AIRLINE_AIRFRAMES, spec.R429, spec.R404),
+    openapi_extra=spec.MAP_TIER,
+)
+def airline_airframes(icao: spec.AirlineICAO, request: Request,
+                      response: Response, session=Depends(get_session)):
+    _throttle(request)
+    row = _airline_or_404(session, icao)
+    newest = session.execute(select(func.max(Airframe.last_observed))
+                             ).scalar()
+    if newest is None:
+        raise ApiError(404, "not_observed", "no airframes")
+    cutoff = newest - datetime.timedelta(days=CURRENT_DAYS)
+    candidates = {s.airframe_id: s for s in session.execute(
+        select(AirframeSpell).where(AirframeSpell.kind == "operator",
+                                    AirframeSpell.value == row.icao,
+                                    AirframeSpell.last_date >= cutoff)
+    ).scalars()}
+    if not candidates:
+        raise ApiError(404, "not_observed", "no airframes")
+    ids = list(candidates)
+    spells, frames, notable = {}, {}, {}
+    for start in range(0, len(ids), 2000):
+        chunk = ids[start:start + 2000]
+        for s in session.execute(select(AirframeSpell).where(
+                AirframeSpell.airframe_id.in_(chunk))).scalars():
+            spells.setdefault(s.airframe_id, []).append(s)
+        for f in session.execute(select(Airframe).where(
+                Airframe.id.in_(chunk))).scalars():
+            frames[f.id] = f
+        for aid, n in session.execute(
+                select(AirframeEvent.airframe_id, func.count())
+                .where(AirframeEvent.airframe_id.in_(chunk),
+                       AirframeEvent.visibility == "public",
+                       AirframeEvent.kind.in_(("squawk", "occurrence")))
+                .group_by(AirframeEvent.airframe_id)):
+            notable[aid] = n
+
+    def latest(items, kind):
+        items = [s for s in items if s.kind == kind]
+        return max(items, key=lambda s: (s.first_date or datetime.date.min,
+                                         s.last_date or datetime.date.min),
+                   default=None)
+
+    out, hexes = [], []
+    for aid, spell in candidates.items():
+        mine = spells.get(aid, [])
+        current = latest(mine, "operator")
+        if current is None or current.value != row.icao:
+            continue                          # moved on to another airline
+        hx, reg = latest(mine, "hex"), latest(mine, "registration")
+        frame = frames.get(aid)
+        out.append({
+            "hex": hx.value if hx else None,
+            "reg": reg.value if reg else None,
+            "type": frame.type_code if frame else None,
+            "built_year": frame.built_year if frame else None,
+            "msn": frame.msn if frame else None,
+            "since": current.first_date.isoformat()
+            if current.first_date else None,
+            "since_first_seen": bool(frame and frame.first_observed
+                                     and current.first_date
+                                     == frame.first_observed),
+            "last_seen": current.last_date.isoformat()
+            if current.last_date else None,
+            "airlines": len({s.value for s in mine if s.kind == "operator"}),
+            "notable": notable.get(aid, 0),
+        })
+        if hx:
+            hexes.append(hx.value)
+    # registration, type and build year from the registry table where the
+    # record's own spells are silent; country from the address block
+    ref = {}
+    for start in range(0, len(hexes), 2000):
+        for h, r, t, y in session.execute(
+                select(RefAirframe.hex, RefAirframe.registration,
+                       RefAirframe.type_code, RefAirframe.year)
+                .where(RefAirframe.hex.in_(hexes[start:start + 2000]))):
+            ref[h] = (r, t, y)
+    kept = []
+    for item in out:
+        r, t, y = ref.get(item["hex"], (None, None, None))
+        item["reg"] = item["reg"] or r
+        item["type"] = item["type"] or t
+        if item["built_year"] is None:
+            item["built_year"] = y
+        # no registration anywhere: a mis-decoded or anonymous address,
+        # not an aircraft we can name
+        if not item["reg"]:
+            continue
+        item["country"] = state_of(item["hex"]) if item["hex"] else None
+        kept.append(item)
+    out = sorted(kept, key=lambda i: i["reg"])
+    response.headers["Cache-Control"] = CACHE
+    return {"icao": row.icao, "as_of": newest.isoformat(),
+            "current_days": CURRENT_DAYS, "airframes": out}
 
 
 @router.get(
