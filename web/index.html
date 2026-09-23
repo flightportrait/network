@@ -978,6 +978,25 @@
     .maplibregl-ctrl-bottom-right{bottom:54px;z-index:1}
     .maplibregl-ctrl-bottom-left{bottom:54px;z-index:1}
     .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group{display:none}
+    /* the night switch stays: phones have no other way to it */
+    .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.night-toggle){display:block}
+  }
+  /* The bar spans the map only, so it narrows with the window while the
+     column keeps its width: it folds to fit instead of spilling over
+     the column — the wordmark to its logo first, then a tighter search,
+     then no header search (the column's own filter stays). */
+  .topbar{container-type:inline-size}
+  @media(min-width:761px){
+  @container (max-width:700px){
+    .topbar .wordmark{font-size:0;gap:0}
+  }
+  @container (max-width:470px){
+    .searchbox.hdr{min-width:100px;margin-right:12px}
+    .topnav{gap:14px}
+  }
+  @container (max-width:400px){
+    .searchbox.hdr{display:none}
+  }
   }
 </style>
 </head>
