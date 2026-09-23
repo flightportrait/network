@@ -3667,11 +3667,11 @@
   function renderList() {
     var ul = el("aclist");
     var head = el("list-head");
-    ul.innerHTML = "";
     var q = el("search").value.trim();
     var list = q ? filteredAircraft() : state.aircraft.filter(inView);
     head.textContent = q ? "Matching" : "In view";
     if (!list.length) {
+      ul.innerHTML = "";
       ul.dataset.key = "";
       var li = document.createElement("li");
       li.className = "empty";
