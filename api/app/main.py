@@ -56,11 +56,19 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
                 if app.state.live is not None:
                     app.state.live.on_line = watcher.observe
                 tasks.append(asyncio.create_task(flush_loop(app, watcher)))
+            if app.state.estimates is not None:
+                import asyncio
+                from .estimate_store import keep
+                tasks.append(asyncio.create_task(keep(app, app.state.estimates)))
         try:
             yield
         finally:
             for task in tasks:
                 task.cancel()
+            if tasks:
+                # let cancelled tasks finish (the estimate book saves last)
+                import asyncio
+                await asyncio.wait(tasks, timeout=5)
             await app.state.readsb.aclose()
 
     app = FastAPI(

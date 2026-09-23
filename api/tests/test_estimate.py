@@ -127,3 +127,25 @@ def test_endpoint_carries_the_latest_accuracy(ctx):
     body = client.get("/v1/estimated").json()
     assert body["accuracy"]["day"] == "2026-09-22"
     assert body["accuracy"]["by_gap_min"]["5-15"]["median_km"] == 1.4
+
+
+def test_book_survives_a_restart(ctx):
+    client, app, sm, settings, readsb = ctx
+    from app import estimate_store
+    routes, airports = (lambda cs: ["CFU", "PSA"]), (lambda: AIRPORTS)
+    import time
+    now = time.time()
+    book = E.EstimateBook(routes, airports)
+    book.observe([_ac()], now - 200)
+    book.observe([], now - 150)
+    assert book.estimates(now)
+    assert estimate_store.save(sm, book) == 1
+    # a new process: empty book, restored from the store
+    fresh = E.EstimateBook(routes, airports)
+    assert estimate_store.restore(sm, fresh) == 1
+    [a] = fresh.estimates(now)
+    assert a["hex"] == "4ca8e4" and abs(a["last_seen"]["at"] - (now - 200)) < 0.1
+    # too old to matter: not restored
+    stale = E.EstimateBook(routes, airports)
+    old = [dict(o, at=now - E.MAX_AGE_S - 10) for o in book.dump()]
+    assert stale.restore(old, now) == 0

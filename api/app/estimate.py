@@ -180,6 +180,27 @@ class EstimateBook:
             self._last[hex_id] = obs
         self._live = live
 
+    def dump(self):
+        """The book's memory, JSON-safe, for a restart to pick up. The
+        cached destination is left out: it is recomputed on demand."""
+        return [{k: v for k, v in obs.items() if k != "dest"}
+                for obs in self._last.values()]
+
+    def restore(self, items, now):
+        """Take back a dump: observations still within MAX_AGE_S, never
+        over one the live sky has already refreshed."""
+        n = 0
+        for obs in items or []:
+            hex_id = obs.get("hex")
+            if not hex_id or hex_id in self._last:
+                continue
+            if not isinstance(obs.get("at"), (int, float)) or \
+                    now - obs["at"] > MAX_AGE_S or not eligible(obs):
+                continue
+            self._last[hex_id] = dict(obs, dest=None)
+            n += 1
+        return n
+
     def estimates(self, now):
         out, airports = [], None
         for hex_id, obs in list(self._last.items()):

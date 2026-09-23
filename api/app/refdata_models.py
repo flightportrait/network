@@ -449,3 +449,14 @@ class EstimateScore(Base):
     detail: Mapped[dict] = mapped_column(JSON, nullable=False)
     recorded_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class LiveState(Base):
+    """Small process state kept across API restarts (the estimate book's
+    memory): one JSON value per key, overwritten in place."""
+    __tablename__ = "live_state"
+
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    value: Mapped[list | dict] = mapped_column(JSON, nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow)
