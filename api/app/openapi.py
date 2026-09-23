@@ -333,6 +333,10 @@ SCH_AIRFRAME = _obj({
     "operator_icao": _t("string", "Observed operator: majority callsign "
                                   "prefix.", nullable=True),
     "year": _t("integer", "Build year.", nullable=True),
+    "country": _t("string", "State of registration, ISO 3166-1 alpha-2, "
+                            "from the ICAO address block the hex belongs "
+                            "to. Null for unallocated and ICAO blocks.",
+                  nullable=True),
     "source": _t("string", "Registry row provenance.", nullable=True),
     "airline": _t("object", "Operator airline when resolved.",
                   nullable=True),
@@ -349,7 +353,7 @@ EX_AIRFRAME = {
     "hex": "76cd06", "reg": "9V-SHF", "type": "A359",
     "type_name": "Airbus A350-900", "category": "wide",
     "operator": "Singapore Airlines", "operator_icao": "SIA",
-    "year": 2019, "source": "tar1090",
+    "year": 2019, "country": "SG", "source": "tar1090",
     "airline": {"icao": "SIA", "iata": "SQ", "name": "Singapore Airlines",
                 "palette": ["#1D4886", "#FCB130"], "alliances": []},
     "legs": [{

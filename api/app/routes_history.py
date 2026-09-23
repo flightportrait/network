@@ -20,6 +20,7 @@ from . import ratelimit
 from .db import get_session
 from .errors import ApiError
 from .contributions import catalog_current, catalog_route
+from .address_blocks import state_of
 from .refdata_models import RefAirframe, RefAirline, RefAirport, RefSchedule, \
     RefType
 from .routes_refdata import _hhmm, _memberships_by_airline, _serialize_airline
@@ -74,6 +75,7 @@ def airframe(hex: spec.Hex, request: Request, response: Response,
         "operator": frame.operator_name if frame else None,
         "operator_icao": frame.operator_icao if frame else None,
         "year": frame.year if frame else None,
+        "country": state_of(hex_id),
         "source": frame.source if frame else None,
         "airline": None,
         "legs": None, "window_days": None,

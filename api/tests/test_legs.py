@@ -44,6 +44,24 @@ def test_airframe_log(ctx, tmp_path):
         ["2026-08-27", "2026-08-26", "2026-08-20"]
     assert body["legs"][0]["org"] == "SIN"
     assert body["legs"][0]["callsign"] == "SQ322"
+    assert body["country"] == "SG"                     # address block
+
+
+def test_state_of_address_block():
+    from app.address_blocks import BLOCKS, state_of
+    assert state_of("49d283") == "CZ"
+    assert state_of("A00001") == "US"
+    # nested blocks: the smallest wins
+    assert state_of("400001") == "BM"         # inside the UK block
+    assert state_of("4001c5") == "KY"
+    assert state_of("406a3b") == "GB"
+    assert state_of("43eaf1") == "IM"         # Isle of Man's own block
+    assert state_of("789123") == "HK"         # inside China's
+    assert state_of("780001") == "CN"
+    assert state_of("f00001") is None         # ICAO temporary
+    assert state_of("000001") is None         # unallocated
+    assert state_of("xyz") is None
+    assert [b[0] for b in BLOCKS] == sorted(b[0] for b in BLOCKS)
 
 
 def test_airframe_merges_registry(ctx, tmp_path):
