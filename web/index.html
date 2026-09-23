@@ -5122,6 +5122,13 @@
     renderListSoon();
   }
 
+  // the search rows' short type name; the airlines section has its own
+  // copy in its scope, this one lives where the live search needs it
+  function shortType(code) {
+    var entry = code && typeNames[code];
+    var name = entry ? entry[0] : (code || "");
+    return name.replace(/^(Boeing|Airbus|Embraer|Bombardier|ATR|De Havilland|Cessna|Gulfstream|Dassault) /, "");
+  }
   function matchesQuery(a, q) {
     return [a.flight, a.hex, a.t, a.r].some(function (field) {
       return field && String(field).toLowerCase().indexOf(q) !== -1;
