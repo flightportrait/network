@@ -1910,12 +1910,9 @@
   }
   // where night starts to show and where it is complete (sun altitude)
   var NIGHT_FROM = 0.5, NIGHT_FULL = -10;
-  // dusk before the swap: the day map dims from just above the horizon
-  // to civil twilight's end; golden light reaches a few degrees higher
-  // and the night palette takes over from a little below it (the
-  // planes and the page still turn at NIGHT_FROM)
-  var TWILIGHT_DIM_FROM = 1.5, TWILIGHT_DIM_TO = -6, TWILIGHT_FROM = 7,
-      TWILIGHT_SWAP_FROM = -1.5;
+  // the map's own terminator: day holds to sunset, night is complete
+  // a few degrees below (the planes and the page turn at NIGHT_FROM)
+  var TWILIGHT_FROM = 0.0, TWILIGHT_FULL = -7;
   // the night map's two ends, as linear RGB: the darkest tone (open
   // water) and the lightest before roads and lights (land). Dark enough
   // for the city lights to glow, light enough that coast and land still
@@ -1962,39 +1959,17 @@
     "  vec2 uv = gl_FragCoord.xy / u_size;" +
     "  vec3 full = texture2D(u_full, uv).rgb;" +   // the day map as drawn
     "  float alt = sunAlt(v_merc, u_sun);" +
-    // Twilight in stages, the way dusk actually falls, instead of one
-    // crossfade from paper to navy (which went through a muddy grey
-    // with every label doubled):
-    //   warm  the day map takes low golden light while the sun is
-    //         still up, strongest a couple of degrees above the horizon
-    //   dim   past sunset the day map darkens and cools, multiplied,
-    //         so it is already near the night's lightness ...
-    //   n     ... when the night palette takes over underneath it
-    //   rose  a faint rose band just past the terminator, where the
-    //         sky is still lit from below the horizon
-    //   lights come on over the dimmed dusk, not after the swap
-    // Labels switch palette over a narrow part of the swap instead of
-    // fading through each other.
-    // (squares by hand: GLSL's pow() is undefined for a negative base)
-    "  float qw = (alt - 2.0) / 2.6, qr = (alt + 2.5) / 2.2;" +
-    "  float warm = u_amount * exp(-qw * qw);" +
-    "  float dim = u_amount * (1.0 - smoothstep(" + TWILIGHT_DIM_TO.toFixed(1) +
-          ", " + TWILIGHT_DIM_FROM.toFixed(1) + ", alt));" +
-    "  float n = (1.0 - smoothstep(" + NIGHT_FULL.toFixed(1) + ", " +
-          TWILIGHT_SWAP_FROM.toFixed(1) + ", alt)) * u_amount;" +
-    "  float rose = u_amount * exp(-qr * qr);" +
-    "  float lights = u_amount * (1.0 - smoothstep(-6.5, -1.0, alt));" +
-    "  if ((warm < 0.03 && dim <= 0.0 && n <= 0.0) ||" +
-    "      v_merc.y < 0.0 || v_merc.y > 1.0) {" +
+    // Twilight as one fall, not stages: the day map holds to sunset,
+    // then drops into the night map over a few degrees of sun, blended
+    // in linear light so the middle stays clear instead of muddy. (Warm
+    // and rose tints were tried; over blue water and beige land they
+    // read as separate coloured bands, not as dusk.)
+    "  float n = (1.0 - smoothstep(" + TWILIGHT_FULL.toFixed(1) + ", " +
+          TWILIGHT_FROM.toFixed(1) + ", alt)) * u_amount;" +
+    "  if (n <= 0.0 || v_merc.y < 0.0 || v_merc.y > 1.0) {" +
     "    gl_FragColor = vec4(full, 1.0); return; }" +
     "  vec3 base = texture2D(u_base, uv).rgb;" +   // shapes, no labels
     "  vec3 lit = texture2D(u_lit, uv).rgb;" +     // Black Marble
-    // dusk light over the day map: golden while the sun is up, then
-    // dimmed and cooled toward slate, a touch of rose at the edge
-    "  vec3 tint = mix(vec3(1.0), vec3(1.0, 0.90, 0.74), warm * 0.55);" +
-    "  tint *= mix(vec3(1.0), vec3(0.42, 0.43, 0.56), dim);" +
-    "  tint *= mix(vec3(1.0), vec3(1.10, 0.90, 1.02), rose * 0.32);" +
-    "  vec3 dayBase = base * tint, dayFull = full * tint;" +
     // the basemap's lightness order kept, dropped into ink-navy:
     // water darkest, land above it, white roads faintly lit and warm
     "  float L = dot(base, LUM);" +
@@ -2003,20 +1978,20 @@
     "                 smoothstep(0.62, 1.0, L));" +
     "  col += c * 0.22 + max(c.r - c.b, 0.0) * vec3(0.22, 0.13, 0.02);" +
     "  col += smoothstep(0.975, 1.0, L) * vec3(0.07, 0.058, 0.04);" +
-    "  col *= mix(vec3(1.0), vec3(1.10, 0.92, 1.05), rose * 0.6);" +
-    "  vec3 bg = mix(dayBase, col, n);" +
-    // city lights, screened on as the dusk deepens
+    "  vec3 bg = pow(mix(pow(base, vec3(2.2)), pow(max(col, 0.0), vec3(2.2)), n)," +
+    "                vec3(1.0 / 2.2));" +
+    // city lights, screened on as it darkens
     "  float g = smoothstep(0.16, 0.75, dot(lit, LUM));" +
-    "  vec3 glow = g * lights * mix(vec3(1.0, 0.78, 0.46), lit, 0.35);" +
+    "  vec3 glow = g * n * mix(vec3(1.0, 0.78, 0.46), lit, 0.35);" +
     "  bg = 1.0 - (1.0 - bg) * (1.0 - glow);" +
-    // labels: whatever the label pass changed. By day, the dusk-lit
-    // label as drawn; by night, lightness inverted, so ink text on
-    // paper halos becomes paper text on ink halos
+    // labels: whatever the label pass changed. They turn from ink on
+    // paper halos to paper on ink halos where the ground under them
+    // has actually gone dark, so text never sits pale on a pale dusk
     "  vec3 d = abs(full - base);" +
     "  float lab = smoothstep(0.02, 0.14, max(d.r, max(d.g, d.b)));" +
     "  vec3 txt = mix(vec3(0.94, 0.91, 0.84), vec3(0.05, 0.06, 0.085)," +
     "                 dot(full, LUM));" +
-    "  vec3 labc = mix(dayFull, txt, smoothstep(0.3, 0.7, n));" +
+    "  vec3 labc = mix(full, txt, 1.0 - smoothstep(0.38, 0.52, dot(bg, LUM)));" +
     "  vec3 outc = mix(bg, labc, lab);" +
     "  gl_FragColor = vec4(outc, 1.0); }";
   function nightShader(gl, vs, fs) {
@@ -2141,7 +2116,7 @@
     for (var i = 0; i <= 6; i++) {
       for (var j = 0; j <= 6; j++) {
         if (sunAltAt(sun, s + (n - s) * i / 6, w + (e - w) * j / 6) <
-            TWILIGHT_FROM) return true;
+            NIGHT_FROM + 2) return true;
       }
     }
     return false;
