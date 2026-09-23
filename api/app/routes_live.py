@@ -139,6 +139,33 @@ def aircraft(request: Request, response: Response,
             "aircraft": listed}
 
 
+_ROUTES = {}
+ROUTE_TTL_S = 3600
+
+
+def route_of(app, callsign):
+    """A callsign's route as /v1/routes resolves it: the observed routes
+    artifact first, the community catalog where it is silent. Cached an
+    hour per callsign, so a lost aircraft costs one lookup."""
+    now = time.time()
+    hit = _ROUTES.get(callsign)
+    if hit and now - hit[0] < ROUTE_TTL_S:
+        return hit[1]
+    route = app.state.routes.get(callsign)
+    if route is None:
+        from .contributions import catalog_current, catalog_route
+        try:
+            with app.state.sessionmaker() as session:
+                current = catalog_current(session, callsign)
+                route = catalog_route(current) if current is not None else None
+        except Exception:                 # noqa: BLE001 — no route, no guess
+            route = None
+    if len(_ROUTES) > 20000:
+        _ROUTES.clear()
+    _ROUTES[callsign] = (now, route)
+    return route
+
+
 _AIRPORTS = {"at": 0.0, "coords": {}}
 AIRPORTS_REFRESH_S = 6 * 3600
 
