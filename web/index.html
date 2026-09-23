@@ -1962,7 +1962,8 @@
       Object.keys(st.day).forEach(function (k) {
         map.setPaintProperty(id, k, night.ui ? nightTwin(st.day[k]) : st.day[k]);
       });
-      if (map.getLayoutProperty(id, "icon-image") === (night.ui
+      if (layer.type === "symbol" &&
+          map.getLayoutProperty(id, "icon-image") === (night.ui
             ? "airport-tower" : "airport-tower-night") &&
           map.hasImage("airport-tower-night")) {
         map.setLayoutProperty(id, "icon-image",
@@ -1978,7 +1979,8 @@
       document.body.classList.toggle("night-ui", ui);
       var meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute("content", ui ? "#11141B" : "#F5F1E6");
-      nightPaint(map);
+      // cosmetic: a failure here must never break the map's own events
+      try { nightPaint(map); } catch (e) { console.warn("night: paint", e); }
     }
     var live = nightAmount(map) > 0 && nightInView(map);
     if (live === night.live) return;
@@ -2024,7 +2026,10 @@
       map.on(ev, nightMarkDirty);
     });
     // layers added while it is night join it
-    map.on("styledata", function () { if (night.ui) nightPaint(map); });
+    map.on("styledata", function () {
+      if (!night.ui) return;
+      try { nightPaint(map); } catch (e) { console.warn("night: paint", e); }
+    });
     // zoom as well as moveend, so zooming out fades night in as it goes
     map.on("zoom", function () { nightSync(map); });
     map.on("moveend", function () { nightSync(map); });
