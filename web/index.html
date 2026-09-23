@@ -190,6 +190,55 @@
   .fc-foot button{padding:4px 12px;color:var(--quiet)}
   .fc-foot button:hover,.fc-seg button:hover,.fc-airlines button:hover,
   .fc-kinds button:hover{border-color:var(--ink)}
+  .maplibregl-ctrl button.replay-toggle{display:flex;align-items:center;
+    justify-content:center;color:var(--ink)}
+  body.replaying .maplibregl-ctrl button.replay-toggle{color:var(--red)}
+  .maplibregl-ctrl button.replay-toggle:hover{color:var(--red)}
+  /* Playback: one bar along the foot of the map — play, the clock, the
+     day as a ribbon of traffic under its night hours, day steps, speed,
+     and the way back to live. */
+  .replaybar{position:absolute;left:18px;right:calc(var(--col-w) + 66px);
+    bottom:18px;z-index:5;display:none;align-items:center;gap:14px;
+    background:var(--paper);color:var(--ink);border:1px solid var(--line);
+    border-radius:10px;padding:10px 14px;
+    box-shadow:0 4px 24px color-mix(in srgb,var(--shade) 18%,transparent)}
+  body.replaying .replaybar{display:flex}
+  body.replaying .mapnote{display:none}
+  .rp-play{flex:none;width:38px;height:38px;border-radius:50%;border:none;
+    background:var(--ink);color:var(--paper);cursor:pointer;display:flex;
+    align-items:center;justify-content:center}
+  .rp-play:hover{background:var(--red)}
+  .rp-clock{flex:none;min-width:92px;line-height:1.15}
+  .rp-time{font-size:22px;font-variant-numeric:tabular-nums}
+  .rp-date{font-size:12px;color:var(--quiet);white-space:nowrap}
+  .rp-track{position:relative;flex:1;min-width:120px;height:46px;
+    cursor:ew-resize;touch-action:none}
+  .rp-track canvas{position:absolute;left:0;right:0;top:0;width:100%;height:32px;
+    border-radius:4px;background:color-mix(in srgb,var(--ink) 4%,transparent)}
+  .rp-head{position:absolute;top:-3px;width:2px;height:38px;margin-left:-1px;
+    background:var(--red);border-radius:1px;pointer-events:none}
+  .rp-head::after{content:"";position:absolute;left:-4px;top:-4px;width:10px;
+    height:10px;border-radius:50%;background:var(--red)}
+  .rp-ticks{position:absolute;left:0;right:0;top:34px;height:12px;
+    font-size:10.5px;color:var(--quiet);pointer-events:none}
+  .rp-ticks span{position:absolute;transform:translateX(-50%);
+    font-variant-numeric:tabular-nums}
+  .rp-ticks span:first-child{transform:none}
+  .rp-ticks span:last-child{transform:translateX(-100%)}
+  .rp-loading{position:absolute;inset:0 0 14px;border-radius:4px;
+    background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--ink) 8%,transparent),transparent);
+    background-size:40% 100%;animation:rp-load 1.1s linear infinite;pointer-events:none}
+  @keyframes rp-load{from{background-position:-40% 0}to{background-position:140% 0}}
+  .rp-days,.rp-speeds{flex:none;display:flex;gap:3px}
+  .rp-days button,.rp-speeds button,.rp-live{font:13px Palatino,Georgia,serif;
+    color:inherit;background:none;border:1px solid var(--line);border-radius:6px;
+    cursor:pointer;padding:5px 8px;font-variant-numeric:tabular-nums}
+  .rp-days button{padding:3px 9px;font-size:16px;line-height:1}
+  .rp-days button:disabled{opacity:.35;cursor:default}
+  .rp-speeds button.on{border-color:var(--ink);background:var(--card)}
+  .rp-live{flex:none;color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
+  .rp-days button:not(:disabled):hover,.rp-speeds button:hover,.rp-live:hover{border-color:var(--ink)}
+  @media(max-width:1100px){.rp-speeds button[data-s="1"],.rp-days{display:none}}
   .filterline{display:flex;justify-content:space-between;align-items:center;
     margin:2px 20px 6px;font-size:13px;color:var(--quiet)}
   .filterline button{font:inherit;color:var(--red);background:none;border:none;
@@ -1040,7 +1089,11 @@
     .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group{display:none}
     /* the night switch stays: phones have no other way to it */
     .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.night-toggle),
-    .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.filter-toggle){display:block}
+    .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.filter-toggle),
+    .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.replay-toggle){display:block}
+    .replaybar{left:8px;right:8px;top:62px;bottom:auto;flex-wrap:wrap;gap:8px 10px;padding:8px 10px}
+    .rp-track{order:5;flex-basis:100%}
+    .rp-speeds button[data-s="1"]{display:none}
     .filtercard{right:12px;left:12px;width:auto;bottom:auto;top:64px}
   }
   /* The bar spans the map only, so it narrows with the window while the
@@ -1080,6 +1133,19 @@
 
 <div id="map" aria-label="Live map of aircraft heard by the network"></div>
 <div class="mapnote" id="mapnote"></div>
+<div class="replaybar" id="replaybar" role="group" aria-label="Playback">
+  <button type="button" class="rp-play" id="rp-play" aria-label="Play"></button>
+  <div class="rp-clock"><div class="rp-time" id="rp-time"></div><div class="rp-date" id="rp-date"></div></div>
+  <div class="rp-track" id="rp-track">
+    <canvas id="rp-ribbon"></canvas>
+    <div class="rp-head" id="rp-head"></div>
+    <div class="rp-ticks" id="rp-ticks"></div>
+    <div class="rp-loading" id="rp-loading" hidden></div>
+  </div>
+  <div class="rp-days"><button type="button" id="rp-prev" aria-label="Previous day">&lsaquo;</button><button type="button" id="rp-next" aria-label="Next day">&rsaquo;</button></div>
+  <div class="rp-speeds" id="rp-speeds"><button type="button" data-s="1">1×</button><button type="button" data-s="10">10×</button><button type="button" data-s="60">60×</button><button type="button" data-s="300">300×</button></div>
+  <button type="button" class="rp-live" id="rp-live">Live</button>
+</div>
 <div class="filtercard" id="filtercard" role="dialog" aria-label="Filters" hidden>
   <button class="cardclose" id="fc-close" aria-label="Close filters">&times;</button>
   <div class="fc-sec">
@@ -1476,6 +1542,10 @@
   var state = { aircraft: [], stations: [], generatedAt: 0, ok: false,
                 touched: false, fitted: false, selected: null, fetchedAt: 0 };
   var map = null;
+  // playback state (the module lives after the live feed, see "playback")
+  var replay = { on: false, t: 0, speed: 60, playing: false, live: null,
+                 days: null, index: {}, chunks: {}, loading: {}, objs: {},
+                 start: 0, end: 0 };
   var reducedMotion = window.matchMedia &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -1751,6 +1821,10 @@
   // blur and the flat map reads better. Off (the moon control,
   // remembered per browser), zoomed in, or with no night on screen, the
   // captures and lights stand down entirely.
+  // the sky's clock: the playhead in playback, the present otherwise
+  function skyNow() {
+    return replay && replay.on ? replay.t * 1000 : Date.now();
+  }
   function sunNow(t) {
     // low-precision solar position (NOAA), good to a few arcminutes
     var d = t / 86400000 - 10957.5;           // days since J2000.0
@@ -1941,7 +2015,7 @@
     },
     render: function (gl, matrix) {
       if (!night.live) return;
-      var sun = sunNow(Date.now()), rad = Math.PI / 180, u = this.u;
+      var sun = sunNow(skyNow()), rad = Math.PI / 180, u = this.u;
       gl.useProgram(this.prog);
       gl.disable(gl.BLEND);
       gl.disable(gl.DEPTH_TEST);
@@ -1967,7 +2041,7 @@
   // is any of the view past sunset? A coarse grid is plenty: night
   // bands are thousands of kilometres wide.
   function nightInView(map) {
-    var b = map.getBounds(), sun = sunNow(Date.now());
+    var b = map.getBounds(), sun = sunNow(skyNow());
     var w = b.getWest(), e = b.getEast();
     var s = Math.max(b.getSouth(), -85), n = Math.min(b.getNorth(), 85);
     for (var i = 0; i <= 6; i++) {
@@ -1986,7 +2060,7 @@
     var amount = nightAmount(map);
     if (!amount) return 0;
     var c = map.getCanvas(), w = c.clientWidth, h = c.clientHeight;
-    var sun = sunNow(Date.now()), sum = 0, k = 0;
+    var sun = sunNow(skyNow()), sum = 0, k = 0;
     for (var i = 0; i <= 6; i++) {
       for (var j = 0; j <= 6; j++) {
         var p = map.unproject([w * i / 6, h * j / 6]);
@@ -2530,6 +2604,7 @@
       if (map.getLayer("ferry")) map.setLayoutProperty("ferry", "visibility", "none");
       addNight(map);
       map.addControl(new FilterControl(map), "bottom-right");
+      map.addControl(new ReplayControl(map), "bottom-right");
       map.addSource("aircraft", { type: "geojson",
         data: { type: "FeatureCollection", features: [] } });
       map.addSource("trail", { type: "geojson",
@@ -2643,6 +2718,12 @@
         if (hoverHex) { el("tip").style.display = "none"; hoverHex = null; }
       });
       gpuStart();
+      var linked = new URLSearchParams(location.search);
+      if (linked.get("t") && isFinite(Date.parse(linked.get("t")))) {
+        var sp = +linked.get("speed");
+        enterReplay(Date.parse(linked.get("t")) / 1000,
+                    REPLAY_SPEEDS.indexOf(sp) >= 0 ? sp : 60, false);
+      }
       setupEstimates(map);
 
       // Airports: fixed quiet marks under the moving sky — paper
@@ -3394,6 +3475,11 @@
   var trailAt = 0, trailFor = null;
   function updateTrail() {
     if (!state.selected || !map.getSource("trail")) return;
+    if (replay.on) {
+      state.trailPts = replayTrail(state.selected);
+      drawTrail();
+      return;
+    }
     // the stream can call this several times a second; the trace grows
     // once a snapshot or so, and the trace bucket is one call a second
     var now = Date.now();
@@ -3645,7 +3731,7 @@
       var c = map.getCanvas();
       gl.uniform2f(this.loc.u_viewport, c.width, c.height);
       gl.uniform1f(this.loc.u_dpr, window.devicePixelRatio || 1);
-      var sun = sunNow(Date.now());
+      var sun = sunNow(skyNow());
       gl.uniform2f(this.loc.u_sun, sun.lat * Math.PI / 180,
                    sun.lon * Math.PI / 180);
       gl.uniform1f(this.loc.u_night, nightAmount(map));
@@ -3818,7 +3904,7 @@
       }
       var mc = maplibregl.MercatorCoordinate.fromLngLat([lon, a.lat]);
       var vx = 0, vy = 0;
-      if (!reducedMotion && a.gs != null && a.track != null) {
+      if (!reducedMotion && !replay.on && a.gs != null && a.track != null) {
         var ms = a.gs * 0.514444;
         var perM = 1 / (40075016.686 * Math.max(0.05, Math.cos(a.lat * Math.PI / 180)));
         var rad = a.track * Math.PI / 180;
@@ -3826,10 +3912,11 @@
         vy = -Math.cos(rad) * ms * perM;
         if (ms > 1) moving = true;
       }
-      var t0 = (a._heard || state.fetchedAt) / 1000 - (a.seen_pos || 0) - gpu.epoch;
+      var t0 = replay.on ? Date.now() / 1000 - gpu.epoch
+        : (a._heard || state.fetchedAt) / 1000 - (a.seen_pos || 0) - gpu.epoch;
       var rot = ring ? 0 : (a.track || 0) * Math.PI / 180;
       var rot0 = rot, rott = 0;
-      if (!ring) {
+      if (!ring && !replay.on) {
         // a heading change eases over a second, by the short way round
         var h = headings[a.hex], nowS = Date.now() / 1000 - gpu.epoch;
         if (h && Math.abs(h.rot - rot) > 1e-6) {
@@ -3993,6 +4080,7 @@
 
   // ---- data -----------------------------------------------------------
   function setStatus(ok, text) {
+    if (replay.on && text !== "playback") return;
     state.ok = ok;
     el("statusdot").className = "dot" + (ok ? "" : " down");
     el("statusline").textContent = text;
@@ -4153,6 +4241,7 @@
   stream.connect();
 
   function applySky(list, d) {
+    if (replay.on) { replay.live = [list, d]; return; }
     state.aircraft = list || [];
     state.generatedAt = d.generated_at || 0;
     state.fetchedAt = Date.now();
@@ -4196,6 +4285,458 @@
         state.stations = d.stations || [];
       }).catch(function () {});
   }
+
+  // ---- playback ---------------------------------------------------------
+  // A time machine for the sky. The archive (tools/replay_build.py) holds
+  // every aircraft every 15 s, one gzip chunk per half hour; the page
+  // loads the chunk under the playhead and the ones ahead, and each frame
+  // places every aircraft between its two nearest snapshots, heading read
+  // off its direction of travel. Everything downstream — the budget, the
+  // filters, the list, the cards, the night — reads the replayed sky as
+  // it reads the live one, and the sun follows the playhead (skyNow), so
+  // scrubbing a day sweeps the terminator and the city lights with it.
+  // Live data keeps arriving and waits (applySky) for the return to live.
+  var REPLAY_BASE = window.FP_REPLAY || "https://tiles.flightportrait.com/replay/v1";
+  var REPLAY_SPEEDS = [1, 10, 60, 300];
+  var REPLAY_GROUND = -99999;
+  function replayDay(t) { return new Date(t * 1000).toISOString().slice(0, 10); }
+  function replayChunkName(t) {
+    var s = ((t % 86400) + 86400) % 86400, h = Math.floor(s / 3600),
+        m = Math.floor(s % 3600 / 1800) * 30;
+    return (h < 10 ? "0" : "") + h + (m ? "30" : "00");
+  }
+  function replayKey(t) { return replayDay(t) + "/" + replayChunkName(t); }
+  function replayLoadDays() {
+    if (replay.days) return Promise.resolve(replay.days);
+    return fetch(REPLAY_BASE + "/days.json").then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (d) {
+      replay.days = d.days || [];
+      return replay.days;
+    });
+  }
+  function replayLoadIndex(day) {
+    if (replay.index[day]) return Promise.resolve(replay.index[day]);
+    return fetch(REPLAY_BASE + "/" + day + "/index.json").then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (d) { replay.index[day] = d; return d; });
+  }
+  // the playable span: the first archived day to the end of the last
+  // published half hour
+  function replaySpan() {
+    var days = replay.days || [];
+    if (!days.length) return Promise.reject(new Error("no days"));
+    replay.start = Date.parse(days[0].day + "T00:00:00Z") / 1000;
+    var last = days[days.length - 1].day;
+    return replayLoadIndex(last).then(function (ix) {
+      var c = ix.chunks[ix.chunks.length - 1] || "0000";
+      replay.end = Date.parse(last + "T" + c.slice(0, 2) + ":" + c.slice(2) +
+                              ":00Z") / 1000 + 1800;
+    });
+  }
+  // a chunk, parsed into per-aircraft series for fast sampling
+  function replayChunk(key) {
+    if (replay.chunks[key]) return replay.chunks[key];
+    if (replay.loading[key]) return null;
+    replay.loading[key] = true;
+    fetch(REPLAY_BASE + "/" + key + ".json").then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (c) {
+      var byHex = {}, list = [];
+      c.ac.forEach(function (row) {
+        var p = row[5], n = p.length / 5;
+        var e = { hex: row[0], f: row[1], r: row[2], t: row[3], sq: row[4],
+                  k: new Int16Array(n), lat: new Float64Array(n),
+                  lon: new Float64Array(n), alt: new Int32Array(n),
+                  gs: new Int16Array(n) };
+        for (var i = 0; i < n; i++) {
+          e.k[i] = p[i * 5]; e.lat[i] = p[i * 5 + 1] / 1e5;
+          e.lon[i] = p[i * 5 + 2] / 1e5; e.alt[i] = p[i * 5 + 3];
+          e.gs[i] = p[i * 5 + 4];
+        }
+        byHex[e.hex] = e; list.push(e);
+      });
+      replay.chunks[key] = { t0: c.t0, step: c.step, n: c.n, list: list, byHex: byHex, used: Date.now() };
+      // keep a dozen chunks (six hours) in memory
+      var keys = Object.keys(replay.chunks);
+      if (keys.length > 12) {
+        keys.sort(function (a, b) { return replay.chunks[a].used - replay.chunks[b].used; });
+        keys.slice(0, keys.length - 12).forEach(function (k) { delete replay.chunks[k]; });
+      }
+    }).catch(function () {
+      replay.chunks[key] = { t0: 0, step: 15, n: 0, list: [], byHex: {}, used: Date.now(), missing: true };
+    }).then(function () { delete replay.loading[key]; });
+    return null;
+  }
+  function bearing(lat1, lon1, lat2, lon2) {
+    var r = Math.PI / 180, dl = (lon2 - lon1) * r;
+    var y = Math.sin(dl) * Math.cos(lat2 * r);
+    var x = Math.cos(lat1 * r) * Math.sin(lat2 * r) -
+            Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos(dl);
+    return (Math.atan2(y, x) / r + 360) % 360;
+  }
+  // every aircraft at time t: between its two nearest snapshots, held a
+  // slice at the end of its track, gone across a gap of a minute or more
+  function replaySample(t) {
+    var c = replay.chunks[replayKey(t)];
+    if (!c || !c.n) return null;
+    c.used = Date.now();
+    var next = replay.chunks[replayKey(t + 1800)];
+    var s = (t - c.t0) / c.step, out = [];
+    c.list.forEach(function (e) {
+      var k = e.k, n = k.length, lo = 0, hi = n - 1;
+      if (s < k[0]) return;
+      while (lo < hi) {                       // last sample at or before s
+        var mid = (lo + hi + 1) >> 1;
+        if (k[mid] <= s) lo = mid; else hi = mid - 1;
+      }
+      var j = lo, a1 = [e.lat[j], e.lon[j], e.alt[j], e.gs[j]], a2 = null, f = 0;
+      if (j < n - 1 && k[j + 1] - k[j] <= 4) {
+        a2 = [e.lat[j + 1], e.lon[j + 1], e.alt[j + 1], e.gs[j + 1]];
+        f = (s - k[j]) / (k[j + 1] - k[j]);
+      } else if (j === n - 1 && k[j] === c.n - 1 && next && next.byHex[e.hex] &&
+                 next.byHex[e.hex].k[0] === 0) {
+        var e2 = next.byHex[e.hex];
+        a2 = [e2.lat[0], e2.lon[0], e2.alt[0], e2.gs[0]];
+        f = s - k[j];
+      } else if (s - k[j] > 1) {
+        return;                               // left the sky or a gap
+      }
+      var o = replay.objs[e.hex] || (replay.objs[e.hex] = { hex: e.hex });
+      o.flight = e.f; o.r = e.r; o.t = e.t; o.squawk = e.sq;
+      var lat = a2 ? a1[0] + (a2[0] - a1[0]) * f : a1[0];
+      var lon = a2 ? a1[1] + (a2[1] - a1[1]) * f : a1[1];
+      if (a2 && (a2[0] !== a1[0] || a2[1] !== a1[1])) {
+        o.track = bearing(a1[0], a1[1], a2[0], a2[1]);
+      } else if (j > 0 && (e.lat[j - 1] !== a1[0] || e.lon[j - 1] !== a1[1])) {
+        o.track = bearing(e.lat[j - 1], e.lon[j - 1], a1[0], a1[1]);
+      }
+      o.lat = lat; o.lon = lon;
+      if (a1[2] === REPLAY_GROUND) o.alt_baro = "ground";
+      else if (a2 && a2[2] !== REPLAY_GROUND) o.alt_baro = Math.round(a1[2] + (a2[2] - a1[2]) * f);
+      else o.alt_baro = a1[2];
+      o.gs = a1[3];
+      o.seen_pos = 0;
+      out.push(o);
+    });
+    return out;
+  }
+  // the selected aircraft's path so far, from the loaded chunks
+  function replayTrail(hex) {
+    var pts = [], t = replay.t;
+    for (var back = 3; back >= 0; back--) {
+      var c = replay.chunks[replayKey(t - back * 1800)];
+      var e = c && c.byHex[hex];
+      if (!e) continue;
+      for (var i = 0; i < e.k.length; i++) {
+        var ts = c.t0 + e.k[i] * c.step;
+        if (ts > t) break;
+        pts.push([ts, e.lat[i], e.lon[i], e.alt[i] === REPLAY_GROUND ? 0 : e.alt[i]]);
+      }
+    }
+    return pts;
+  }
+  // short fading tails at speed, so a moving sky reads as flow
+  function replayTails() {
+    if (!map || !map.getSource("replay-tails")) return;
+    var span = Math.min(900, replay.speed * 3), feats = [];
+    if (span >= 30) {
+      (state.aircraft || []).forEach(function (a) {
+        if (!passesFilter(a) || a.alt_baro === "ground") return;
+        var pts = [];
+        for (var back = 1; back >= 0; back--) {
+          var c = replay.chunks[replayKey(replay.t - back * 1800)];
+          var e = c && c.byHex[a.hex];
+          if (!e) continue;
+          for (var i = 0; i < e.k.length; i++) {
+            var ts = c.t0 + e.k[i] * c.step;
+            if (ts < replay.t - span) continue;
+            if (ts > replay.t) break;
+            pts.push([e.lon[i], e.lat[i]]);
+          }
+        }
+        pts.push([a.lon, a.lat]);
+        if (pts.length > 1) {
+          feats.push({ type: "Feature", properties: {},
+            geometry: { type: "LineString", coordinates: pts } });
+        }
+      });
+    }
+    map.getSource("replay-tails").setData({ type: "FeatureCollection", features: feats });
+  }
+  function replayEnsureLayers() {
+    if (!map || map.getSource("replay-tails")) return;
+    // the ribbon's night hours are the map centre's
+    map.on("moveend", function () { if (replay.on) replayPaintRibbon(); });
+    map.addSource("replay-tails", { type: "geojson", lineMetrics: true,
+      data: { type: "FeatureCollection", features: [] } });
+    var before = map.getLayer("sky-gpu") ? "sky-gpu"
+      : (map.getLayer("plane-labels") ? "plane-labels" : undefined);
+    map.addLayer({ id: "replay-tails", type: "line", source: "replay-tails",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-width": 1.6,
+        "line-gradient": ["interpolate", ["linear"], ["line-progress"],
+          0, "rgba(224,112,90,0)", 1, "rgba(224,112,90,0.55)"] } }, before);
+  }
+  var replayWork = { list: 0, tails: 0, night: 0, url: 0 };
+  function replayTick() {
+    if (!replay.on) return;
+    var now = performance.now();
+    var dt = Math.min(0.25, (now - (replay.last || now)) / 1000);
+    replay.last = now;
+    var key = replayKey(replay.t);
+    var ready = replay.chunks[key];
+    if (!ready) replayChunk(key);
+    // the next hour loads while this one plays
+    replayChunk(replayKey(replay.t + 1800));
+    if (replay.speed >= 60) replayChunk(replayKey(replay.t + 3600));
+    if (ready && replay.playing && !replay.scrubbing) {
+      replay.t = Math.min(replay.end, replay.t + dt * replay.speed);
+      if (replay.t >= replay.end) { replay.playing = false; replayPaintControls(); }
+    }
+    var sky = ready ? replaySample(replay.t) : null;
+    if (sky) {
+      state.aircraft = sky;
+      el("count-aircraft").textContent = sky.length;
+      gpuSync();
+      if (now - replayWork.list > 500) {
+        replayWork.list = now;
+        renderListSoon();
+        if (state.selected) { renderDetail(); updateTrail(); }
+      }
+      if (now - replayWork.tails > 250) { replayWork.tails = now; replayTails(); }
+    }
+    if (now - replayWork.night > 1000) { replayWork.night = now; nightSync(map); }
+    if (now - replayWork.url > 1500 && !replay.playing) {
+      replayWork.url = now; replaySaveURL();
+    }
+    el("rp-loading").hidden = !!ready;
+    replayPaintClock();
+    requestAnimationFrame(replayTick);
+  }
+  function replaySaveURL() {
+    var q = new URLSearchParams(location.search);
+    if (replay.on) {
+      q.set("t", new Date(Math.round(replay.t) * 1000).toISOString().slice(0, 19) + "Z");
+      q.set("speed", replay.speed);
+    } else { q.delete("t"); q.delete("speed"); }
+    var qs = q.toString();
+    if (history.replaceState) {
+      history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+    }
+  }
+  function enterReplay(t, speed, play) {
+    return replayLoadDays().then(replaySpan).then(function () {
+      if (!map) return;
+      replayEnsureLayers();
+      replay.on = true;
+      replay.speed = speed || replay.speed;
+      replay.t = Math.max(replay.start, Math.min(replay.end,
+        t != null ? t : replay.end - 3 * 3600));
+      replay.playing = play !== false;
+      replay.last = 0;
+      replay.objs = {};
+      document.body.classList.add("replaying");
+      setStatus(true, "playback");
+      replayPaintRibbon();
+      replayPaintControls();
+      requestAnimationFrame(replayTick);
+    }).catch(function () {
+      var note = el("mapnote");
+      note.textContent = "Playback is not available right now.";
+      note.classList.add("show");
+      setTimeout(function () { note.classList.remove("show"); }, 4000);
+    });
+  }
+  function exitReplay() {
+    if (!replay.on) return;
+    replay.on = false;
+    replay.playing = false;
+    document.body.classList.remove("replaying");
+    if (map && map.getSource("replay-tails")) {
+      map.getSource("replay-tails").setData({ type: "FeatureCollection", features: [] });
+    }
+    replaySaveURL();
+    var live = replay.live;
+    replay.live = null;
+    if (live) applySky(live[0], live[1]); else refresh();
+    nightSync(map);
+  }
+  // ---- the timeline: a day as a ribbon of traffic under its night hours
+  var clockFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+  var dateFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
+  var tzName = (function () {
+    try {
+      return new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+        .formatToParts(new Date()).filter(function (p) { return p.type === "timeZoneName"; })[0].value;
+    } catch (e) { return ""; }
+  })();
+  // the ribbon is the visitor's own day, midnight to midnight
+  function replayDayStart(t) {
+    var d = new Date(t * 1000);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() / 1000;
+  }
+  function replayPaintClock() {
+    var d = new Date(replay.t * 1000);
+    el("rp-time").textContent = clockFmt.format(d);
+    el("rp-date").textContent = dateFmt.format(d) + (tzName ? " · " + tzName : "");
+    var day0 = replayDayStart(replay.t);
+    if (day0 !== replay.ribbonDay) replayPaintRibbon();
+    el("rp-head").style.left = ((replay.t - day0) / 86400 * 100) + "%";
+  }
+  function replayPaintRibbon() {
+    var cv = el("rp-ribbon");
+    if (!cv) return;
+    var day0 = replayDayStart(replay.t);
+    replay.ribbonDay = day0;
+    var w = cv.clientWidth || 400, h = cv.clientHeight || 34, dpr = window.devicePixelRatio || 1;
+    cv.width = w * dpr; cv.height = h * dpr;
+    var g = cv.getContext("2d");
+    g.scale(dpr, dpr);
+    g.clearRect(0, 0, w, h);
+    var css = getComputedStyle(document.body);
+    var ink = css.getPropertyValue("--ink").trim() || "#221F1A";
+    // night hours at the map's centre
+    var c = map ? map.getCenter() : { lat: 0, lng: 0 };
+    for (var i = 0; i < 288; i++) {
+      var tt = day0 + i * 300 + 150;
+      var alt = sunAltAt(sunNow(tt * 1000), c.lat, c.lng);
+      var dark = 1 - Math.min(1, Math.max(0, (alt + 10) / 10.5));
+      if (dark > 0) {
+        g.globalAlpha = 0.12 * dark;
+        g.fillStyle = ink;
+        g.fillRect(i / 288 * w, 0, w / 288 + 0.5, h);
+      }
+    }
+    // the day's traffic, as a soft area: a local day spans two archive
+    // (UTC) days, so its five-minute buckets come from both indexes
+    var days = [replayDay(day0), replayDay(day0 + 86399)].filter(function (d, i, a) {
+      return a.indexOf(d) === i && replay.days.some(function (x) { return x.day === d; });
+    });
+    Promise.all(days.map(function (d) {
+      return replayLoadIndex(d).catch(function () { return null; });
+    })).then(function (ixs) {
+      if (replay.ribbonDay !== day0) return;
+      var byDay = {};
+      ixs.forEach(function (ix) { if (ix) byDay[ix.day] = ix.traffic || []; });
+      var tr = [];
+      for (var i = 0; i < 288; i++) {
+        var tt = day0 + i * 300, arr = byDay[replayDay(tt)];
+        tr.push(arr ? arr[Math.floor((tt % 86400) / 300)] || 0 : 0);
+      }
+      var top = Math.max.apply(null, tr.concat([1]));
+      g.globalAlpha = 0.28;
+      g.fillStyle = ink;
+      g.beginPath();
+      g.moveTo(0, h);
+      tr.forEach(function (v, i) { g.lineTo((i + 0.5) / tr.length * w, h - 2 - v / top * (h - 6)); });
+      g.lineTo(w, h);
+      g.closePath();
+      g.fill();
+      // what is not archived yet
+      var endX = (replay.end - day0) / 86400 * w;
+      if (endX < w) {
+        g.globalAlpha = 0.5;
+        g.fillStyle = getComputedStyle(document.body).getPropertyValue("--paper").trim() || "#F5F1E6";
+        g.fillRect(Math.max(0, endX), 0, w, h);
+      }
+      g.globalAlpha = 1;
+    }).catch(function () {});
+    // hour ticks, local time
+    var ticks = el("rp-ticks");
+    ticks.innerHTML = "";
+    for (var hh = 0; hh <= 24; hh += 6) {
+      var tick = document.createElement("span");
+      tick.style.left = (hh / 24 * 100) + "%";
+      tick.textContent = clockFmt.format(new Date((day0 + hh * 3600) * 1000));
+      ticks.appendChild(tick);
+    }
+  }
+  function replayPaintControls() {
+    el("rp-play").innerHTML = replay.playing
+      ? "<svg viewBox='0 0 20 20' width='16' height='16'><rect x='5' y='4' width='3.2' height='12' rx='1' fill='currentColor'/><rect x='11.8' y='4' width='3.2' height='12' rx='1' fill='currentColor'/></svg>"
+      : "<svg viewBox='0 0 20 20' width='16' height='16'><path d='M6 4l10 6-10 6z' fill='currentColor'/></svg>";
+    el("rp-play").setAttribute("aria-label", replay.playing ? "Pause" : "Play");
+    [].forEach.call(el("rp-speeds").children, function (b) {
+      b.classList.toggle("on", +b.getAttribute("data-s") === replay.speed);
+    });
+    var day0 = replayDayStart(replay.t);
+    el("rp-prev").disabled = day0 - 86400 < replayDayStart(replay.start);
+    el("rp-next").disabled = day0 + 86400 > replay.end;
+  }
+  function replaySeek(t) {
+    replay.t = Math.max(replay.start, Math.min(replay.end, t));
+    replayPaintClock();
+    replayPaintControls();
+  }
+  (function wireReplay() {
+    var bar = el("replaybar");
+    if (!bar) return;
+    el("rp-play").addEventListener("click", function () {
+      if (replay.t >= replay.end) replay.t = replay.end - 3 * 3600;
+      replay.playing = !replay.playing;
+      replayPaintControls();
+    });
+    el("rp-speeds").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-s]");
+      if (!b) return;
+      replay.speed = +b.getAttribute("data-s");
+      replayPaintControls();
+    });
+    el("rp-live").addEventListener("click", exitReplay);
+    el("rp-prev").addEventListener("click", function () { replaySeek(replay.t - 86400); });
+    el("rp-next").addEventListener("click", function () { replaySeek(replay.t + 86400); });
+    var track = el("rp-track");
+    function at(ev) {
+      var r = track.getBoundingClientRect();
+      var x = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+      replaySeek(replayDayStart(replay.t) + x * 86400);
+    }
+    track.addEventListener("pointerdown", function (ev) {
+      replay.scrubbing = true;
+      track.setPointerCapture(ev.pointerId);
+      at(ev);
+    });
+    track.addEventListener("pointermove", function (ev) {
+      if (replay.scrubbing) at(ev);
+    });
+    track.addEventListener("pointerup", function () { replay.scrubbing = false; replaySaveURL(); });
+    track.addEventListener("pointercancel", function () { replay.scrubbing = false; });
+    document.addEventListener("keydown", function (e) {
+      if (!replay.on || /input|textarea/i.test((e.target.tagName || ""))) return;
+      if (e.key === " ") { e.preventDefault(); el("rp-play").click(); }
+      else if (e.key === "ArrowLeft") replaySeek(replay.t - (e.shiftKey ? 600 : 60));
+      else if (e.key === "ArrowRight") replaySeek(replay.t + (e.shiftKey ? 600 : 60));
+      else if (e.key === "Escape" && el("filtercard").hidden) exitReplay();
+    });
+    window.addEventListener("resize", function () { if (replay.on) replayPaintRibbon(); });
+  })();
+  function ReplayControl(map) { this.map = map; }
+  ReplayControl.prototype.onAdd = function () {
+    var box = document.createElement("div");
+    box.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "replay-toggle";
+    b.setAttribute("aria-label", "Playback");
+    b.title = "Playback";
+    b.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">' +
+      '<path d="M4.2 9.6a6 6 0 1 1 1.6 4.6" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.6" stroke-linecap="round"/><path d="M2.4 7.4l1.9 2.6 2.5-2" ' +
+      'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" ' +
+      'stroke-linejoin="round"/><path d="M10 6.6V10l2.4 1.6" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    b.addEventListener("click", function () {
+      if (replay.on) exitReplay(); else enterReplay(null, 60, true);
+    });
+    box.appendChild(b);
+    return box;
+  };
+  ReplayControl.prototype.onRemove = function () {};
 
   // The first view is wherever the network is listening: the aircraft
   // with a fix plus the online stations. Data may land before the map
