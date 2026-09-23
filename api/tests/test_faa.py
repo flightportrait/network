@@ -102,6 +102,11 @@ def test_faa_fills_the_registry_and_the_record(ctx, tmp_path):
 
     body = client.get("/v1/airframes/ad48f3").json()
     assert body["history"]["msn"] == "30095"
+    assert body["history"]["built_year"] == 1999
+    reg = body["history"]["registry"]
+    assert reg["model"] == "737-823" and reg["source"] == "faa"
+    assert reg["certificate_date"] == "2013-11-07"
+    assert reg["owner"] == "AMERICAN AIRLINES INC"
     assert body["country"] == "US"
 
 

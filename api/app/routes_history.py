@@ -21,8 +21,8 @@ from .db import get_session
 from .errors import ApiError
 from .contributions import catalog_current, catalog_route
 from .address_blocks import state_of
-from .refdata_models import Airframe, AirframeEvent, AirframeSpell, \
-    RefAirframe, RefAirline, RefAirport, RefSchedule, RefType
+from .refdata_models import Airframe, AirframeClaim, AirframeEvent, \
+    AirframeSpell, RefAirframe, RefAirline, RefAirport, RefSchedule, RefType
 from .routes_refdata import _hhmm, _memberships_by_airline, _serialize_airline
 
 router = APIRouter(tags=["History"])
@@ -127,6 +127,7 @@ def _airframe_history(session, hex_id):
         .where(AirframeEvent.airframe_id == airframe_id,
                AirframeEvent.visibility == "public")
         .order_by(AirframeEvent.at.desc())).scalars().all()
+    registry = _registry_claims(session, airframe_id)
     icaos = {s.value for s in spells if s.kind == "operator"}
     names = {a.icao: a.name for a in session.execute(
         select(RefAirline).where(RefAirline.icao.in_(icaos))).scalars()}
@@ -138,6 +139,9 @@ def _airframe_history(session, hex_id):
     return {
         "airframe_id": frame.id,
         "msn": frame.msn,
+        "built_year": frame.built_year,
+        "manufacturer": frame.manufacturer,
+        "registry": registry,
         "first_observed": _iso(frame.first_observed),
         "last_observed": _iso(frame.last_observed),
         "hexes": [spell(s, hex=s.value) for s in spells if s.kind == "hex"],
@@ -153,6 +157,28 @@ def _airframe_history(session, hex_id):
 
 def _iso(day):
     return day.isoformat() if day else None
+
+
+# What a registry states about the airframe, newest statement per field.
+# Owner names are company owners only (AIRFRAMES.md D7).
+_REGISTRY_FIELDS = ("model", "engine", "certificate_date",
+                    "airworthiness_date", "registry_status", "owner",
+                    "registration")
+
+
+def _registry_claims(session, airframe_id):
+    rows = session.execute(
+        select(AirframeClaim.field, AirframeClaim.value, AirframeClaim.source)
+        .where(AirframeClaim.airframe_id == airframe_id,
+               AirframeClaim.field.in_(_REGISTRY_FIELDS))
+        .order_by(AirframeClaim.last_seen)).all()
+    if not rows:
+        return None
+    out = {"source": None}
+    for field, value, source in rows:
+        out[field] = value
+        out["source"] = source
+    return out
 
 
 @router.get(

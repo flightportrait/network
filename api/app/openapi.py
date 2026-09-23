@@ -351,7 +351,12 @@ SCH_AIRFRAME = _obj({
     "window_days": _SCH_WINDOW,
     "coverage": _SCH_COVERAGE,
     "history": _t("object", "The lifetime record behind this hex: "
-                            "airframe_id, msn, first_observed, "
+                            "airframe_id, msn, built_year, manufacturer, "
+                            "registry (what a registry states, newest "
+                            "per field: model, engine, certificate_date, "
+                            "airworthiness_date, registry_status, owner, "
+                            "registration, source; null without one), "
+                            "first_observed, "
                             "last_observed, and dated spells (hexes, "
                             "registrations, operators; each with from, "
                             "to, legs, source) plus public events, newest "
@@ -379,7 +384,8 @@ EX_AIRFRAME = {
     "window_days": 60,
     "coverage": "observed",
     "history": {
-        "airframe_id": 4211, "msn": None,
+        "airframe_id": 4211, "msn": None, "built_year": None,
+        "manufacturer": None, "registry": None,
         "first_observed": "2025-08-28", "last_observed": "2026-09-21",
         "hexes": [{"hex": "76cd06", "from": "2025-08-28",
                    "to": "2026-09-21", "legs": 812, "source": "observed"}],
