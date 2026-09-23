@@ -1571,6 +1571,83 @@
     return (entry && entry[1]) || EMITTER_ICON[a.category] || "narrow";
   }
 
+  // ---- night ----------------------------------------------------------
+  // Where the sun is down, as FR24 shows it but in our ink: four nested
+  // washes, one per twilight edge (sun at 0°, -6°, -12°, -18°), so dusk
+  // deepens softly into night instead of meeting day at a hard line.
+  // Each edge is a spherical cap around the antisolar point, radius
+  // 90° + edge altitude.
+  var NIGHT_EDGES = [0, -6, -12, -18];
+  function sunNow(t) {
+    // low-precision solar position (NOAA), good to a few arcminutes
+    var d = t / 86400000 - 10957.5;           // days since J2000.0
+    var rad = Math.PI / 180;
+    var g = (357.529 + 0.98560028 * d) * rad;
+    var q = 280.459 + 0.98564736 * d;
+    var L = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * rad;
+    var e = (23.439 - 0.00000036 * d) * rad;
+    var dec = Math.asin(Math.sin(e) * Math.sin(L));
+    var ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)) / rad;
+    var gmst = (18.697374558 + 24.06570982441908 * d) * 15;
+    var lon = ((ra - gmst) % 360 + 540) % 360 - 180;
+    return { lat: dec / rad, lon: lon };
+  }
+  function nightCap(sun, radius) {
+    var rad = Math.PI / 180;
+    // keep the centre off the equator so the cap never grazes both poles
+    var cLat = -sun.lat, cLon = sun.lon + 180;
+    if (Math.abs(cLat) < 0.01) cLat = cLat < 0 ? -0.01 : 0.01;
+    var p1 = cLat * rad, r = radius * rad, ring = [], prev = null, acc = 0;
+    for (var i = 0; i <= 360; i += 2) {
+      var b = i * rad;
+      var p2 = Math.asin(Math.sin(p1) * Math.cos(r) +
+                         Math.cos(p1) * Math.sin(r) * Math.cos(b));
+      var dl = Math.atan2(Math.sin(b) * Math.sin(r) * Math.cos(p1),
+                          Math.cos(r) - Math.sin(p1) * Math.sin(p2));
+      var lon = cLon + dl / rad;
+      // unwrap so the ring runs continuously; geojson-vt folds the
+      // overflow into the neighbouring world copies
+      if (prev !== null) {
+        while (lon - prev > 180) lon -= 360;
+        while (lon - prev < -180) lon += 360;
+        acc += lon - prev;
+      }
+      prev = lon;
+      ring.push([lon, p2 / rad]);
+    }
+    // a cap that swallows a pole wraps all the way around: close it
+    // over that pole rather than across the map
+    if (Math.abs(acc) > 180) {
+      var pole = cLat > 0 ? 90 : -90;
+      var last = ring[ring.length - 1][0], first = ring[0][0];
+      ring.push([last, pole], [first, pole], ring[0]);
+    }
+    return ring;
+  }
+  function nightData() {
+    var sun = sunNow(Date.now());
+    return { type: "FeatureCollection", features: NIGHT_EDGES.map(function (h) {
+      return { type: "Feature", properties: { h: h },
+        geometry: { type: "Polygon", coordinates: [nightCap(sun, 90 + h)] } };
+    }) };
+  }
+  function addNight(map) {
+    // under the basemap's own labels, so city names stay crisp at night
+    var before;
+    map.getStyle().layers.some(function (l) {
+      if (l.type === "symbol") { before = l.id; return true; }
+    });
+    map.addSource("night", { type: "geojson", data: nightData() });
+    map.addLayer({ id: "night", type: "fill", source: "night",
+      paint: { "fill-color": "#221F1A", "fill-opacity": 0.055,
+               "fill-antialias": false } }, before);
+    setInterval(function () {
+      if (document.hidden) return;
+      var src = map.getSource("night");
+      if (src) src.setData(nightData());
+    }, 60000);
+  }
+
   function startMap(style) {
     window.__fpMap = map = new maplibregl.Map({
       container: "map",
@@ -1623,6 +1700,7 @@
       // the basemap draws ferry routes as dashed sea lines, which read
       // as flight paths; the sky owns dashed lines here
       if (map.getLayer("ferry")) map.setLayoutProperty("ferry", "visibility", "none");
+      addNight(map);
       map.addSource("aircraft", { type: "geojson",
         data: { type: "FeatureCollection", features: [] } });
       map.addSource("trail", { type: "geojson",
