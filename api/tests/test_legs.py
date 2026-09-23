@@ -7,6 +7,11 @@ from app.legs_db import LegBook
 from app.routes_db import RouteBook
 
 
+def _api_root():
+    import os
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def _build(path, rows, window_days=60):
     conn = sqlite3.connect(path)
     conn.execute("CREATE TABLE legs (hex TEXT, reg TEXT, type TEXT,"
@@ -667,3 +672,24 @@ def test_the_airport_page_carries_todays_published_board(ctx, tmp_path):
                                     "callsign": "SIA322", "type": "A359"}]
     assert today["arrivals"] == [{"flight": "SQ317", "org": "LHR", "arr": "06:55",
                                   "callsign": None, "type": None}]
+
+
+def test_schedule_quality_scores_published_and_inferred_times(ctx, tmp_path):
+    from app.refdata_models import RefAirport, RefSchedule
+    client, app, sm, settings, readsb = ctx
+    db = tmp_path / "legs.db"
+    _build(str(db), AIRPORT_LEGS)
+    from app.schedule_quality import score
+    with sm() as session:
+        session.add(RefAirport(ident="WSSS", iata="SIN", name="Changi", kind="large_airport",
+                               role="commercial", lat=1.35, lon=103.99, iso_country="SG",
+                               municipality="Singapore", tz="Asia/Singapore"))
+        # SQ322 leaves SIN at 08:00 UTC = 16:00 local; a published 16:05
+        # is a hit, an inferred 14:00 on a second callsign a miss
+        session.add(RefSchedule(callsign="SQ322", org="SIN", dst="LHR", airline_icao="SIA",
+                                dep_min=16 * 60 + 5, arr_min=None, type_code=None,
+                                n_flights=3, flight="SQ322", source="both"))
+        session.commit()
+        m = score(session, str(db), 45)
+    assert m["published"]["legs"] >= 1 and m["published"]["hits"] == m["published"]["legs"]
+    assert m["published"]["accuracy"] == "100.0%"
