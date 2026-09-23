@@ -20,12 +20,20 @@ never breaks an archived day. For every day this writes:
     OUT/replay/v1/days.json                 the days on offer
     OUT/replay/v1/YYYY-MM-DD/index.json     chunk names, traffic by 5 min
     OUT/replay/v1/YYYY-MM-DD/HHMM.json      one per half hour (gzip)
+    OUT/replay/v1/YYYY-MM-DD/tracks/XX.json each aircraft's whole day,
+                                            sharded by the address's last
+                                            two hex digits (gzip)
 
 A chunk is {"v":1, "t0": unix start, "step": 15, "n": slices,
 "ac": [[hex, callsign, registration, type, squawk, [k, lat, lon, alt,
 gs, ...]], ...]} with lat/lon x 1e5, altitude in feet (GROUND for the
 ground) and speed in knots; k is the slice index. Headings are left to
-the map, which reads them off successive positions. Chunk files are
+the map, which reads them off successive positions. A track shard is
+{"v":1, "day", "t0": the day's first second, "step": 15, "ac": {hex:
+[registration, type, [[s, callsign], ...], [s, lat, lon, alt, gs, ...]]}}
+with s the 15 s slice of the day and the callsign list marking where
+the callsign changes (an aircraft can fly several legs a day): what a
+selected flight needs, in one small file. Chunk and track files are
 gzip bytes under a .json name: serve them with Content-Encoding: gzip.
 
     python3 tools/replay_build.py GLOBE_DIR OUT [--db aircraft.csv.gz]
@@ -153,6 +161,9 @@ def build_day(globe, out, day, db, partial):
         return None
     dest = os.path.join(out, "replay", "v1", day.isoformat())
     chunks, buckets = [], [0] * 288
+    day0 = int(dt.datetime(day.year, day.month, day.day,
+                           tzinfo=dt.timezone.utc).timestamp())
+    tracks = {}
     for f in files:
         nn = int(f.split(".")[0])
         name = "%02d%02d" % (nn // 2, (nn % 2) * 30)
@@ -161,15 +172,32 @@ def build_day(globe, out, day, db, partial):
             continue
         write_gz_json(os.path.join(dest, name + ".json"), chunk)
         chunks.append(name)
+        base = int(round((chunk["t0"] - day0) / chunk["step"]))
+        for hexs, cs, reg, typ, _sq, flat in chunk["ac"]:
+            tr = tracks.get(hexs)
+            if tr is None:
+                tr = tracks[hexs] = [reg, typ, [], []]
+            if cs and (not tr[2] or tr[2][-1][1] != cs):
+                tr[2].append([base + flat[0], cs])
+            for i in range(0, len(flat), 5):
+                tr[3].append(base + flat[i])
+                tr[3].extend(flat[i + 1:i + 5])
         # traffic for the timeline: the busiest slice of every 5 minutes
         for k, c in enumerate(counts):
             t = chunk["t0"] + k * chunk["step"]
             b = int((t % 86400) // 300)
             if 0 <= b < 288:
                 buckets[b] = max(buckets[b], c)
+    shards = {}
+    for hexs, tr in tracks.items():
+        shards.setdefault(hexs[-2:], {})[hexs] = tr
+    for key, ac in shards.items():
+        write_gz_json(os.path.join(dest, "tracks", key + ".json"),
+                      {"v": 1, "day": day.isoformat(), "t0": day0,
+                       "step": 15, "ac": ac})
     write_json(os.path.join(dest, "index.json"),
                {"v": 1, "day": day.isoformat(), "step": 15,
-                "chunks": chunks, "traffic": buckets,
+                "chunks": chunks, "traffic": buckets, "tracks": True,
                 "complete": len(chunks) == 48})
     return {"day": day.isoformat(), "chunks": len(chunks),
             "complete": len(chunks) == 48}
