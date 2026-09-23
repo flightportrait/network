@@ -736,6 +736,10 @@
     background:var(--paper);border:1px solid var(--line);border-radius:6px;
     padding:7px 12px;font-size:14px;box-shadow:0 2px 14px color-mix(in srgb,var(--shade) 20%,transparent)}
   #tip .m{color:var(--quiet);font-size:12.5px}
+  /* hover labels only where there is hover: on a phone a tap fakes a
+     hover and the label stays over everything, with the card saying it
+     all anyway */
+  @media (hover: none){ #tip{display:none !important} }
   .allist{list-style:none;margin-top:6px}
   .allist .group{padding:14px 20px 6px;color:var(--quiet);cursor:default;
     border-bottom:none;font-family:'Helvetica Neue',Arial,sans-serif;
