@@ -3803,8 +3803,10 @@
     var b = new maplibregl.LngLatBounds(pts[0], pts[0]);
     pts.forEach(function (p) { b.extend(p); });
     state.fitted = true;
-    // a sky that spans the globe is the world view already open
-    if (b.getEast() - b.getWest() > 270) { renderListSoon(); return; }
+    // only a sky that sits in one region is worth moving to: a worldwide
+    // one is the world view already open, so the map stays put
+    var cam = map.cameraForBounds(b, { padding: 90, maxZoom: 9 });
+    if (!cam || cam.zoom < map.getZoom() + 1) { renderListSoon(); return; }
     map.fitBounds(b, { padding: 90, maxZoom: 9,
                        duration: reducedMotion ? 0 : 1200 });
     renderListSoon();
