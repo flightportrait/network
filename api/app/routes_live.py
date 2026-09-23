@@ -19,7 +19,7 @@ from sqlalchemy import select
 
 from . import openapi as spec
 from . import ratelimit
-from .refdata_models import RefAirport
+from .refdata_models import RefAirport, RefSchedule
 from .errors import ApiError
 
 router = APIRouter()
@@ -143,10 +143,47 @@ _ROUTES = {}
 ROUTE_TTL_S = 3600
 
 
+SCHEDULE_DOMINANT = 0.7
+
+
+def schedule_chain(legs):
+    """The inferred schedule's legs for one callsign, [(org, dst,
+    n_flights), ...] -> an airport chain, or None when they do not say
+    one thing. One leg is its route; legs that link end to end (A-B,
+    B-C) are the chain A, B, C; otherwise the leg flown at least
+    SCHEDULE_DOMINANT of the time, or nothing."""
+    legs = [(o, d, n or 0) for o, d, n in legs if o and d and o != d]
+    if not legs:
+        return None
+    if len(legs) == 1:
+        return [legs[0][0], legs[0][1]]
+    nxt, ins = {}, set()
+    for o, d, _ in legs:
+        if o in nxt or d in ins:
+            nxt = None                    # a fork: not one line
+            break
+        nxt[o] = d
+        ins.add(d)
+    if nxt is not None:
+        starts = [o for o in nxt if o not in ins]
+        if len(starts) == 1:
+            chain = [starts[0]]
+            while chain[-1] in nxt and len(chain) <= len(legs):
+                chain.append(nxt[chain[-1]])
+            if len(chain) == len(legs) + 1:
+                return chain
+    total = sum(n for _, _, n in legs)
+    o, d, n = max(legs, key=lambda leg: leg[2])
+    if total and n / total >= SCHEDULE_DOMINANT:
+        return [o, d]
+    return None
+
+
 def route_of(app, callsign):
     """A callsign's route as /v1/routes resolves it: the observed routes
-    artifact first, the community catalog where it is silent. Cached an
-    hour per callsign, so a lost aircraft costs one lookup."""
+    artifact first, the community catalog where it is silent, the
+    inferred schedule where both are (schedule_chain). Cached an hour
+    per callsign, so a lost aircraft costs one lookup."""
     now = time.time()
     hit = _ROUTES.get(callsign)
     if hit and now - hit[0] < ROUTE_TTL_S:
@@ -158,6 +195,11 @@ def route_of(app, callsign):
             with app.state.sessionmaker() as session:
                 current = catalog_current(session, callsign)
                 route = catalog_route(current) if current is not None else None
+                if route is None:
+                    route = schedule_chain(session.execute(
+                        select(RefSchedule.org, RefSchedule.dst,
+                               RefSchedule.n_flights)
+                        .where(RefSchedule.callsign == callsign)).all())
         except Exception:                 # noqa: BLE001 — no route, no guess
             route = None
     if len(_ROUTES) > 20000:

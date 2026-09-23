@@ -149,3 +149,31 @@ def test_book_survives_a_restart(ctx):
     stale = E.EstimateBook(routes, airports)
     old = [dict(o, at=now - E.MAX_AGE_S - 10) for o in book.dump()]
     assert stale.restore(old, now) == 0
+
+
+def test_schedule_legs_become_a_chain_or_nothing():
+    from app.routes_live import schedule_chain
+    assert schedule_chain([("STR", "FCO", 24)]) == ["STR", "FCO"]
+    # legs flown end to end, in any row order
+    assert schedule_chain([("BCN", "PSA", 5), ("CIA", "BCN", 5)]) == \
+        ["CIA", "BCN", "PSA"]
+    # out and back under one number: the leg flown most, if it dominates
+    assert schedule_chain([("CDG", "ARN", 47), ("ARN", "CDG", 3)]) == \
+        ["CDG", "ARN"]
+    assert schedule_chain([("CDG", "ARN", 20), ("ARN", "CDG", 18)]) is None
+    # a fork (two legs out of one airport) without a dominant leg
+    assert schedule_chain([("LHR", "JFK", 10), ("LHR", "BOS", 9)]) is None
+    assert schedule_chain([]) is None
+
+
+def test_route_of_falls_back_to_the_schedule(ctx):
+    from app.refdata_models import RefSchedule
+    from app.routes_live import _ROUTES, route_of
+    client, app, sm, settings, readsb = ctx
+    with sm() as session:
+        session.add(RefSchedule(callsign="EWG2882", org="STR", dst="FCO",
+                                airline_icao="EWG", n_flights=24))
+        session.commit()
+    _ROUTES.clear()
+    assert route_of(app, "EWG2882") == ["STR", "FCO"]
+    assert route_of(app, "EWG9999") is None

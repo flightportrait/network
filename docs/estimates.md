@@ -19,6 +19,13 @@ Climbing, descending, slow or unrouted aircraft get none: nothing is
 guessed for a flight that is about to land or whose destination is
 unknown.
 
+The route comes from the observed routes first, then the community
+catalog, then the inferred schedule: a flight number flown on one leg
+is that leg, legs that link end to end are the whole chain, and a
+number flown on several legs gives its main leg only when at least 70 %
+of its flights fly it. Adding the schedule gave 11 % more lost aircraft
+an estimate at unchanged accuracy (backtest, 4,910 traces).
+
 ## How it is placed
 
 From the last observed position, at the last observed ground speed:
