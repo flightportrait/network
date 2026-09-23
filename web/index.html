@@ -240,6 +240,10 @@
   .rp-live{flex:none;color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
   .rp-days button:not(:disabled):hover,.rp-speeds button:hover,.rp-live:hover{border-color:var(--ink)}
   @media(max-width:1100px){.rp-speeds button[data-s="1"],.rp-days{display:none}}
+  .rflight.live .rf-bar,.rflight.live #d-rf-follow{display:none}
+  .rflight.live .rf-profile{cursor:default}
+  .rflight.live.replayable .rf-profile{cursor:pointer}
+  .rflight.live.replayable .rf-profile:hover .rf-done{stroke:var(--red)}
   .rflight{margin:10px 0 4px;padding-top:10px;border-top:1px solid var(--line);
     font-size:12.5px}
   .rf-times{display:flex;justify-content:space-between;color:var(--quiet);
@@ -3459,6 +3463,8 @@
 
   function deselect() {
     if (!state.selected) return;
+    liveFlight = null;
+    if (el("d-replay") && !replay.on) el("d-replay").hidden = true;
     state.selected = null;
     if (history.replaceState) {
       history.replaceState(null, "",
@@ -3632,10 +3638,13 @@
       return r.json();
     }).then(function (d) {
       if (d.hex !== state.selected) return;
-      state.trailPts = d.points || [];
+      if (!liveFlight || liveFlight.hex !== d.hex ||
+          Date.now() - liveFlight.at > 300000) liveLoadFlight(d.hex);
+      state.trailPts = liveJoin(d.points || []);
       state.bounds = { hex: d.hex, departure: d.departure || null,
                        arrival: d.arrival || null };
       drawTrail();
+      livePaintFlight();
       var cs = (findAircraft(d.hex) || {}).flight;
       if (cs && routeCache[String(cs).trim()]) renderRoute(String(cs).trim());
     }).catch(function () {
@@ -4664,6 +4673,9 @@
       } else if (!state.selected && replay.flight) {
         replay.flight = null; replayFutureLine(); replayPaintFlight();
       }
+      if (replay.flight && !replay.flight.leg && !replay.flight.loading) {
+        replayPaintFlight();
+      }
       if (replay.flight && replay.flight.leg) {
         var lg = replay.flight.leg;
         // playing past the leg's ends picks up the aircraft's next leg
@@ -4709,6 +4721,7 @@
       replay.last = 0;
       replay.objs = {};
       document.body.classList.add("replaying");
+      if (el("d-replay")) el("d-replay").hidden = true;
       setStatus(true, "playback");
       replayPaintRibbon();
       replayPaintControls();
@@ -4730,7 +4743,9 @@
     }
     replay.flight = null;
     replayFutureLine();
-    replayPaintFlight();
+    // the card's flight block goes back to the live flight at once
+    if (el("d-replay")) el("d-replay").hidden = true;
+    trailFor = null;
     replaySaveURL();
     var live = replay.live;
     replay.live = null;
@@ -4896,12 +4911,17 @@
   // to scrub. Follow keeps the aircraft in view while it plays.
   var replayTracks = {};                    // "day/xx" -> shard | promise
   function replayShard(day, hex) {
-    var key = day + "/" + hex.slice(-2);
-    if (replayTracks[key]) return Promise.resolve(replayTracks[key]);
+    var key = day + "/" + hex.slice(-2), have = replayTracks[key];
+    var today = day === replayDay(Date.now() / 1000);
+    if (have && !(today && Date.now() - have._at > 300000)) return Promise.resolve(have);
     return fetch(REPLAY_BASE + "/" + key.replace("/", "/tracks/") + ".json")
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; })
-      .then(function (d) { replayTracks[key] = d || { ac: {} }; return replayTracks[key]; });
+      .then(function (d) {
+        replayTracks[key] = d || { ac: {} };
+        replayTracks[key]._at = Date.now();
+        return replayTracks[key];
+      });
   }
   function replayHasDay(day) {
     return (replay.days || []).some(function (d) { return d.day === day; });
@@ -5013,7 +5033,9 @@
     var box = el("d-replay");
     if (!box) return;
     var f = replay.flight;
-    if (!replay.on || !f || !f.leg || f.hex !== state.selected) {
+    if (!replay.on) return;
+    box.classList.remove("live");
+    if (!f || !f.leg || f.hex !== state.selected) {
       box.hidden = true;
       return;
     }
@@ -5062,6 +5084,15 @@
     ["d-rf-bar", "d-rf-profile"].forEach(function (id) {
       var elx = el(id);
       elx.addEventListener("pointerdown", function (ev) {
+        if (!replay.on) {
+          // live: a point on the flight so far opens playback there
+          if (id !== "d-rf-profile" || box.hidden) return;
+          var r = elx.getBoundingClientRect();
+          var x = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+          var t0 = +box.dataset.t0, t1 = +box.dataset.t1, at = t0 + x * (t1 - t0);
+          if (isFinite(at) && replay.end && at <= replay.end) enterReplay(at, 60, false);
+          return;
+        }
         replay.scrubbing = true; elx.setPointerCapture(ev.pointerId); seekFrom(ev, elx);
       });
       elx.addEventListener("pointermove", function (ev) { if (replay.scrubbing) seekFrom(ev, elx); });
@@ -5081,6 +5112,84 @@
       }
     });
   })();
+
+  // ---- live: the selected flight so far ------------------------------
+  // The live trace holds half an hour; today's track shards (published
+  // every half hour by the archive) hold the rest. Joined, the trail runs
+  // from where the network first heard this flight today, and the card
+  // shows its altitude so far — a place to click back into playback.
+  var liveFlight = null;       // { hex, pts: archived leg, at }
+  function liveLoadFlight(hex) {
+    liveFlight = { hex: hex, pts: [], at: Date.now() };
+    var now = Date.now() / 1000, day = replayDay(now);
+    var jobs = [replayShard(day, hex)];
+    if (now % 86400 < 7200) jobs.push(replayShard(replayDay(now - 86400), hex));
+    Promise.all(jobs).then(function (shards) {
+      if (!liveFlight || liveFlight.hex !== hex) return;
+      var pts = [];
+      shards.forEach(function (sh) { pts = pts.concat(trackPoints(sh, hex).pts); });
+      pts.sort(function (a, b) { return a[0] - b[0]; });
+      var legs = trackLegs(pts), last = legs[legs.length - 1];
+      // the archived leg belongs to this flight only if it ran up to the
+      // archive's edge (it is still going), not one that landed hours ago
+      if (last && now - last[last.length - 1][0] < 3600) liveFlight.pts = last;
+      liveFlight.at = Date.now();
+      if (state.selected === hex) { drawTrail(); livePaintFlight(); }
+    });
+  }
+  // the trace, with the archived part of the leg before it
+  function liveJoin(trace) {
+    var out = [], first = trace.length ? trace[0][0] : Infinity;
+    if (liveFlight && liveFlight.hex === state.selected) {
+      liveFlight.pts.forEach(function (p) {
+        if (p[0] < first) out.push([p[0], p[1], p[2], p[3] == null ? 0 : p[3]]);
+      });
+    }
+    return out.concat(trace);
+  }
+  function fmtSpan(sec) {
+    var m = Math.round(sec / 60), h = Math.floor(m / 60);
+    return h ? h + " h " + (m % 60) + " min" : m + " min";
+  }
+  function livePaintFlight() {
+    var box = el("d-replay");
+    if (!box || replay.on) return;
+    var pts = (state.trailPts || []).filter(function (p) { return typeof p[3] === "number" || p[3] === "ground"; });
+    if (!state.selected || pts.length < 2) { box.hidden = true; return; }
+    var t0 = pts[0][0], t1 = pts[pts.length - 1][0], span = Math.max(60, t1 - t0);
+    var top = 10000;
+    pts.forEach(function (p) { if (typeof p[3] === "number") top = Math.max(top, p[3]); });
+    top = Math.ceil(top / 5000) * 5000;
+    var W = 280, H = 44, path = "";
+    pts.forEach(function (p, i) {
+      var alt = typeof p[3] === "number" ? p[3] : 0;
+      path += (i ? "L" : "M") + ((p[0] - t0) / span * W).toFixed(1) + "," +
+        (H - 2 - alt / top * (H - 6)).toFixed(1);
+    });
+    // the archive's edge: what lies before it can be replayed
+    if (!replay.end && !replay.spanLoading) {
+      replay.spanLoading = true;
+      replayLoadDays().then(replaySpan).then(function () {
+        if (state.selected) livePaintFlight();
+      }).catch(function () {});
+    }
+    var edge = replay.end ? Math.min(W, Math.max(0, (replay.end - t0) / span * W)) : 0;
+    box.hidden = false;
+    box.classList.add("live");
+    box.dataset.leg = "";
+    el("d-rf-from").textContent = "heard since " + clockFmt.format(new Date(t0 * 1000));
+    el("d-rf-to").textContent = fmtSpan(t1 - t0);
+    el("d-rf-profile").innerHTML =
+      "<svg viewBox='0 0 " + W + " " + H + "' preserveAspectRatio='none'>" +
+      "<defs><clipPath id='rf-archived'><rect x='0' y='0' width='" + edge.toFixed(1) +
+      "' height='" + H + "'/></clipPath></defs>" +
+      "<path d='" + path + "' class='rf-all'/>" +
+      "<path d='" + path + "' class='rf-done' clip-path='url(#rf-archived)'/></svg>";
+    el("d-rf-profile").title = edge > 0 ? "Replay this flight" : "";
+    box.classList.toggle("replayable", edge > 0);
+    el("d-rf-top").textContent = (top / 1000) + "k ft";
+    box.dataset.t0 = t0; box.dataset.t1 = t1;
+  }
 
   function ReplayControl(map) { this.map = map; }
   ReplayControl.prototype.onAdd = function () {
