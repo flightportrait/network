@@ -102,7 +102,8 @@
   /* the three views, one at a time */
   .tabs{position:sticky;top:64px;z-index:5;background:var(--paper);
     display:flex;gap:26px;margin-top:30px;border-bottom:1px solid var(--ink);
-    overflow-x:auto}
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
   @media (max-width:640px){ .tabs{top:0;position:relative} }
   .tabs button{background:none;border:none;font:inherit;font-size:18px;
     color:var(--quiet);cursor:pointer;padding:10px 0 9px;white-space:nowrap;
