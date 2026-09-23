@@ -2208,12 +2208,12 @@
           } });
       }
       map.on("click", "planes", function (e) {
-        select(e.features[0].properties.hex);
+        select(e.features[0].properties.hex, "map");
       });
       map.on("click", function (e) {
         if (gpu.active) {
           var hit = gpuHit(e.point);
-          if (hit) select(hit); else deselect();
+          if (hit) select(hit, "map"); else deselect();
           return;
         }
         if (!map.queryRenderedFeatures(e.point,
@@ -2780,7 +2780,14 @@
     return null;
   }
 
-  function select(hex) {
+  // How the camera answers a selection depends on where it came from.
+  // A plane tapped on the map, or picked from the in-view list, is
+  // already on screen: the view the visitor set up stays, and the map
+  // only slides far enough to keep the plane out from under the card,
+  // the top bar or the phone sheet. A plane found by search or a shared
+  // link may be anywhere: the map flies to it, zooming in only from
+  // far out, so the visitor's context survives the jump.
+  function select(hex, how) {
     if (window.__closeAirline) window.__closeAirline(false);
     if (window.__closeAirport) window.__closeAirport(true);
     if (!el("fl-detail").hidden) el("fl-close").click();
@@ -2800,9 +2807,55 @@
     var a = findAircraft(hex);
     if (a && a.lat != null) {
       state.touched = true;
-      map.flyTo({ center: [a.lon, a.lat],
-                  zoom: Math.max(map.getZoom(), 8) });
+      showSelected(a, how === "map" || how === "list");
     }
+  }
+  // the part of the map not covered by the top bar, the aircraft card
+  // (desktop: over the map's left) or the sheet (phones: over its foot)
+  function mapClearBox() {
+    var box = map.getContainer().getBoundingClientRect();
+    var pad = { top: 80, right: 24, bottom: 24, left: 24 };
+    var card = el("detail");
+    if (card && card.classList.contains("show")) {
+      var r = card.getBoundingClientRect();
+      if (r.width && r.width < box.width * 0.6 && r.left < box.left + box.width / 2) {
+        pad.left = Math.max(pad.left, r.right - box.left + 24);
+      }
+    }
+    var col = document.querySelector(".col");
+    if (col) {
+      var c = col.getBoundingClientRect();
+      if (c.width >= box.width * 0.9 && c.top > box.top && c.top < box.bottom) {
+        pad.bottom = Math.max(pad.bottom, box.bottom - c.top + 24);
+      }
+    }
+    var w = box.width, h = box.height;
+    if (pad.left + pad.right > w - 80) pad.left = pad.right = 24;
+    if (pad.top + pad.bottom > h - 80) pad.top = pad.bottom = 24;
+    return { l: pad.left, t: pad.top, r: w - pad.right, b: h - pad.bottom,
+             w: w, h: h };
+  }
+  function showSelected(a, onScreen) {
+    var k = mapClearBox(), p = map.project([a.lon, a.lat]);
+    var inside = p.x >= k.l && p.x <= k.r && p.y >= k.t && p.y <= k.b;
+    if (inside) return;
+    var visible = p.x >= 0 && p.x <= k.w && p.y >= 0 && p.y <= k.h;
+    if (onScreen || visible) {
+      // slide just enough, keeping a margin inside the clear box
+      var m = 40, dx = 0, dy = 0;
+      if (p.x < k.l) dx = p.x - Math.min(k.l + m, (k.l + k.r) / 2);
+      else if (p.x > k.r) dx = p.x - Math.max(k.r - m, (k.l + k.r) / 2);
+      if (p.y < k.t) dy = p.y - Math.min(k.t + m, (k.t + k.b) / 2);
+      else if (p.y > k.b) dy = p.y - Math.max(k.b - m, (k.t + k.b) / 2);
+      map.panBy([dx, dy], { duration: reducedMotion ? 0 : 450 });
+      return;
+    }
+    var z = map.getZoom();
+    var fly = { center: [a.lon, a.lat], zoom: z < 5 ? 7 : z,
+      // centre it in the clear box, not under the card
+      offset: [(k.l + k.r - k.w) / 2, (k.t + k.b - k.h) / 2] };
+    if (reducedMotion) fly.duration = 0;
+    map.flyTo(fly);
   }
 
   function deselect() {
@@ -3754,7 +3807,7 @@
           window.__goAirline(tail.getAttribute("data-a"));
           return;
         }
-        select(a.hex);
+        select(a.hex, "list");
       });
       ul.appendChild(li);
     });
