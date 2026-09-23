@@ -74,6 +74,29 @@ levels can be flown along it instead of the great circle.
 from the adsb.lol archive; the map uses it only once those scores show
 it placing aircraft better.
 
+## Over the Pacific
+
+Between Alaska and Japan (the NOPAC routes) and between Hawaii and the
+mainland (the CEPAC routes), flights fly fixed oceanic airways.
+`refdata/pac_airways.json`, built by `tools/pac_airways.py` from the
+FAA's NASR data, holds the 74 of them. An aircraft already on one is
+flown along it for as long as it leads toward the destination (and
+only if that is at most 3 % longer than going straight there), then on
+to it. `app/pac_score.py` scores it every night against the day's
+Pacific crossings. On 2026-09-22 (497 ocean gaps, most of them 3 to 8
+hours long):
+
+| | Now | Along the routes |
+|---|---|---|
+| All gaps | 204 km | 193 km |
+| Asia to North America | 224 km | 213 km |
+| Hawaii to the mainland | 154 km | 138 km |
+| South Pacific | 429 km | 367 km |
+
+The daily Pacific tracks (PACOTS), which most long crossings between
+Japan and North America fly, are not used yet; gaps over six hours are
+unchanged.
+
 ## On the map
 
 Estimated aircraft are drawn with the same silhouettes as heard ones,

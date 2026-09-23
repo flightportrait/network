@@ -332,3 +332,74 @@ def project_path(obs, waypoints, dt_s):
         left -= seg
         lat, lon = wla, wlo
     return lat, lon, hdg, 0.0
+
+
+# ---- the fixed Pacific routes -------------------------------------------
+# Between Alaska and Japan and between Hawaii and the mainland, flights
+# fly published oceanic airways (app.pacific: the NOPAC and CEPAC
+# routes). An aircraft already on one is flown along it, as far as it
+# leads toward the destination, then on to it. The tolerances are chosen
+# on the Pacific score (app.pac_score, 2026-09-22: 497 gaps). Joining a
+# route from up to 600 km before its first point was tried and dropped:
+# it put Hawaii flights for Seattle or New York onto California routes.
+AIRWAY_ON_KM = 20              # off the airway's line, sideways
+AIRWAY_HDG_DEG = 20            # track vs the airway's direction there
+AIRWAY_DETOUR = 1.03           # along the route then on, vs straight there
+
+
+def _cross_along(a, b, lat, lon):
+    """Cross-track and along-track km of (lat, lon) from the great
+    circle a -> b, along measured from a (negative: behind a)."""
+    d13 = haversine_km(a[0], a[1], lat, lon) / EARTH_KM
+    t13 = math.radians(bearing_deg(a[0], a[1], lat, lon))
+    t12 = math.radians(bearing_deg(a[0], a[1], b[0], b[1]))
+    xt = math.asin(max(-1.0, min(1.0, math.sin(d13) * math.sin(t13 - t12))))
+    at = math.acos(max(-1.0, min(1.0, math.cos(d13) / max(1e-12, math.cos(xt)))))
+    if math.cos(t13 - t12) < 0:
+        at = -at
+    return xt * EARTH_KM, at * EARTH_KM
+
+
+def _toward(here, ahead, dest):
+    """The points ahead that each bring the aircraft nearer dest, if
+    flying them and then on to dest is no more than AIRWAY_DETOUR of the
+    straight way; else None: that route is not the way there."""
+    kept, last = [], haversine_km(*here, *dest)
+    for p in ahead:
+        d = haversine_km(*p, *dest)
+        if d >= last:
+            break
+        kept.append(p)
+        last = d
+    if not kept:
+        return None
+    path = [here] + kept + [dest]
+    flown = sum(haversine_km(*a, *b) for a, b in zip(path, path[1:]))
+    return kept if flown <= AIRWAY_DETOUR * haversine_km(*here, *dest) else None
+
+
+def match_airway(obs, airways, dest=None):
+    """The fixed route the aircraft is flying, as the list of points
+    still ahead of it, or None. airways: {id: [(lat,
+    lon), ...]}, flown either way; the nearest one wins. With dest
+    (lat, lon), only the part of a route that leads there counts
+    (_toward), and a route that does not lead there is passed over."""
+    here = (obs["lat"], obs["lon"])
+    found = []                         # (km off the route, points ahead)
+    for pts in airways.values():
+        for line in (list(pts), list(pts)[::-1]):
+            for i, (a, b) in enumerate(zip(line, line[1:])):
+                xt, at = _cross_along(a, b, *here)
+                if abs(xt) > AIRWAY_ON_KM or not 0 <= at < haversine_km(*a, *b):
+                    continue
+                if abs(angle_diff(obs["track"], bearing_deg(*here, *b))) > AIRWAY_HDG_DEG:
+                    continue
+                found.append((abs(xt), line[i + 1:]))
+    for _, ahead in sorted(found, key=lambda f: f[0]):
+        ahead = [tuple(p) for p in ahead]
+        if dest is None:
+            return ahead
+        kept = _toward(here, ahead, dest)
+        if kept:
+            return kept
+    return None
