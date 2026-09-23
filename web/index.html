@@ -2385,7 +2385,7 @@
   // route's destination). Grey ink, never the sky's red, "est" beside
   // the callsign, a card that says what was observed and when. Never in
   // the counts or the lists; a switch hides them, remembered here.
-  var est = { on: true, timer: null, data: [] };
+  var est = { on: true, timer: null, data: [], at: 0, recv: 0, glide: null };
   try { est.on = localStorage.getItem("fp-estimated") !== "0"; } catch (e) {}
   function greyIcon(bm) {
     var d = bm.data, c = document.createElement("canvas");
@@ -2451,6 +2451,38 @@
     }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
     pollEstimates(map);
     est.timer = setInterval(function () { pollEstimates(map); }, 30000);
+    // glide: between polls every estimate moves on along its heading at
+    // its speed, a step a second, as the live sky does every frame
+    if (!reducedMotion) {
+      est.glide = setInterval(function () {
+        if (estShown() && !document.hidden && est.data.length) drawEstimates(map);
+      }, 1000);
+    }
+  }
+  // Seconds since the positions were computed: time since this browser
+  // received them plus their age on arrival (edge cache), so a visitor's
+  // wrong clock cannot fling them across the map.
+  function estElapsed() {
+    var age = Math.max(0, Math.min(30, est.recv / 1000 - est.at));
+    return (Date.now() - est.recv) / 1000 + age;
+  }
+  function glided(a, dt) {
+    if (reducedMotion || a.gs == null || a.track == null) return [a.lon, a.lat];
+    var km = a.gs * 1.852 * Math.min(dt, 90) / 3600;
+    var r = a.track * Math.PI / 180;
+    return [a.lon + km * Math.sin(r) / (111.2 * Math.max(0.2, Math.cos(a.lat * Math.PI / 180))),
+            a.lat + km * Math.cos(r) / 111.2];
+  }
+  function drawEstimates(map) {
+    var src = map.getSource("estimated");
+    if (!src) return;
+    var dt = estElapsed();
+    src.setData({ type: "FeatureCollection",
+      features: est.data.map(function (a) {
+        return { type: "Feature", properties: { hex: a.hex,
+            flight: a.flight || a.hex, track: a.track, kind: iconFor(a) },
+          geometry: { type: "Point", coordinates: glided(a, dt) } };
+      }) });
   }
   function estShown() {
     return est.on && !document.body.classList.contains("replaying");
@@ -2470,12 +2502,9 @@
       var live = {};
       (state.aircraft || []).forEach(function (a) { live[a.hex] = 1; });
       est.data = (d.aircraft || []).filter(function (a) { return !live[a.hex]; });
-      map.getSource("estimated").setData({ type: "FeatureCollection",
-        features: est.data.map(function (a) {
-          return { type: "Feature", properties: { hex: a.hex,
-              flight: a.flight || a.hex, track: a.track, kind: iconFor(a) },
-            geometry: { type: "Point", coordinates: [a.lon, a.lat] } };
-        }) });
+      est.at = d.generated_at || Date.now() / 1000;
+      est.recv = Date.now();
+      drawEstimates(map);
     }).catch(function () {});
   }
   // the viewer's clock for unix seconds (the name is its own: the route
@@ -2491,7 +2520,7 @@
                              : a.alt_baro.toLocaleString() + " ft") : "";
     var typeName = (a.t && typeNames[a.t] && typeNames[a.t][0]) || a.t || "";
     new maplibregl.Popup({ closeButton: true, offset: 14, maxWidth: "280px" })
-      .setLngLat([a.lon, a.lat])
+      .setLngLat(glided(a, estElapsed()))
       .setHTML("<div style='font-size:16px'>" + esc(a.flight || a.hex) +
         " <span style='color:var(--quiet)'>estimated</span></div>" +
         "<div>Last heard " + estClock(a.last_seen.at) + ", " + ago + " min ago</div>" +
