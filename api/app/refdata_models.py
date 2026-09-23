@@ -139,8 +139,8 @@ class RefAirport(Base):
     municipality: Mapped[str | None] = mapped_column(String(80),
                                                      nullable=True)
     iata: Mapped[str | None] = mapped_column(String(3), nullable=True)
-    # Olson timezone (e.g. "Asia/Dubai"), for local departure times.
-    # Sourced from OpenFlights (refdata_ingest airport_tz).
+    # IANA time zone (e.g. "Asia/Dubai"), for local departure times,
+    # computed from the airport's coordinates (refdata_ingest airport_tz).
     tz: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 

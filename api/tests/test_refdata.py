@@ -185,19 +185,15 @@ def _make_legs_db(path, generated="2026-08-12"):
 def test_airport_tz(ctx, tmp_path):
     client, app, sm, settings, readsb = ctx
     _seed_all(sm, tmp_path)
-    # OpenFlights rows: ...,IATA,ICAO,...,Tz(idx 11),...
-    of = tmp_path / "openflights.dat"
-    of.write_text(
-        '1,"Changi","Singapore","SG","SIN","WSSS",1.35,103.9,22,8,"N",'
-        '"Asia/Singapore","airport","OurAirports"\n'
-        '2,"Sydney","Sydney","AU","SYD","YSSY",-33.9,151.1,21,10,"N",'
-        '"Australia/Sydney","airport","OurAirports"\n')
     session = sm()
     try:
-        n = refdata_ingest.ingest_airport_tz(session, str(of))
+        # zones come from each airport's own coordinates
+        n = refdata_ingest.ingest_airport_tz(session)
         session.commit()
-        assert n == 2
+        assert n == 3
         assert session.get(RefAirport, "WSSS").tz == "Asia/Singapore"
+        assert session.get(RefAirport, "YSSY").tz == "Australia/Sydney"
+        assert session.get(RefAirport, "WMKK").tz == "Asia/Kuala_Lumpur"
     finally:
         session.close()
     # tz rides along in the routes airports payload
@@ -475,11 +471,12 @@ def test_airline_names_completion(ctx, tmp_path):
     client, app, sm, settings, readsb = ctx
     from app import refdata_ingest
     from app.refdata_models import RefAirline, RefSchedule
-    dat = tmp_path / "airlines.dat"
+    dat = tmp_path / "vrs-airlines.csv"
     dat.write_text(
-        '1,"Delta Air Lines",\\N,"DL","DAL","DELTA","United States","Y"\n'
-        '2,"Ghost Air",\\N,"GH","GHO","GHOST","Nowhere","N"\n'
-        '3,"Bad Row"\n')
+        "\ufeffCode,Name,ICAO,IATA,PositioningFlightPattern,CharterFlightPattern\n"
+        "DL,Delta Air Lines,DAL,DL,,\n"
+        "GH,Ghost Air,GHO,GH,,\n"
+        "Bad Row\n")
     session = sm()
     try:
         session.add(RefSchedule(callsign="DAL22", org="DTW", dst="MUC",
@@ -551,10 +548,8 @@ def test_airline_names_prefer_the_maintained_list(ctx, tmp_path):
     client, app, sm, settings, readsb = ctx
     from app import refdata_ingest
     from app.refdata_models import RefAirline, RefSchedule
-    dat = tmp_path / "airlines.dat"
+    dat = tmp_path / "vrs-airlines.csv"
     dat.write_text(
-        '1,"German International Air Lines",\\N,"GM","GER","","Germany","Y"\n')
-    (tmp_path / "vrs-airlines.csv").write_text(
         "\ufeffCode,Name,ICAO,IATA,PositioningFlightPattern,CharterFlightPattern\n"
         "EJU,easyJet Europe,EJU,EC,,\n"
         "GER,German Airways,GER,,,\n")

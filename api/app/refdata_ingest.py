@@ -12,7 +12,7 @@ everything else in this service.
     python -m app.refdata_ingest airframes airframes.json.gz   # derived artifact
     python -m app.refdata_ingest seed      refdata_seed.json   # derived artifact
     python -m app.refdata_ingest routes    routes.json.gz      # derived artifact
-    python -m app.refdata_ingest airport_tz openflights.dat    # OpenFlights tz
+    python -m app.refdata_ingest airport_tz                    # tz from coordinates
     python -m app.refdata_ingest leg_stats [legs.db]           # derived artifact
     python -m app.refdata_ingest schedule  [legs.db]           # needs callsign
     python -m app.refdata_ingest alliances refdata/alliances.json
@@ -226,44 +226,29 @@ def ingest_airports(session, path):
     return written
 
 
-def ingest_airport_tz(session, path):
-    """OpenFlights airports.dat: attach an Olson timezone to each airport
-    we already have, so departure times can be shown in the airport's own
-    local time. CSV columns: ID,Name,City,Country,IATA,ICAO,Lat,Lon,Alt,
-    TZoffset,DST,Tz,Type,Source — we take ICAO->ident (primary) and
-    IATA->iata (fallback) as the join key."""
-    by_ident, by_iata = {}, {}
-    with _open_text(path) as fh:
-        for row in csv.reader(fh):
-            if len(row) < 12:
-                continue
-            icao, iata, tz = row[5].strip(), row[4].strip(), row[11].strip()
-            if "/" not in tz:                 # only real Olson names
-                continue
-            if len(icao) == 4 and icao != "\\N":
-                by_ident[icao.upper()] = tz
-            if len(iata) == 3 and iata != "\\N":
-                by_iata.setdefault(iata.upper(), tz)
+def ingest_airport_tz(session, path=None):
+    """Attach an IANA time zone to every airport from its own coordinates,
+    so departure times can be shown in the airport's local time. The zone
+    boundaries are timezone-boundary-builder's (ODbL, from OpenStreetMap)
+    as the timezonefinder package ships them; every stored zone is
+    recomputed, so no other source's value survives. Airports with no
+    coordinates keep none. `path` is unused (the CLI shape)."""
+    from timezonefinder import TimezoneFinder
 
-    written = 0
-    if by_ident:
-        # Only idents we actually hold — the ORM bulk update raises if a
-        # primary key in the batch matches no row (OpenFlights lists a few
-        # hundred airports OurAirports doesn't).
-        existing = set(session.execute(select(RefAirport.ident)).scalars())
-        pairs = [{"ident": k, "tz": v}
-                 for k, v in by_ident.items() if k in existing]
-        if pairs:
-            session.execute(update(RefAirport), pairs)
-    # IATA fallback for airports OpenFlights lists without an ICAO code.
-    for iata, tz in by_iata.items():
-        r = session.execute(
-            update(RefAirport).where(RefAirport.iata == iata,
-                                     RefAirport.tz.is_(None)).values(tz=tz))
-        written += r.rowcount or 0
-    total = session.execute(
-        select(func.count()).select_from(RefAirport)
-        .where(RefAirport.tz.is_not(None))).scalar_one()
+    finder = TimezoneFinder()
+    rows = session.execute(select(RefAirport.ident, RefAirport.lat,
+                                  RefAirport.lon)).all()
+    pairs = []
+    for ident, lat, lon in rows:
+        tz = None
+        if lat is not None and lon is not None:
+            tz = finder.timezone_at(lat=lat, lng=lon)
+            if tz and tz.startswith("Etc/"):
+                tz = None                 # open ocean: no airport zone
+        pairs.append({"ident": ident, "tz": tz})
+    for start in range(0, len(pairs), CHUNK):
+        session.execute(update(RefAirport), pairs[start:start + CHUNK])
+    total = sum(1 for p in pairs if p["tz"])
     print("  airports with tz now: %d" % total)
     return total
 
@@ -468,24 +453,6 @@ def ingest_boards(session, path):
     return decorated + added
 
 
-def _openflights_names(path):
-    names = {}
-    with _open_text(path) as fh:
-        for row in csv.reader(fh):
-            if len(row) < 8:
-                continue
-            name, iata, icao, active = (row[1].strip(), row[3].strip(),
-                                        row[4].strip(), row[7].strip())
-            if (len(icao) != 3 or not icao.isalpha() or not name
-                    or name == "Unknown"):
-                continue
-            if icao.upper() in names and active != "Y":
-                continue                  # prefer the active holder
-            names[icao.upper()] = (name[:120],
-                                   iata if len(iata) == 2 else None)
-    return names
-
-
 def _vrs_names(path):
     """Virtual Radar Server's standing data (CC0), the maintained list:
     Code,Name,ICAO,IATA,... one row per airline."""
@@ -504,18 +471,12 @@ def _vrs_names(path):
 
 def ingest_airline_names(session, path):
     """Complete the airline registry from observation: every operator
-    the schedule table actually records gets a row. Names come from
-    the OpenFlights airlines.dat snapshot (ODbL) and, when a
-    vrs-airlines.csv sits beside it, from Virtual Radar Server's
-    standing data (CC0), which is maintained and wins where both speak:
-    OpenFlights has no easyJet Europe and calls GER a 1990s carrier.
-    The curated seed rows keep their names and palettes; other rows
-    take a corrected name; operators neither source can name are left
-    out rather than shown as bare codes."""
-    names = _openflights_names(path)
-    vrs = os.path.join(os.path.dirname(path), "vrs-airlines.csv")
-    if os.path.exists(vrs):
-        names.update(_vrs_names(vrs))
+    the schedule table actually records gets a row, named from Virtual
+    Radar Server's standing data (CC0, maintained). `path` is that
+    vrs-airlines.csv. The curated seed rows keep their names and
+    palettes; other rows take the list's name; operators it cannot name
+    are left out rather than shown as bare codes."""
+    names = _vrs_names(path)
 
     rows = {r.icao: r for r in session.execute(select(RefAirline)).scalars()}
     observed = set(session.execute(
@@ -1088,7 +1049,7 @@ def main(argv=None):
         args.path = settings.legs_path
     if args.source == "boards" and not args.path:
         args.path = "data/boards.db"          # default to the artifact drop
-    if args.source not in ("derive",) and not args.path:
+    if args.source not in ("derive", "airport_tz") and not args.path:
         parser.error("%s needs an input file" % args.source)
 
     session = make_sessionmaker(args.db or settings.database_url)()

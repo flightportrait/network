@@ -11,3 +11,6 @@ httpx~=0.28.1
 # IANA timezone database for zoneinfo (the slim image ships no system
 # tzdata) — used to cluster departures in each airport's local time.
 tzdata
+# Time zone of each airport from its coordinates (refdata_ingest
+# airport_tz only); boundaries from timezone-boundary-builder, ODbL.
+timezonefinder~=9.0
