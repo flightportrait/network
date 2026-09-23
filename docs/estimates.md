@@ -60,6 +60,20 @@ destination erred 13 km on the short ones; the combination wins both.
 Airways, holding patterns and weather reroutes are not modelled, so
 long estimates carry tens of kilometres of error by design.
 
+## Over the North Atlantic
+
+Most transatlantic flights fly the day's organised tracks, published
+twice a day by Shanwick and Gander: an entry point on one side of the
+ocean, a position every 10 degrees of longitude, an exit point on the
+other. `app/nat.py` keeps every message; the entry and exit points are
+placed from `refdata/nat_fixes.csv`, built by `tools/nat_fixes.py` from
+the FAA's NASR data (Gander's side) and the UK and Irish AIPs
+(Shanwick's side). An aircraft heading onto a track at one of its
+levels can be flown along it instead of the great circle.
+`app/nat_score.py` scores that every night against ocean crossings
+from the adsb.lol archive; the map uses it only once those scores show
+it placing aircraft better.
+
 ## On the map
 
 Estimated aircraft are drawn with the same silhouettes as heard ones,

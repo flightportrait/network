@@ -15,12 +15,15 @@ point per 10 degrees of longitude (54/20 is 54N 20W, 5630/40 is 56°30'N
 40W; always west longitude), the exit point, and the flight levels
 allowed in each direction (NIL: none).
 
-The parser is pure; fetch() is the only I/O. The estimator uses the
+The parser is pure; fetch() and the fix table (nat_fixes.csv, read
+once) are the only I/O. The estimator uses the
 tracks to fly a lost aircraft along its lane instead of the great
 circle (docs: estimates.md).
 """
+import csv
 import datetime
 import json
+import os
 import re
 import urllib.request
 
@@ -112,6 +115,42 @@ def fetch(url=NAT_URL, timeout=30):
         return parse_parts(json.loads(r.read()))
 
 
+# ---- the named ends: entry and exit fixes --------------------------------
+FIXES_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "..", "refdata", "nat_fixes.csv")
+_FIXES = {}
+
+
+def fixes():
+    """{name: (lat, lon)} for the named points around the ocean, from
+    refdata/nat_fixes.csv (tools/nat_fixes.py: FAA NASR, UK and Irish AIPs)."""
+    if not _FIXES:
+        with open(FIXES_CSV, newline="") as fh:
+            for row in csv.DictReader(fh):
+                _FIXES[row["name"]] = (float(row["lat"]), float(row["lon"]))
+    return _FIXES
+
+
+def track_path(track):
+    """A track's whole path, entry fix, oceanic points, exit fix, in the
+    message's order; a named end the table does not know is left off."""
+    known = fixes()
+    path = [tuple(p) for p in track["points"]]
+    if track.get("entry") in known:
+        path.insert(0, known[track["entry"]])
+    if track.get("exit") in known:
+        path.append(known[track["exit"]])
+    return path
+
+
+def unknown_fixes(messages):
+    """Named ends the table cannot place (a new fix: rerun the tool)."""
+    known = fixes()
+    return sorted({n for m in messages for t in m["tracks"]
+                   for n in (t.get("entry"), t.get("exit"))
+                   if n and n not in known})
+
+
 def active(messages, when):
     """The tracks valid at `when` (aware datetime), each with its
     message's issuer and validity."""
@@ -175,6 +214,10 @@ async def collect(app):
             app.state.nat = msgs
             if n:
                 log.info("nat: %d new track message(s)", n)
+                missing = unknown_fixes(msgs)
+                if missing:
+                    log.warning("nat: fixes not in nat_fixes.csv: %s",
+                                " ".join(missing))
         except asyncio.CancelledError:
             raise
         except Exception as exc:          # noqa: BLE001 — next round

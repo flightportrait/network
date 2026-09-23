@@ -63,12 +63,14 @@ def _tracks():
 def test_match_picks_the_track_ahead():
     from app import estimate as E
     tracks = _tracks()
-    # west of Ireland at FL360, aimed at 54N 20W: track C's first point
-    la, lo = 53.2, -12.0
+    # west of Ireland at FL360, aimed at MALOT: track C's oceanic entry
+    la, lo = 53.2, -10.0
     obs = {"lat": la, "lon": lo, "alt": 36000, "gs": 480.0,
-           "track": E.bearing_deg(la, lo, 54.0, -20.0)}
+           "track": E.bearing_deg(la, lo, 53.0, -15.0)}
     m = E.match_nat(obs, tracks)
-    assert m and m[0] == (54.0, -20.0) and m[-1] == (55.0, -50.0)
+    lomsi = nat.fixes()["LOMSI"]
+    assert m and m[0] == (53.0, -15.0) and m[1] == (54.0, -20.0)
+    assert m[-2] == (55.0, -50.0) and m[-1] == lomsi
     # eastbound: today's tracks are westbound only
     assert E.match_nat(dict(obs, track=80.0), tracks) is None
     # below the track levels: a random route, no track claim
@@ -81,7 +83,7 @@ def test_on_the_track_over_the_ocean():
     # on track C between 30W and 40W, heading west
     obs = {"lat": 56.2, "lon": -35.0, "alt": 37000, "gs": 470.0, "track": 272.0}
     m = E.match_nat(obs, tracks)
-    assert m == [(56.5, -40.0), (55.0, -50.0)]
+    assert m == [(56.5, -40.0), (55.0, -50.0), nat.fixes()["LOMSI"]]
 
 
 def test_project_path_follows_the_waypoints():
@@ -94,3 +96,36 @@ def test_project_path_follows_the_waypoints():
     assert E.haversine_km(la, lo, 56.0, -30.0) < 1.0
     assert abs(rem - E.haversine_km(56.0, -30.0, 56.5, -40.0)) < 1.0
     assert E.project_path(obs, pts, 10 * 3600)[3] == 0.0
+
+
+def test_named_ends_are_placed():
+    f = nat.fixes()
+    # Shannon's oceanic entry points sit on 15W; Gander's on the coast
+    assert f["MALOT"] == (53.0, -15.0) and f["DINIM"] == (51.0, -15.0)
+    assert f["RATSU"] == (61.0, -10.0) and f["NALAN"] == (61.0, -6.0)
+    assert abs(f["LOMSI"][0] - 53.1) < 1e-6 and abs(f["LOMSI"][1] + 56.7833) < 1e-3
+    [msg] = nat.parse_parts(_parts())
+    assert nat.unknown_fixes([msg]) == []
+    c = msg["tracks"][2]
+    path = nat.track_path(c)
+    assert path[0] == (53.0, -15.0) and path[1] == (54.0, -20.0)
+    assert path[-1] == f["LOMSI"] and len(path) == len(c["points"]) + 2
+    # a fix the table does not know: that end is simply left off
+    odd = dict(c, entry="ZZZZZ")
+    assert nat.track_path(odd)[0] == (54.0, -20.0)
+    assert nat.unknown_fixes([{"tracks": [odd]}]) == ["ZZZZZ"]
+
+
+def test_fix_table_parsers():
+    import sys
+    sys.path.insert(0, os.path.join(HERE, "..", "..", "tools"))
+    import nat_fixes as F
+    assert F.dms("513000N") == 51.5 and F.dms("0150000W") == -15.0
+    assert abs(F.dms("525225.50N") - (52 + 52 / 60 + 25.5 / 3600)) < 1e-9
+    uk = (b"<td>RATSU</td><td>TDESIGNATED_POINT;CODE_ID;735</td>"
+          b"<td>610000N</td><td>TDESIGNATED_POINT;GEO_LAT;735</td>"
+          b"<td>0100000W</td><td>TDESIGNATED_POINT;GEO_LONG;735</td>")
+    assert F.aip(uk, F._UK) == [("RATSU", 61.0, -10.0)]
+    ie = b"<tr><td>MALOT</td><td>530000N 0150000W</td><td>Oceanic Entry</td></tr>"
+    assert F.aip(ie, F._IE) == [("MALOT", 53.0, -15.0)]
+    assert F.inside(53.0, -15.0) and not F.inside(48.3, 35.4)

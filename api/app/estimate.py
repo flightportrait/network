@@ -15,6 +15,8 @@ chosen on that backtest (docs: network/docs/estimates.md).
 """
 import math
 
+from .nat import track_path
+
 EARTH_KM = 6371.0088
 KT_TO_KMS = 1.852 / 3600.0
 
@@ -282,7 +284,7 @@ def match_nat(obs, tracks):
         if not levels or not (min(levels) - NAT_LEVEL_SLACK <= fl <=
                               max(levels) + NAT_LEVEL_SLACK):
             continue
-        pts = sorted((tuple(p) for p in t["points"]),
+        pts = sorted(track_path(t),
                      key=lambda p: -p[1] if d == "W" else p[1])
         first = pts[0]
         ahead = (obs["lon"] > first[1]) if d == "W" else (obs["lon"] < first[1])
