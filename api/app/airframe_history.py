@@ -97,17 +97,21 @@ def ingest_history(session, path):
               if len(h) == 6}
     first_after = _day(doc["evidence_from"]) + FIRST_OBSERVED_AFTER
 
-    by_hex = {}
-    for hex_id, airframe_id in session.execute(
-            select(AirframeSpell.value, AirframeSpell.airframe_id)
+    by_hex, observed = {}, 0
+    for hex_id, airframe_id, source in session.execute(
+            select(AirframeSpell.value, AirframeSpell.airframe_id,
+                   AirframeSpell.source)
             .where(AirframeSpell.kind == "hex")
             .order_by(AirframeSpell.first_date)):
         by_hex[hex_id] = airframe_id
-    if (len(by_hex) >= GUARD_FLOOR
-            and len(frames) < MIN_KEEP_SHARE * len(by_hex)):
+        observed += source == SOURCE
+    # Only what this import replaces counts: hex spells from registries or
+    # the live watcher are not the artifact's to shrink.
+    if (observed >= GUARD_FLOOR
+            and len(frames) < MIN_KEEP_SHARE * observed):
         raise ValueError("history artifact has %d airframes, the record "
                          "%d: refusing to replace it" % (len(frames),
-                                                         len(by_hex)))
+                                                         observed))
 
     # New hexes get an airframe each (AIRFRAMES.md D2: one per hex until
     # a serial number from a named source says two are one).

@@ -17,6 +17,7 @@ everything else in this service.
     python -m app.refdata_ingest schedule  [legs.db]           # needs callsign
     python -m app.refdata_ingest alliances refdata/alliances.json
     python -m app.refdata_ingest history   airframe_history.json.gz  # derived artifact
+    python -m app.refdata_ingest faa       ReleasableAircraft.zip    # FAA registry
     python -m app.refdata_ingest derive                        # after routes/seed
 
 Merge policy for ref_airframes is SOURCE_RANK: equal or
@@ -35,6 +36,7 @@ import sys
 from sqlalchemy import delete, func, insert, select, update
 
 from .airframe_history import ingest_history
+from .faa import ingest_faa
 from .db import make_sessionmaker
 from .refdata_models import (RefAirframe, RefAirline, RefAirlineCountry,
                              RefAlliance, RefAllianceMembership, RefAirport,
@@ -1072,7 +1074,7 @@ def main(argv=None):
                         choices=["airports", "airport_tz", "tar1090",
                                  "airframes", "seed", "routes", "leg_stats",
                                  "schedule", "airline_names", "alliances",
-                                 "boards", "history", "derive"])
+                                 "boards", "history", "faa", "derive"])
     parser.add_argument("path", nargs="?",
                         help="input file (not used by 'derive')")
     parser.add_argument("--db", default=None,
@@ -1102,7 +1104,8 @@ def main(argv=None):
                        "boards": ingest_boards,
                        "leg_stats": ingest_leg_stats,
                        "schedule": ingest_schedule,
-                       "history": ingest_history}[args.source]
+                       "history": ingest_history,
+                       "faa": ingest_faa}[args.source]
             rows = handler(session, args.path)
         session.add(RefImport(source=args.source, rows=rows))
         session.commit()

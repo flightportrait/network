@@ -341,14 +341,16 @@ class RouteCatalog(Base):
 
 class Airframe(Base):
     __tablename__ = "airframes"
-    __table_args__ = (UniqueConstraint("type_code", "msn",
-                                       name="uq_airframes_type_msn"),)
 
     id: Mapped[int] = mapped_column(PKBigInt, primary_key=True,
                                     autoincrement=True)
     type_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
-    # Manufacturer serial number; null until a registry gives it.
-    msn: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Manufacturer serial number; null until a registry gives it. Not
+    # unique, even per type: Dassault restarts serials per variant and
+    # homebuilts reuse "1". Same-aircraft matching needs manufacturer,
+    # model and serial together (AIRFRAMES.md D2).
+    msn: Mapped[str | None] = mapped_column(String(32), nullable=True,
+                                            index=True)
     manufacturer: Mapped[str | None] = mapped_column(String(80),
                                                      nullable=True)
     built_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
