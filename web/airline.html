@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<!-- One airframe's observed life: identity and the flight log in one
-     /v1/airframes/{hex} call, photo from planespotters (credited).
-     The legs are what the open trace archives actually show, gaps
-     stated as gaps. No schedules, no inference, no "maintenance":
-     observation only. -->
+<!-- One airline as the network observes it: the aircraft flying its
+     callsigns now (from the airframe record), its routes and the
+     countries they touch. Three views behind tabs; observation, not a
+     published fleet or timetable. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Airline · FlightPortrait network</title>
 <meta name="description" content="An airline's fleet and routes, as observed by the FlightPortrait network.">
@@ -23,8 +22,8 @@
 <style>
   :root{
     --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
-    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
-    --card:#FAF7EE;
+    --line:rgba(34,31,26,.14); --faint:rgba(34,31,26,.07);
+    --quiet:rgba(34,31,26,.72); --card:#FAF7EE;
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:var(--paper);color:var(--ink);overflow-x:hidden;
@@ -32,73 +31,19 @@
     -webkit-font-smoothing:antialiased}
   .caps{font-family:'Helvetica Neue',Arial,sans-serif;
     font-size:12px;letter-spacing:.1em}
-  .wrap{max-width:960px;margin:0 auto;padding:0 24px}
-  .topbar{position:sticky;top:0;z-index:5;background:var(--paper)}
-  .topbar .wrap{max-width:1000px;display:flex;align-items:center;
-    justify-content:space-between;height:64px;gap:18px}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+  .topbar{position:sticky;top:0;z-index:6;background:var(--paper)}
+  .topbar .wrap{display:flex;align-items:center;justify-content:space-between;
+    height:64px;gap:18px}
   .wordmark{display:flex;align-items:center;gap:10px;text-decoration:none;
-    color:var(--ink);font-size:17px}
+    color:var(--ink);font-size:17px;white-space:nowrap}
   .wordmark img{width:24px;height:24px;display:block;border-radius:5px}
-  .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
+  .topnav{display:flex;gap:22px;align-items:center}
   .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
     white-space:nowrap}
   .topnav a:hover{color:var(--red)}
   main a{color:var(--ink)}
-
-  .top{display:grid;grid-template-columns:1fr;gap:24px 48px;
-    padding:36px 0 0;align-items:start}
-  @media (min-width:760px){
-    .top{grid-template-columns:minmax(0,1fr) 340px}
-    .top .photo{grid-column:2;grid-row:1 / span 2;margin:6px 0 0}
-  }
-  .head{grid-column:1}
-  h1{font-size:44px;line-height:1.1;font-weight:400}
-  .sub{font-size:18px;color:var(--quiet);margin-top:4px}
-  .photo{margin:8px 0 0;display:none}
-  .photo.show{display:block}
-  .photo img{width:100%;height:auto;border-radius:6px;display:block;
-    border:1px solid var(--line)}
-  .credit{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;
-    letter-spacing:.04em;color:var(--quiet);margin-top:5px}
-  .credit a{color:var(--quiet)}
-
-  .stats{grid-column:1;display:flex;gap:28px 36px;flex-wrap:wrap;padding:8px 0 0}
-  table.legs .city{display:block;font-size:13px;color:var(--quiet);line-height:1.3}
-  table.legs .tz{font-size:12px;color:var(--quiet);margin-left:5px}
-  .stat .n{font-size:28px;line-height:1;display:block}
-  .stat .caps{color:var(--quiet);display:block;margin-top:6px}
-
-  .log{padding:32px 0 60px}
-  .log h2{font-size:19px;font-weight:400;margin-bottom:10px}
-  .tablewrap{overflow-x:auto}
-  table.legs{width:100%;border-collapse:collapse;
-    font-variant-numeric:tabular-nums;font-size:16px}
-  table.legs th{text-align:left;font-weight:400;color:var(--quiet);
-    padding:8px 12px 8px 0;border-bottom:1px solid var(--ink);
-    white-space:nowrap}
-  table.legs td{padding:8px 12px 8px 0;vertical-align:top;
-    border-bottom:1px solid rgba(34,31,26,.08);white-space:nowrap}
-  table.legs th.num,table.legs td.num{text-align:right}
-  table.legs th.num+th,table.legs td.num+td{padding-left:18px}
-  table.legs th:last-child,table.legs td:last-child{padding-right:0}
-  /* fleet: the count and its registrations link hug the right edge */
-  table#fleet th.num,table#fleet td.num,
-  table#fleet th:last-child,table#fleet td:last-child{width:1%;white-space:nowrap}
-  table.legs td.date{color:var(--quiet)}
-  table.legs td.flight a{color:var(--ink);text-decoration:none}
-  table.legs td.flight a:hover{color:var(--red)}
-  table.legs tr.first td{border-top:1px solid rgba(34,31,26,.18)}
-  table.legs tr.gap td{color:var(--quiet);font-style:italic;
-    padding:10px 0}
-  .empty{padding:40px 0;color:var(--quiet)}
-  .note{color:var(--quiet);font-size:14px;padding:16px 0 0}
-  .livelink{padding:14px 0 0;display:none}
-  .livelink.show{display:block}
-  a.textlink{display:inline-flex;align-items:center;gap:9px;
-    color:var(--red);text-decoration:none;white-space:nowrap}
-  a.textlink::after{content:"\2192"}
-  a.textlink:hover{text-decoration:underline}
-  .searchbox{position:relative;flex:0 1 240px;min-width:150px}
+  .searchbox{position:relative;flex:0 1 240px;min-width:120px}
   .searchbox input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
     padding:6px 11px;border:1px solid rgba(34,31,26,.22);border-radius:999px;
     background:var(--card);color:var(--ink);outline:none}
@@ -116,38 +61,148 @@
   .s-label{display:block;font-size:16px}
   .s-detail{display:block;font-size:13px;color:var(--quiet)}
   .s-empty{padding:14px 12px;color:var(--quiet);font-size:15px}
-  .tail{width:44px;height:44px;vertical-align:middle;margin-right:12px;border-radius:7px}
-  .accent{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:middle;margin-right:6px}
-  section.block{padding:32px 0 0}
-  section.block h2{font-size:19px;font-weight:400;margin-bottom:10px}
-  table.legs a{color:var(--ink);text-decoration:none}
-  table.legs a:hover{color:var(--red)}
-  table.legs td.types{white-space:normal;color:var(--quiet);font-size:14px}
-  .regs{white-space:normal;font-size:14px;line-height:1.9}
-  .regs a{margin-right:10px}
-  .foot{padding:0 0 60px}
-  .note.foot{padding:32px 0 60px}
-  .more{color:var(--red);text-decoration:none;font-size:15px;cursor:pointer;background:none;border:none;font-family:inherit;padding:0}
-  /* the aircraft: one row each, sortable, the airframe's record in brief */
-  .sorts{display:inline-flex;gap:14px;margin-left:14px;font-size:15px}
-  .sorts button{background:none;border:none;padding:0;cursor:pointer;
-    font:inherit;color:var(--quiet)}
-  .sorts button.on{color:var(--ink);text-decoration:underline;
-    text-underline-offset:4px}
-  .sorts button:hover{color:var(--red)}
+  /* phones: the wordmark and search on one line, the links on the next */
+  @media (max-width:640px){
+    .topbar .wrap{flex-wrap:wrap;height:auto;padding-top:10px;
+      padding-bottom:8px;gap:8px 12px}
+    .wordmark .net{display:none}
+    .searchbox{flex:1 1 140px}
+    .topnav{order:3;width:100%;gap:18px;overflow-x:auto}
+  }
+
+  /* identity */
+  .ident{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 18px;
+    align-items:center;padding:36px 0 0}
+  .ident .tail{width:64px;height:64px;object-fit:contain;display:block}
+  .ident:not(.has-tail){grid-template-columns:minmax(0,1fr)}
+  h1{font-size:44px;line-height:1.08;font-weight:400}
+  .codes{font-size:17px;color:var(--quiet);margin-top:4px;
+    display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+  .codes .accent{display:inline-block;width:12px;height:12px;border-radius:3px}
+  .codes a{color:var(--red);text-decoration:none;white-space:nowrap}
+  .codes a::after{content:" \2192"}
+  .codes a:hover{text-decoration:underline}
+  @media (max-width:640px){
+    h1{font-size:34px}
+    .ident .tail{width:48px;height:48px}
+  }
+
+  /* figures: one even row that wraps whole */
+  .figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
+    gap:18px 24px;padding:26px 0 4px}
+  .fig .n{font-size:28px;line-height:1;display:block;
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .fig .caps{color:var(--quiet);display:block;margin-top:7px}
+  @media (max-width:640px){
+    .figs{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 14px;padding-top:20px}
+    .fig .n{font-size:22px}
+    .fig .caps{font-size:11px;letter-spacing:.06em;margin-top:5px}
+  }
+
+  /* the three views, one at a time */
+  .tabs{position:sticky;top:64px;z-index:5;background:var(--paper);
+    display:flex;gap:26px;margin-top:30px;border-bottom:1px solid var(--ink);
+    overflow-x:auto}
+  @media (max-width:640px){ .tabs{top:0;position:relative} }
+  .tabs button{background:none;border:none;font:inherit;font-size:18px;
+    color:var(--quiet);cursor:pointer;padding:10px 0 9px;white-space:nowrap;
+    border-bottom:3px solid transparent;margin-bottom:-1px}
+  .tabs button .c{font-size:14px;margin-left:6px;
+    font-variant-numeric:tabular-nums}
+  .tabs button.on{color:var(--ink);border-bottom-color:var(--red)}
+  .tabs button:hover{color:var(--ink)}
+  .panel{padding:18px 0 0}
+  .panel[hidden]{display:none}
+
+  /* toolbars */
+  .bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;
+    justify-content:space-between;padding:0 0 12px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--line);background:var(--card);border-radius:999px;
+    padding:3px 11px;font:14px 'Helvetica Neue',Arial,sans-serif;color:var(--ink);
+    cursor:pointer;white-space:nowrap}
+  .chip .c{color:var(--quiet);margin-left:5px;font-variant-numeric:tabular-nums}
+  .chip:hover{border-color:var(--ink)}
+  .chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .chip.on .c{color:rgba(245,241,230,.75)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;
+    overflow:hidden;background:var(--card)}
+  .seg button{border:0;background:none;color:var(--quiet);cursor:pointer;
+    padding:4px 12px;font:14px 'Helvetica Neue',Arial,sans-serif;white-space:nowrap}
+  .seg button.on{background:var(--ink);color:var(--paper)}
+  .filter{font:15px 'Helvetica Neue',Arial,sans-serif;padding:6px 12px;
+    border:1px solid rgba(34,31,26,.22);border-radius:999px;background:var(--card);
+    color:var(--ink);outline:none;width:260px;max-width:100%}
+  .filter:focus{border-color:var(--ink)}
+
+  /* rows: a grid per row, so phones fold them to two lines */
+  .rows{border-top:1px solid var(--ink)}
+  .row{display:grid;align-items:baseline;gap:2px 16px;padding:10px 0;
+    border-bottom:1px solid var(--faint)}
+  .row.head{color:var(--quiet);font-size:14px;padding:8px 0}
+  .row a{color:var(--ink);text-decoration:none}
+  .row a:hover{color:var(--red)}
+  .q{color:var(--quiet)}
+  .small{font-size:14px}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
   .flag{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;
-    margin-left:6px;cursor:default}
-  table.legs td.reg a{color:var(--ink);text-decoration:none}
-  table.legs td.reg a:hover{color:var(--red)}
-  table.legs .tag{font-size:13px;color:var(--quiet);white-space:nowrap}
-  table.legs .tag.hi{color:var(--red)}
+    margin-left:7px;cursor:default}
+  .tag{font:13px 'Helvetica Neue',Arial,sans-serif;color:var(--quiet);
+    white-space:nowrap}
+  .tag.hi{color:var(--red)}
+  .tags{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+
+  .planes .row{grid-template-columns:minmax(0,1.3fr) minmax(0,1.6fr) 60px
+    minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr)}
+  .planes.noyear .row{grid-template-columns:minmax(0,1.3fr) minmax(0,1.6fr)
+    minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr)}
+  .planes.noyear .built{display:none}
+  .planes .reg{font-size:17px;white-space:nowrap}
+  .planes .type .code{margin-left:6px;font-size:13px}
+  .routes .row{grid-template-columns:minmax(0,1.4fr) minmax(0,1.4fr) 110px
+    70px 70px minmax(0,1.6fr)}
+  .routes .end .city{display:block;font-size:13px;color:var(--quiet);
+    line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .routes .ac{font-size:14px;color:var(--quiet);line-height:1.4}
+
+  @media (max-width:760px){
+    .row.head{display:none}
+    .rows{border-top:1px solid var(--line)}
+    .planes .row,.planes.noyear .row{grid-template-columns:minmax(0,1fr) auto;
+      grid-template-areas:"reg since" "type tags"}
+    .planes .reg{grid-area:reg}
+    .planes .type{grid-area:type;font-size:14px;color:var(--quiet)}
+    .planes .since{grid-area:since;text-align:right;font-size:14px}
+    .planes .built,.planes .last{display:none}
+    .planes .tags{grid-area:tags}
+    .routes .row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;
+      grid-template-areas:"from to often" "ac ac flights"}
+    .routes .from{grid-area:from}.routes .to{grid-area:to}
+    .routes .often{grid-area:often;text-align:right}
+    .routes .flights{grid-area:flights}
+    .routes .time{display:none}
+    .routes .ac{grid-area:ac;font-size:13px}
+  }
+
+  .countries{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+    gap:0 28px}
+  .country{display:flex;justify-content:space-between;gap:12px;padding:9px 0;
+    border-bottom:1px solid var(--faint)}
+  .country .flag{margin:0 8px 0 0}
+
+  .more{color:var(--red);font-size:15px;cursor:pointer;background:none;
+    border:none;font-family:inherit;padding:14px 0 0}
+  .more:hover{text-decoration:underline}
+  .empty{padding:40px 0;color:var(--quiet)}
+  .note{color:var(--quiet);font-size:14px;padding:12px 0 0}
+  .foot{padding:40px 0 60px;color:var(--quiet);font-size:14px}
 </style>
 </head>
 <body>
 
 <header class="topbar">
   <div class="wrap">
-    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span style="color:var(--quiet)">network</span></a>
+    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span class="net" style="color:var(--quiet)">network</span></a>
     <div class="searchbox"><input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false"><div class="s-list" id="q-list" hidden></div></div>
     <nav class="topnav" aria-label="Network">
       <a href="/network/">Live map</a>
@@ -160,21 +215,29 @@
 
 <main>
   <div class="wrap">
-    <div class="top">
-      <div class="head">
+    <div class="ident" id="ident">
+      <img class="tail" id="tail" alt="" hidden>
+      <div>
         <h1 id="name">&nbsp;</h1>
-        <div class="sub" id="ident"></div>
-        <div class="livelink show"><a class="textlink" id="maphref" href="/network/?mode=airlines">On the map</a></div>
-      </div>
-      <div class="stats" id="stats" style="display:none">
-        <div class="stat"><span class="n" id="s-routes"></span><span class="caps">routes</span></div>
-        <div class="stat"><span class="n" id="s-countries"></span><span class="caps">countries</span></div>
-        <div class="stat"><span class="n" id="s-fleet"></span><span class="caps">aircraft seen</span></div>
-        <div class="stat"><span class="n" id="s-flights"></span><span class="caps">flights observed</span></div>
-        <div class="stat"><span class="n" id="s-hub"></span><span class="caps">busiest airport</span></div>
+        <div class="codes" id="codes"></div>
       </div>
     </div>
+    <div class="figs" id="figs" hidden>
+      <div class="fig"><span class="n" id="f-aircraft">&ndash;</span><span class="caps">aircraft</span></div>
+      <div class="fig"><span class="n" id="f-routes">&ndash;</span><span class="caps">routes</span></div>
+      <div class="fig"><span class="n" id="f-countries">&ndash;</span><span class="caps">countries</span></div>
+      <div class="fig"><span class="n" id="f-flights">&ndash;</span><span class="caps">flights observed</span></div>
+      <div class="fig"><span class="n" id="f-hub">&ndash;</span><span class="caps">busiest airport</span></div>
+    </div>
+    <nav class="tabs" id="tabs" hidden role="tablist"></nav>
+    <section class="panel" id="p-aircraft" hidden></section>
+    <section class="panel" id="p-routes" hidden></section>
+    <section class="panel" id="p-countries" hidden></section>
     <div id="body"></div>
+    <div class="foot">Observed by the network's receivers and openly licensed
+      trace archives: aircraft seen flying the airline's callsigns, routes the
+      archives saw. Not a published fleet or timetable. Data ODbL &middot;
+      <a href="/network/credits.html">Credits</a>.</div>
   </div>
 </main>
 
@@ -184,10 +247,10 @@
   "use strict";
   var API = window.FP_API || "https://data.flightportrait.com";
   var icao = (new URLSearchParams(location.search).get("icao") ||
-              location.hash.slice(1) || "").toUpperCase().trim();
+              location.hash.replace(/^#/, "").split("/")[0] || "").toUpperCase().trim();
   function el(id) { return document.getElementById(id); }
   function esc(s) {
-    return String(s).replace(/[&<>"'\/]/g, function (c) {
+    return String(s == null ? "" : s).replace(/[&<>"'\/]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "/": "&#47;" }[c];
     });
   }
@@ -197,19 +260,19 @@
       "<a href='/network/?mode=airlines'>the airlines view</a> or the search box.</div>";
     return;
   }
-  var apts = {}, tails = {};
-  var ready = Promise.all([
-    fetch("assets/airports.json").then(function (r) { return r.json(); })
-      .then(function (d) { apts = d; }).catch(function () {}),
-    fetch("assets/airline-tails/manifest.json").then(function (r) { return r.json(); })
-      .then(function (d) { tails = d.airlines || d; }).catch(function () {})
-  ]);
-  function cityOf(code) { var a = apts[code]; return a ? a[0] : ""; }
-  function place(code) {
-    var c = cityOf(code);
-    return "<a href='/network/?airport=" + esc(code) + "'>" + esc(code) + "</a>" +
-      (c ? "<span class='city'>" + esc(c) + "</span>" : "");
+  var H = window.fpHistory;
+  var apts = {}, tails = {}, types = {};
+  function load(path, set) {
+    return fetch(path).then(function (r) { return r.json(); }).then(set)
+      .catch(function () {});
   }
+  var ready = Promise.all([
+    load("assets/airports.json", function (d) { apts = d; }),
+    load("assets/airline-tails/manifest.json", function (d) { tails = d.airlines || d; }),
+    load("assets/types.json", function (d) { types = d; })
+  ]);
+  function typeName(t) { return (types[t] && types[t][0]) || t || ""; }
+  function cityOf(code) { var a = apts[code]; return a ? a[0] : ""; }
   var countryName = (function () {
     try { var dn = new Intl.DisplayNames(["en"], { type: "region" });
           return function (cc) { try { return dn.of(cc) || cc; } catch (e) { return cc; } }; }
@@ -225,159 +288,202 @@
     if (!min) return "";
     return Math.floor(min / 60) + "h" + ("0" + Math.round(min % 60)).slice(-2);
   }
+  function day(iso) { return H ? H.day(iso) : iso; }
+  var get = function (path) {
+    return fetch(API + path).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  };
 
-  // One row per aircraft. "by <date>" when the stint starts where the
-  // network's view of the airframe starts: already with the airline then.
-  var planeSort = "joined", planesAll = false;
+  // ---- tabs: one view at a time, remembered in the address ------------
+  var PANELS = ["aircraft", "routes", "countries"];
+  function show(name, push) {
+    PANELS.forEach(function (p) {
+      el("p-" + p).hidden = p !== name;
+      var b = el("t-" + p);
+      if (b) { b.className = p === name ? "on" : ""; b.setAttribute("aria-selected", p === name); }
+    });
+    if (push && history.replaceState) {
+      history.replaceState(null, "", location.pathname + location.search + "#" + name);
+    }
+  }
+  function tabs(counts) {
+    var html = "";
+    PANELS.forEach(function (p) {
+      if (!counts[p]) return;
+      html += "<button role='tab' id='t-" + p + "' data-p='" + p + "'>" +
+        p.charAt(0).toUpperCase() + p.slice(1) +
+        "<span class='c'>" + counts[p].toLocaleString() + "</span></button>";
+    });
+    el("tabs").innerHTML = html;
+    el("tabs").hidden = !html;
+    el("tabs").onclick = function (e) {
+      var b = e.target.closest("button[data-p]");
+      if (b) show(b.dataset.p, true);
+    };
+    var want = location.hash.replace(/^#/, "");
+    var first = PANELS.filter(function (p) { return counts[p]; })[0];
+    show(counts[want] ? want : first, false);
+  }
+
+  // ---- aircraft: type chips filter, a sort, one row each --------------
+  var ac = { all: [], type: "", sort: "joined", more: false };
   var SORTS = {
     joined: function (a, b) { return String(b.since).localeCompare(String(a.since)); },
     oldest: function (a, b) { return (a.built_year || 9999) - (b.built_year || 9999); },
     newest: function (a, b) { return (b.built_year || 0) - (a.built_year || 0); },
     reg: function (a, b) { return String(a.reg).localeCompare(String(b.reg)); }
   };
-  function renderPlanes(planes) {
-    var H = window.fpHistory, rows = planes.slice().sort(SORTS[planeSort]);
-    el("planes").innerHTML = rows.map(function (p, i) {
-      var tags = [];
-      if (p.airlines > 1) tags.push("<span class='tag'>" + p.airlines + " airlines</span>");
-      if (p.notable) tags.push("<span class='tag hi'>" + p.notable +
-        (p.notable > 1 ? " reports" : " report") + "</span>");
-      var since = H ? H.day(p.since) : p.since;
-      return "<tr" + (!planesAll && i >= 25 ? " hidden" : "") + ">" +
-        "<td class='reg'><a href='plane.html?hex=" + esc(p.hex) + "'>" + esc(p.reg) + "</a>" +
-        (H && p.country ? H.flag(p.country) : "") + "</td>" +
-        "<td>" + esc(p.type || "") + "</td>" +
-        "<td class='num'>" + (p.built_year || "") + "</td>" +
-        "<td class='date'>" + (p.since_first_seen ? "by " : "") + esc(since) + "</td>" +
-        "<td class='date'>" + esc(H ? H.day(p.last_seen) : p.last_seen) + "</td>" +
-        "<td>" + tags.join(" ") + "</td></tr>";
-    }).join("");
-    document.querySelectorAll("#sorts button").forEach(function (b) {
-      b.className = b.dataset.sort === planeSort ? "on" : "";
-      b.onclick = function () { planeSort = b.dataset.sort; renderPlanes(planes); };
-    });
-    var more = el("more-planes");
-    if (more) {
-      more.parentNode.hidden = planesAll;
-      more.onclick = function () { planesAll = true; renderPlanes(planes); };
-    }
+  function aircraftPanel(planes) {
+    ac.all = planes;
+    var byType = {};
+    planes.forEach(function (p) { if (p.type) byType[p.type] = (byType[p.type] || 0) + 1; });
+    var order = Object.keys(byType).sort(function (a, b) { return byType[b] - byType[a]; });
+    var hasYear = planes.some(function (p) { return p.built_year; });
+    var html = "<div class='bar'><div class='chips' id='ac-types'>" +
+      "<button class='chip on' data-t=''>All<span class='c'>" + planes.length + "</span></button>" +
+      order.map(function (t) {
+        return "<button class='chip' data-t='" + esc(t) + "' title='" + esc(typeName(t)) + "'>" +
+          esc(t) + "<span class='c'>" + byType[t] + "</span></button>";
+      }).join("") + "</div>" +
+      "<div class='seg' id='ac-sort'>" +
+      "<button data-s='joined' class='on'>Newest joined</button>" +
+      (hasYear ? "<button data-s='oldest'>Oldest</button><button data-s='newest'>Newest</button>" : "") +
+      "<button data-s='reg'>A–Z</button></div></div>" +
+      "<div class='rows planes" + (hasYear ? "" : " noyear") + "' id='ac-rows'></div>" +
+      "<button class='more' id='ac-more' hidden></button>";
+    el("p-aircraft").innerHTML = html;
+    el("ac-types").onclick = function (e) {
+      var b = e.target.closest(".chip");
+      if (!b) return;
+      ac.type = b.dataset.t; ac.more = false;
+      [].forEach.call(this.children, function (c) { c.classList.toggle("on", c === b); });
+      aircraftRows();
+    };
+    el("ac-sort").onclick = function (e) {
+      var b = e.target.closest("button");
+      if (!b) return;
+      ac.sort = b.dataset.s;
+      [].forEach.call(this.children, function (c) { c.classList.toggle("on", c === b); });
+      aircraftRows();
+    };
+    el("ac-more").onclick = function () { ac.more = true; aircraftRows(); };
+    aircraftRows();
+  }
+  function aircraftRows() {
+    var rows = ac.all.filter(function (p) { return !ac.type || p.type === ac.type; })
+      .sort(SORTS[ac.sort]);
+    var shown = ac.more ? rows : rows.slice(0, 40);
+    el("ac-rows").innerHTML =
+      "<div class='row head'><span>Registration</span><span>Type</span>" +
+      "<span class='built num'>Built</span><span>With the airline</span>" +
+      "<span>Last seen</span><span></span></div>" +
+      shown.map(function (p) {
+        var tags = [];
+        if (p.airlines > 1) tags.push("<span class='tag'>" + p.airlines + " airlines</span>");
+        if (p.notable) tags.push("<span class='tag hi'>" + p.notable +
+          (p.notable > 1 ? " reports" : " report") + "</span>");
+        return "<div class='row'>" +
+          "<span class='reg'><a href='plane.html?hex=" + esc(p.hex) + "'>" + esc(p.reg) + "</a>" +
+          (H && p.country ? H.flag(p.country) : "") + "</span>" +
+          "<span class='type'>" + esc(typeName(p.type)) +
+          (p.type && typeName(p.type) !== p.type ? "<span class='code q'>" + esc(p.type) + "</span>" : "") + "</span>" +
+          "<span class='built num'>" + (p.built_year || "") + "</span>" +
+          "<span class='since" + (p.since_first_seen ? " q" : "") + "'>" +
+            (p.since_first_seen ? "by " : "since ") + esc(day(p.since)) + "</span>" +
+          "<span class='last q small'>" + esc(day(p.last_seen)) + "</span>" +
+          "<span class='tags'>" + tags.join("") + "</span></div>";
+      }).join("");
+    el("ac-more").hidden = ac.more || rows.length <= 40;
+    el("ac-more").textContent = "All " + rows.length + " aircraft";
   }
 
-  var get = function (path) {
-    return fetch(API + path).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
-  };
+  // ---- routes: busiest first, a filter by airport ---------------------
+  var rt = { all: [], q: "", more: false };
+  function routesPanel(legs) {
+    rt.all = legs.slice().sort(function (x, y) { return (y.n || 0) - (x.n || 0); });
+    el("p-routes").innerHTML = "<div class='bar'><input class='filter' id='rt-q' " +
+      "type='search' placeholder='Filter by airport or city' autocomplete='off'></div>" +
+      "<div class='rows routes' id='rt-rows'></div><button class='more' id='rt-more' hidden></button>";
+    el("rt-q").oninput = function () { rt.q = this.value.trim().toLowerCase(); rt.more = false; routeRows(); };
+    el("rt-more").onclick = function () { rt.more = true; routeRows(); };
+    routeRows();
+  }
+  function end(code, cls) {
+    return "<span class='end " + cls + "'><a href='/network/?airport=" + esc(code) + "'>" +
+      esc(code) + "</a><span class='city'>" + esc(cityOf(code)) + "</span></span>";
+  }
+  function routeRows() {
+    var q = rt.q;
+    var rows = rt.all.filter(function (l) {
+      if (!q) return true;
+      return [l.org, l.dst, cityOf(l.org), cityOf(l.dst)].some(function (s) {
+        return String(s || "").toLowerCase().indexOf(q) >= 0;
+      });
+    });
+    var shown = rt.more || q ? rows : rows.slice(0, 40);
+    el("rt-rows").innerHTML =
+      "<div class='row head'><span>From</span><span>To</span><span>How often</span>" +
+      "<span class='num'>Flights</span><span class='num'>Time</span><span>Aircraft</span></div>" +
+      (shown.length ? shown.map(function (l) {
+        return "<div class='row'>" + end(l.org, "from") + end(l.dst, "to") +
+          "<span class='often'>" + esc(cadence(l.per_week)) + "</span>" +
+          "<span class='flights num q small'>" + (l.n || 0).toLocaleString() + "</span>" +
+          "<span class='time num q small'>" + dur(l.avg_min) + "</span>" +
+          "<span class='ac'>" + esc((l.aircraft || []).slice(0, 3).map(function (t) {
+            return t.name || t.type; }).join(", ")) + "</span></div>";
+      }).join("") : "<div class='empty'>No route touches that.</div>");
+    el("rt-more").hidden = rt.more || !!q || rows.length <= 40;
+    el("rt-more").textContent = "All " + rows.length + " routes";
+  }
+
+  // ---- countries: flags, busiest first --------------------------------
+  function countriesPanel(list) {
+    el("p-countries").innerHTML = "<div class='countries'>" + list.map(function (c) {
+      return "<div class='country'><span>" + (H ? H.flag(c.iso_country) : "") +
+        esc(countryName(c.iso_country)) + "</span><span class='q small num'>" +
+        c.n_routes.toLocaleString() + (c.n_routes > 1 ? " routes" : " route") + "</span></div>";
+    }).join("") + "</div>";
+  }
+
   Promise.all([get("/v1/airlines/" + icao), ready]).then(function (both) {
     var a = both[0];
     document.title = a.name + " · FlightPortrait network";
     var entry = tails[icao], rel = entry && entry["64"];
-    var swatch = (a.palette && a.palette[0]) ? "<span class='accent' style='background:" + esc(a.palette[0]) + "'></span>" : "";
-    el("name").innerHTML = (rel ? "<img class='tail' alt='' src='assets/airline-tails/" + esc(rel) + "'>" : "") + esc(a.name);
-    var bits = [a.icao, a.iata].filter(Boolean).join(" · ");
+    if (rel) { el("tail").src = "assets/airline-tails/" + rel; el("tail").hidden = false; el("ident").classList.add("has-tail"); }
+    el("name").textContent = a.name;
     var alliances = (a.alliances || []).map(function (x) { return x.name || x; });
-    el("ident").innerHTML = swatch + esc(bits) + (alliances.length ? " · " + esc(alliances.join(", ")) : "");
-    el("maphref").href = "/network/?a=" + encodeURIComponent(icao);
-    el("s-routes").textContent = a.n_routes != null ? a.n_routes : "–";
-    el("s-countries").textContent = a.n_countries != null ? a.n_countries : "–";
-    el("stats").style.display = "";
+    el("codes").innerHTML =
+      (a.palette && a.palette[0] ? "<span class='accent' style='background:" + esc(a.palette[0]) + "'></span>" : "") +
+      "<span>" + esc([a.icao, a.iata].filter(Boolean).join(" · ")) + "</span>" +
+      (alliances.length ? "<span>" + esc(alliances.join(", ")) + "</span>" : "") +
+      "<a href='/network/?a=" + encodeURIComponent(icao) + "'>On the map</a>";
+    el("f-countries").textContent = a.n_countries != null ? a.n_countries : "–";
+    el("figs").hidden = false;
     return Promise.all([
-      get("/v1/airlines/" + icao + "/fleet").catch(function () { return null; }),
+      get("/v1/airlines/" + icao + "/airframes").catch(function () { return null; }),
       get("/v1/airlines/" + icao + "/routes").catch(function () { return null; }),
-      get("/v1/airlines/" + icao + "/countries").catch(function () { return null; }),
-      get("/v1/airlines/" + icao + "/airframes").catch(function () { return null; })
+      get("/v1/airlines/" + icao + "/countries").catch(function () { return null; })
     ]);
   }).then(function (parts) {
-    var fleet = parts[0], routes = parts[1], countries = parts[2];
-    var planes = (parts[3] && parts[3].airframes) || [];
-    var html = "";
-    if (fleet) el("s-fleet").textContent = fleet.n_airframes;
-    var legs = (routes && routes.legs) || [];
+    var planes = (parts[0] && parts[0].airframes) || [];
+    var legs = (parts[1] && parts[1].legs) || [];
+    var countries = (parts[2] && parts[2].countries) || [];
+    el("f-aircraft").textContent = planes.length ? planes.length.toLocaleString() : "–";
+    // routes counted as the list counts them: airport pairs flown
+    el("f-routes").textContent = legs.length ? legs.length.toLocaleString() : "–";
     if (legs.length) {
       var total = 0, byAirport = {};
       legs.forEach(function (l) { total += l.n || 0; byAirport[l.org] = (byAirport[l.org] || 0) + (l.n || 0); });
-      el("s-flights").textContent = total.toLocaleString();
-      var hub = Object.keys(byAirport).sort(function (x, y) { return byAirport[y] - byAirport[x]; })[0];
-      el("s-hub").textContent = hub || "–";
+      el("f-flights").textContent = total.toLocaleString();
+      el("f-hub").textContent = Object.keys(byAirport).sort(function (x, y) {
+        return byAirport[y] - byAirport[x]; })[0] || "–";
     }
-    // fleet by type, each expandable to its registrations
-    if (fleet && fleet.fleet && fleet.fleet.length) {
-      html += "<section class='block'><h2>Fleet</h2><div class='tablewrap'><table class='legs' id='fleet'>" +
-        "<thead><tr><th>Type</th><th class='num'>Aircraft</th><th></th></tr></thead><tbody>";
-      fleet.fleet.forEach(function (t) {
-        html += "<tr data-type='" + esc(t.type) + "'><td>" + esc(t.type_name || t.type) +
-          "<span class='city'>" + esc(t.type) + "</span></td>" +
-          "<td class='num'>" + t.count + "</td>" +
-          "<td><button class='more' data-type='" + esc(t.type) + "'>registrations</button></td></tr>";
-      });
-      if (fleet.unknown_type) html += "<tr><td class='date'>type unknown</td><td class='num'>" + fleet.unknown_type + "</td><td></td></tr>";
-      html += "</tbody></table></div></section>";
+    if (planes.length) aircraftPanel(planes);
+    if (legs.length) routesPanel(legs);
+    if (countries.length) countriesPanel(countries);
+    tabs({ aircraft: planes.length, routes: legs.length, countries: countries.length });
+    if (!planes.length && !legs.length && !countries.length) {
+      el("body").innerHTML = "<div class='empty'>Nothing observed for this airline yet. The log grows nightly.</div>";
     }
-    // the aircraft themselves, from the airframe record
-    if (planes.length) {
-      html += "<section class='block'><h2>Aircraft<span class='sorts' id='sorts'>" +
-        "<button data-sort='joined' class='on'>newest joined</button>" +
-        "<button data-sort='oldest'>oldest built</button>" +
-        "<button data-sort='newest'>newest built</button>" +
-        "<button data-sort='reg'>registration</button></span></h2>" +
-        "<div class='tablewrap'><table class='legs'><thead><tr>" +
-        "<th>Registration</th><th>Type</th><th class='num'>Built</th>" +
-        "<th>With the airline</th><th>Last seen</th><th></th></tr></thead>" +
-        "<tbody id='planes'></tbody></table></div>" +
-        (planes.length > 25 ? "<p style='margin-top:10px'><button class='more' id='more-planes'>All " +
-          planes.length + " aircraft</button></p>" : "") + "</section>";
-    }
-    // routes, busiest first
-    if (legs.length) {
-      legs.sort(function (x, y) { return (y.n || 0) - (x.n || 0); });
-      html += "<section class='block'><h2>Routes</h2><div class='tablewrap'><table class='legs'>" +
-        "<thead><tr><th>From</th><th>To</th><th>How often</th><th class='num'>Flights</th>" +
-        "<th class='num'>Typical time</th><th>Aircraft</th></tr></thead><tbody id='routes'>";
-      legs.forEach(function (l, i) {
-        html += "<tr" + (i >= 25 ? " class='hidden' hidden" : "") + "><td>" + place(l.org) + "</td><td>" + place(l.dst) + "</td>" +
-          "<td>" + esc(cadence(l.per_week)) + "</td>" +
-          "<td class='num'>" + (l.n || 0).toLocaleString() + "</td>" +
-          "<td class='num'>" + dur(l.avg_min) + "</td>" +
-          "<td class='types'>" + esc((l.aircraft || []).slice(0, 3).map(function (t) { return t.name || t.type; }).join(", ")) + "</td></tr>";
-      });
-      html += "</tbody></table></div>" +
-        (legs.length > 25 ? "<p style='margin-top:10px'><button class='more' id='more-routes'>All " + legs.length + " routes</button></p>" : "") +
-        "</section>";
-    }
-    // countries
-    if (countries && countries.countries && countries.countries.length) {
-      html += "<section class='block'><h2>Countries served</h2><div class='tablewrap'><table class='legs'>" +
-        "<thead><tr><th>Country</th><th class='num'>Routes</th></tr></thead><tbody>";
-      countries.countries.forEach(function (c) {
-        html += "<tr><td>" + esc(countryName(c.iso_country)) + "<span class='city'>" + esc(c.iso_country) + "</span></td>" +
-          "<td class='num'>" + c.n_routes + "</td></tr>";
-      });
-      html += "</tbody></table></div></section>";
-    }
-    if (!html) html = "<div class='empty'>Nothing observed for this airline yet. The log grows nightly.</div>";
-    html += "<div class='note foot'>Observed flights from openly licensed trace archives and the network's receivers; " +
-      "a route the archives did not see is not listed. Data ODbL &middot; <a href=\'/network/credits.html\'>Credits</a>.</div>";
-    el("body").innerHTML = html;
-    if (planes.length) renderPlanes(planes);
-
-    var more = el("more-routes");
-    if (more) more.addEventListener("click", function () {
-      document.querySelectorAll("#routes tr[hidden]").forEach(function (tr) { tr.hidden = false; });
-      more.parentNode.hidden = true;
-    });
-    document.querySelectorAll("button.more[data-type]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var type = b.dataset.type, row = b.closest("tr");
-        if (row.nextSibling && row.nextSibling.classList && row.nextSibling.classList.contains("regs-row")) {
-          row.nextSibling.remove(); return;
-        }
-        get("/v1/airlines/" + icao + "/fleet/" + encodeURIComponent(type)).then(function (d) {
-          var tr = document.createElement("tr"); tr.className = "regs-row";
-          tr.innerHTML = "<td colspan='3' class='regs'>" + (d.airframes || []).map(function (f) {
-            return "<a href='plane.html?hex=" + esc(f.hex) + "'>" + esc(f.reg || f.hex.toUpperCase()) + "</a>";
-          }).join("") + "</td>";
-          row.parentNode.insertBefore(tr, row.nextSibling);
-        }).catch(function () {});
-      });
-    });
   }).catch(function () {
     el("name").textContent = icao;
     el("body").innerHTML = "<div class='empty'>No airline by that code in the reference tables.</div>";
