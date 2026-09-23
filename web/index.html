@@ -2441,11 +2441,26 @@
     map.on("mouseleave", "estimated", function () {
       map.getCanvas().style.cursor = ""; });
     map.addControl(new EstimateControl(map), "bottom-right");
+    // estimates belong to the present: playback (body.replaying) hides
+    // them, the return to live brings them back
+    new MutationObserver(function () {
+      estVisibility(map);
+      if (estShown()) pollEstimates(map);
+    }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
     pollEstimates(map);
     est.timer = setInterval(function () { pollEstimates(map); }, 30000);
   }
+  function estShown() {
+    return est.on && !document.body.classList.contains("replaying");
+  }
+  function estVisibility(map) {
+    ["estimated", "estimated-labels"].forEach(function (id) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility",
+                                                 estShown() ? "visible" : "none");
+    });
+  }
   function pollEstimates(map) {
-    if (!est.on || document.hidden || !map.getSource("estimated")) return;
+    if (!estShown() || document.hidden || !map.getSource("estimated")) return;
     fetch(API + "/v1/estimated").then(function (r) {
       return r.ok ? r.json() : { aircraft: [] };
     }).then(function (d) {
@@ -2510,10 +2525,7 @@
     b.addEventListener("click", function () {
       est.on = !est.on;
       try { localStorage.setItem("fp-estimated", est.on ? "1" : "0"); } catch (e) {}
-      ["estimated", "estimated-labels"].forEach(function (id) {
-        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility",
-                                                   est.on ? "visible" : "none");
-      });
+      estVisibility(map);
       paint();
       if (est.on) pollEstimates(map);
     });
