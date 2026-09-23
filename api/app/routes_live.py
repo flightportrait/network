@@ -15,8 +15,11 @@ import time
 from fastapi import APIRouter, Query, Request, Response, WebSocket, \
     WebSocketDisconnect
 
+from sqlalchemy import select
+
 from . import openapi as spec
 from . import ratelimit
+from .refdata_models import RefAirport
 from .errors import ApiError
 
 router = APIRouter()
@@ -133,6 +136,61 @@ def aircraft(request: Request, response: Response,
     return {"generated_at": snapshot.generated_at,
             "total": snapshot.aircraft_count,
             "with_position": snapshot.with_pos_count,
+            "aircraft": listed}
+
+
+_AIRPORTS = {"at": 0.0, "coords": {}}
+AIRPORTS_REFRESH_S = 6 * 3600
+
+
+def airport_coords(app):
+    """{IATA: (lat, lon)} from the airport reference table, cached; the
+    route chains name airports by IATA."""
+    now = time.time()
+    if now - _AIRPORTS["at"] > AIRPORTS_REFRESH_S:
+        _AIRPORTS["at"] = now
+        try:
+            with app.state.sessionmaker() as session:
+                _AIRPORTS["coords"] = {
+                    iata: (lat, lon) for iata, lat, lon in session.execute(
+                        select(RefAirport.iata, RefAirport.lat, RefAirport.lon)
+                        .where(RefAirport.iata.is_not(None),
+                               RefAirport.lat.is_not(None),
+                               RefAirport.lon.is_not(None)))}
+        except Exception:                 # noqa: BLE001 — keep the last good
+            pass
+    return _AIRPORTS["coords"]
+
+
+@router.get(
+    "/v1/estimated", tags=["Live"], summary="Estimated positions",
+    description="Aircraft the network stopped hearing while cruising, drawn "
+                "where they most likely are: flown on from the last observed "
+                "position toward the destination their callsign's route names, "
+                "at the last observed speed (holding the last track 10 "
+                "minutes, then turning toward the destination). Every entry is "
+                "an estimate, never an observation: `estimated` is always true, "
+                "`last_seen` is the last real position, `alt_baro` and `gs` are "
+                "the last observed values. An aircraft appears 90 s after it "
+                "was last heard and leaves when it is heard again, nears its "
+                "destination, or its flight time runs out. Kept in memory, "
+                "never archived or exported. Backtested on recorded coverage "
+                "gaps: median 1 km off after 5-15 minutes, 77 km after 1-2 "
+                "hours. Rate: 300 per 600 s (bucket `estimated`). Cache: 15 s "
+                "edge, 10 s browser.",
+    operation_id="estimated",
+    responses=spec.ok(spec.EX_ESTIMATED, spec.R429, schema=spec.SCH_ESTIMATED),
+    openapi_extra=spec.MAP_TIER,
+)
+def estimated(request: Request, response: Response):
+    settings = request.app.state.settings
+    ratelimit.throttle(request, settings.aircraft_rate_limit,
+                       settings.rate_window_s, bucket="estimated")
+    book = request.app.state.estimates
+    now = time.time()
+    listed = book.estimates(now) if book is not None else []
+    response.headers["Cache-Control"] = "public, max-age=10, s-maxage=15"
+    return {"generated_at": now, "method": "converge-to-destination",
             "aircraft": listed}
 
 

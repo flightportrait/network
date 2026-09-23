@@ -35,6 +35,9 @@ async def poll_snapshot_once(app) -> None:
                 watcher.observe(item, now)
     app.state.snapshot = build_snapshot(raw, settings.max_aircraft)
     app.state.traces.record(app.state.snapshot)
+    book = getattr(app.state, "estimates", None)
+    if book is not None:
+        book.observe(app.state.snapshot.aircraft, time.time())
     if live is not None:
         await live.bump()
 

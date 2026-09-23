@@ -78,6 +78,15 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
         settings.upstream_url, settings.upstream_timeout_s)
     app.state.snapshot = Snapshot()
     app.state.squawks = None
+    # estimated positions for aircraft that left coverage: our own sky
+    # only, like the squawk watcher (a remote aggregator is not ours)
+    app.state.estimates = None
+    if settings.source_mode != "point":
+        from .estimate import EstimateBook
+        from .routes_live import airport_coords
+        app.state.estimates = EstimateBook(
+            lambda cs: app.state.routes.get(cs),
+            lambda: airport_coords(app))
     from .livesky import LiveSky
     app.state.live = LiveSky(settings.max_aircraft) if settings.live_json \
         or not start_pollers else None

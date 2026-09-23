@@ -173,6 +173,9 @@ async def publish(app, live: LiveSky) -> None:
         if now - last_trace >= TRACE_EVERY_S:
             last_trace = now
             app.state.traces.record(snap)
+            book = getattr(app.state, "estimates", None)
+            if book is not None:
+                book.observe(snap.aircraft, now)
         await live.bump()
 
 

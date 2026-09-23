@@ -403,6 +403,25 @@ EX_AIRFRAME = {
     },
 }
 
+SCH_ESTIMATED = _obj({
+    "generated_at": _t("number", "Unix seconds the estimates are for."),
+    "method": _t("string", "How positions are estimated."),
+    "aircraft": {"type": "array", "description": "Estimated aircraft; "
+                 "every entry is an estimate, never an observation.",
+                 "items": {"type": "object"}},
+}, required=["generated_at", "method", "aircraft"])
+
+EX_ESTIMATED = {
+    "generated_at": 1790140000.0, "method": "converge-to-destination",
+    "aircraft": [{
+        "hex": "4ca8e4", "flight": "RYR1153", "t": "B738", "r": "9H-QDS",
+        "category": "A3", "lat": 43.1021, "lon": 11.9403, "track": 312.4,
+        "alt_baro": 36000, "gs": 452.0, "estimated": True,
+        "last_seen": {"at": 1790139412.0, "lat": 42.2, "lon": 13.1},
+        "destination": "PSA", "eta": 1790140700,
+    }],
+}
+
 EX_AIRLINE_AIRFRAMES = {
     "icao": "TVS", "as_of": "2026-09-22", "current_days": 60,
     "airframes": [{
