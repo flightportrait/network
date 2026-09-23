@@ -1645,6 +1645,11 @@
     }
     return g.getImageData(-size / 2, -size / 2, size, size);
   }
+  // One size at every zoom, set so a narrowbody draws about 23 px long:
+  // big enough to read the type at a glance, small enough that a busy
+  // sky stays a texture rather than a smear. The type proportions live
+  // in the icons themselves.
+  var ICON_SCALE = 0.88;
   var ICON_KINDS = ["narrow", "wide", "wide4", "bizjet", "ga", "prop",
                     "heli"];
   // emitter-category fallback when the type is unknown to our table
@@ -2206,7 +2211,7 @@
         layout: {
           "icon-image": ["get", "_icon"],
           // size lives in the icons themselves (wingspan-anchored ink)
-          "icon-size": 1.0,
+          "icon-size": ICON_SCALE,
           "icon-rotate": ["coalesce", ["get", "track"], 0],
           "icon-rotation-alignment": "map",
           "icon-allow-overlap": true
@@ -3107,7 +3112,8 @@
   // The symbol layer stays as the fallback when WebGL2 or the shader
   // is unavailable, and the GeoJSON source keeps feeding the labels.
   var iconBitmaps = {};
-  var gpu = { active: false, n: 0, moving: false, epoch: Date.now() / 1000 };
+  var gpu = { active: false, n: 0, moving: false, epoch: Date.now() / 1000,
+              fadeUntil: 0 };
   function buildAtlas() {
     var kinds = Object.keys(iconBitmaps);
     var pad = 2, x = pad, y = pad, rowH = 0, W = 1024;
@@ -3150,6 +3156,7 @@
     "attribute vec2 a_pos; attribute vec2 a_vel; attribute float a_t0;",
     "attribute float a_rot; attribute vec4 a_uv; attribute vec2 a_size;",
     "attribute float a_alpha; attribute float a_rot0; attribute float a_rott;",
+    "attribute vec2 a_fade;",
     "uniform mat4 u_matrix; uniform float u_now; uniform float u_bearing;",
     "uniform vec2 u_viewport; uniform float u_dpr;",
     "uniform vec2 u_sun; uniform float u_night;",
@@ -3171,6 +3178,9 @@
     "  v_uv = mix(a_uv.xy, a_uv.zw, a_corner + 0.5);",
     "  float age = u_now - a_t0;",
     "  v_alpha = a_alpha * (1.0 - 0.6 * smoothstep(30.0, 90.0, age));",
+    // joining or leaving the drawn sky eases over a third of a second
+    "  float fk = clamp((u_now - a_fade.x) / 0.35, 0.0, 1.0);",
+    "  v_alpha *= a_fade.y > 0.0 ? fk : 1.0 - fk;",
     // night where this aircraft is; each strobe keeps its own rhythm
     "  v_corner = a_corner;",
     "  v_night = u_night * (1.0 - smoothstep(" + NIGHT_FULL.toFixed(1) + ", " +
@@ -3195,7 +3205,7 @@
     "  gl_FragColor = c * v_alpha;",
     "}"
   ].join("\n");
-  var STRIDE = 15;   // floats per instance
+  var STRIDE = 17;   // floats per instance
   var skyLayer = {
     id: "sky-gpu", type: "custom", renderingMode: "2d",
     onAdd: function (m, gl) {
@@ -3236,7 +3246,7 @@
       this.loc = {};
       var self = this;
       ["a_corner", "a_pos", "a_vel", "a_t0", "a_rot", "a_uv", "a_size",
-       "a_alpha", "a_rot0", "a_rott"].forEach(function (n) {
+       "a_alpha", "a_rot0", "a_rott", "a_fade"].forEach(function (n) {
         self.loc[n] = gl.getAttribLocation(prog, n);
       });
       ["u_matrix", "u_now", "u_bearing", "u_viewport", "u_dpr", "u_tex",
@@ -3299,7 +3309,7 @@
       var F = 4, S = STRIDE * F, L = this.loc, self = this;
       [["a_pos", 2, 0], ["a_vel", 2, 2], ["a_t0", 1, 4], ["a_rot", 1, 5],
        ["a_uv", 4, 6], ["a_size", 2, 10], ["a_alpha", 1, 12], ["a_rot0", 1, 13],
-       ["a_rott", 1, 14]]
+       ["a_rott", 1, 14], ["a_fade", 2, 15]]
         .forEach(function (a) {
           gl.enableVertexAttribArray(L[a[0]]);
           gl.vertexAttribPointer(L[a[0]], a[1], gl.FLOAT, false, S, a[2] * F);
@@ -3307,7 +3317,8 @@
         });
       this.drawInst(gpu.n);
       this.bindVao(null);
-      if (gpu.moving && !reducedMotion && !document.hidden) map.triggerRepaint();
+      if ((gpu.moving || Date.now() < gpu.fadeUntil) && !reducedMotion &&
+          !document.hidden) map.triggerRepaint();
     }
   };
   function gpuStart() {
@@ -3328,6 +3339,58 @@
   // how fast and which way in mercator units, when, and which sprite.
   var gpuRows = [];
   var headings = {};   // hex -> {rot, from, t}: the last heading and the turn under way
+  // Which aircraft the map draws. Where the sky is sparse, all of them.
+  // Where it crowds — an airport's ground and approach traffic at world
+  // zoom, a hub's arrivals stacked in a few pixels — each patch of the
+  // map gets a budget, about one aircraft per SKY_PX_PER_AIRCRAFT square
+  // pixels, and fills it from the top of the sky down: cruise first,
+  // climbs and descents next, the ground last. From afar that leaves
+  // the airways; zooming in, the patches shrink under the same traffic
+  // until every aircraft fits. The patches are fixed to the map, not
+  // the screen, so panning never reshuffles them; an aircraft already
+  // drawn ranks a little higher, so one near the cut does not flicker;
+  // and the selected aircraft and emergency squawks always stay. Close
+  // in (SKY_BUDGET_MAXZOOM) overlap is real proximity and all are drawn.
+  var SKY_CELL = 64, SKY_PX_PER_AIRCRAFT = 700, SKY_BUDGET_MAXZOOM = 11;
+  var skyShown = {}, skyGone = {};
+  function skyRank(a) {
+    var alt = a.alt_baro === "ground" ? -1000
+      : (typeof a.alt_baro === "number" ? a.alt_baro : 0);
+    return skyShown[a.hex] != null ? alt + 1500 : alt;
+  }
+  function skyBudget(cands) {
+    var keep = new Set(), z = map.getZoom();
+    if (z >= SKY_BUDGET_MAXZOOM) {
+      cands.forEach(function (a) { keep.add(a.hex); });
+      return keep;
+    }
+    // grid at the integer zoom, so it holds still within a zoom level;
+    // the budget follows the patch's size on screen at this zoom
+    var Z = Math.floor(z), world = 512 * Math.pow(2, Z);
+    var side = SKY_CELL * Math.pow(2, z - Z);
+    var cap = Math.max(1, Math.round(side * side / SKY_PX_PER_AIRCRAFT));
+    var cells = {};
+    cands.forEach(function (a) {
+      var mc = maplibregl.MercatorCoordinate.fromLngLat([a.lon, a.lat]);
+      var k = Math.floor(mc.x * world / SKY_CELL) + ":" +
+              Math.floor(mc.y * world / SKY_CELL);
+      (cells[k] = cells[k] || []).push(a);
+    });
+    Object.keys(cells).forEach(function (k) {
+      var c = cells[k];
+      if (c.length > cap) {
+        c.sort(function (p, q) { return skyRank(q) - skyRank(p); });
+        c = c.slice(0, cap);
+      }
+      c.forEach(function (a) { keep.add(a.hex); });
+    });
+    cands.forEach(function (a) {
+      if (a.hex === state.selected || /^7[567]00$/.test(a.squawk || "")) {
+        keep.add(a.hex);
+      }
+    });
+    return keep;
+  }
   function gpuSync() {
     if (!gpu.active || !map) return;
     var b = map.getBounds(), z = map.getZoom();
@@ -3338,7 +3401,7 @@
     var whole = z < 2.5 || east - west >= 360;
     var rows = [], moving = false;
     var sel = state.selected;
-    function row(a, uv, size, alpha, ring) {
+    function row(a, uv, size, alpha, ring, fadeT0, fadeDir) {
       var lon = a.lon;
       if (!whole) {
         while (lon < west) lon += 360;
@@ -3373,10 +3436,11 @@
         }
       }
       rows.push(mc.x, mc.y, vx, vy, t0, rot,
-                uv[0], uv[1], uv[2], uv[3], size[0], size[1], alpha, rot0, rott);
+                uv[0], uv[1], uv[2], uv[3], size[0], size[1], alpha, rot0, rott,
+                fadeT0 || 0, fadeDir || 1);
       return rows.length / STRIDE - 1;
     }
-    var idx = [];
+    var idx = [], cands = [];
     state.aircraft.forEach(function (a) {
       if (a.lat == null) return;
       if (!whole && (a.lat < south || a.lat > north)) return;
@@ -3386,14 +3450,43 @@
         while (lon > east) lon -= 360;
         if (lon < west) return;
       }
+      cands.push(a);
+    });
+    var keep = skyBudget(cands), nowS = Date.now() / 1000 - gpu.epoch;
+    var shown = {}, fading = false;
+    cands.forEach(function (a) {
       var uv = gpu.uv[iconFor(a)] || gpu.uv.narrow;
       if (!uv) return;
-      if (sel && a.hex === sel) {
-        row(a, gpu.uv.__ring, [gpu.uv.__ring[4], gpu.uv.__ring[5]], 1, true);
+      var alpha = a.alt_baro === "ground" ? 0.45 : 1;
+      if (keep.has(a.hex)) {
+        // in the drawn sky: fading in from when it joined
+        var since = skyShown[a.hex] != null && skyGone[a.hex] == null
+          ? skyShown[a.hex] : nowS;
+        delete skyGone[a.hex];
+        shown[a.hex] = since;
+        if (sel && a.hex === sel) {
+          row(a, gpu.uv.__ring, [gpu.uv.__ring[4], gpu.uv.__ring[5]], 1, true);
+        }
+        idx.push(a);
+        row(a, uv, [uv[4] * ICON_SCALE, uv[5] * ICON_SCALE], alpha, false, since, 1);
+      } else if (skyShown[a.hex] != null || skyGone[a.hex] != null) {
+        // just left it: drawn once more, fading out, not clickable
+        var gone = skyGone[a.hex] != null ? skyGone[a.hex] : nowS;
+        if (nowS - gone < 0.4) {
+          skyGone[a.hex] = gone;
+          fading = true;
+          row(a, uv, [uv[4] * ICON_SCALE, uv[5] * ICON_SCALE], alpha, false, gone, -1);
+        } else {
+          delete skyGone[a.hex];
+        }
       }
-      idx.push(a);
-      row(a, uv, [uv[4], uv[5]], a.alt_baro === "ground" ? 0.45 : 1, false);
     });
+    skyShown = shown;
+    if (fading) {
+      gpu.fadeUntil = Date.now() + 450;
+      clearTimeout(gpu.fadeTimer);
+      gpu.fadeTimer = setTimeout(gpuSync, 450);
+    }
     gpuRows = idx;
     Object.keys(headings).forEach(function (h) {
       if (!findAircraft(h)) delete headings[h];
@@ -3410,7 +3503,7 @@
       var c = projected(a);
       var p = map.project(c);
       var uv = gpu.uv[iconFor(a)] || gpu.uv.narrow;
-      var r = Math.max(14, (uv ? Math.max(uv[4], uv[5]) : 24) * 0.6);
+      var r = Math.max(14, (uv ? Math.max(uv[4], uv[5]) * ICON_SCALE : 24) * 0.6);
       var dx = p.x - point.x, dy = p.y - point.y, d = dx * dx + dy * dy;
       if (d < r * r && d < bestD) { bestD = d; best = a.hex; }
     });
@@ -3442,7 +3535,7 @@
     var west = b.getWest() - mw, east = b.getEast() + mw;
     var south = b.getSouth() - mh, north = b.getNorth() + mh;
     var whole = z < 2.5 || east - west >= 360;
-    var feats = [];
+    var feats = [], inBox = [];
     state.aircraft.forEach(function (a) {
       if (a.lat == null) return;
       var c = projected(a);
@@ -3453,6 +3546,13 @@
         while (lon > east) lon -= 360;
         if (lon < west) return;
       }
+      inBox.push([a, c]);
+    });
+    // labels (and the icon fallback) follow the same drawn sky
+    var keep = skyBudget(inBox.map(function (p) { return p[0]; }));
+    inBox.forEach(function (p) {
+      var a = p[0], c = p[1];
+      if (!keep.has(a.hex)) return;
       feats.push({ type: "Feature", properties: {
           hex: a.hex, flight: a.flight || "", track: a.track,
           _ground: a.alt_baro === "ground" ? 1 : 0,
