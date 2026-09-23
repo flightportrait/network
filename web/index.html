@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
 <style>
   /* The palette is registered so it can ease: at night (body.night-ui,
-     set by the night layer when most of the view is dark) everything
-     over the map turns to ink with paper type in one 0.9 s move. The
-     desktop column sits beside the map, not on it, and keeps the day. */
+     set by the night layer when most of the view is dark) the whole
+     page, column included, turns to ink with paper type in one 0.9 s
+     move. */
   @property --paper{syntax:'<color>';inherits:true;initial-value:#F5F1E6}
   @property --ink{syntax:'<color>';inherits:true;initial-value:#221F1A}
   @property --red{syntax:'<color>';inherits:true;initial-value:#B8402E}
@@ -45,13 +45,9 @@
   }
   body.night-ui{--paper:#11141B;--ink:#EFE9DC;--red:#E0705A;
     --card:#171B23;--shade:#000}
-  @media(min-width:761px){
-    .col{--paper:#F5F1E6;--ink:#221F1A;--red:#B8402E;--card:#FAF7EE;
-      --shade:#221F1A}
-  }
   /* tones derived from the palette, declared wherever it changes so
      they follow it */
-  :root,body,.col{
+  :root,body{
     --line:color-mix(in srgb,var(--ink) 14%,transparent);
     --quiet:color-mix(in srgb,var(--ink) 72%,transparent)}
   [hidden]{display:none!important}
