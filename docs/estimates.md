@@ -53,6 +53,16 @@ destination erred 13 km on the short ones; the combination wins both.
 Airways, holding patterns and weather reroutes are not modelled, so
 long estimates carry tens of kilometres of error by design.
 
+## On the map
+
+Estimated aircraft are drawn with the same silhouettes as heard ones,
+in grey ink instead of the sky's red, with "est" beside the callsign.
+Their card says when the aircraft was last heard, where it is heading
+and when it should arrive, and that the position is placed, not
+observed. They never enter the counts or the list of aircraft in view.
+The dashed-circle button hides them (remembered per browser), and
+playback hides them: an estimate belongs to the present.
+
 ## What it is not
 
 An estimate is a drawing aid, not data. Estimated positions are served
