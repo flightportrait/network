@@ -163,7 +163,14 @@
     64px minmax(0,1.8fr)}
   .routes .end .city{display:block;font-size:13px;color:var(--quiet);
     line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .routes .ac{display:flex;flex-wrap:wrap;gap:5px;align-self:center}
+  /* every cell hangs from the top: codes, cadence, time and badges share
+     the first line; the city sits under its code */
+  .routes .row{align-items:start}
+  .routes .row>*{line-height:27px}
+  .routes .end .city{line-height:1.3}
+  .routes .time{font-size:15px}
+  .routes .ac{display:flex;flex-wrap:wrap;gap:5px;padding-top:2px;
+    line-height:normal}
   .badge{font:12.5px 'Helvetica Neue',Arial,sans-serif;color:var(--ink);
     background:var(--card);border:1px solid var(--line);border-radius:5px;
     padding:1px 7px;white-space:nowrap;cursor:default}
@@ -181,7 +188,7 @@
       grid-template-areas:"from to often" "ac ac time";row-gap:6px}
     .routes .from{grid-area:from}.routes .to{grid-area:to}
     .routes .often{grid-area:often;text-align:right}
-    .routes .time{grid-area:time;align-self:center}
+    .routes .time{grid-area:time;line-height:24px}
     .routes .ac{grid-area:ac}
   }
 
@@ -189,16 +196,17 @@
   .worldmap svg{width:100%;height:auto;display:block}
   .worldmap .land{fill:rgba(34,31,26,.08);stroke:var(--paper);stroke-width:.35}
   .worldmap .on{fill:var(--red);stroke:var(--paper);stroke-width:.35}
-  .worldmap .on:hover,.worldmap .dot:hover{fill:var(--ink)}
+  .worldmap .on,.worldmap .dot{cursor:pointer}
+  .worldmap .on.hot,.worldmap .dot.hot{fill:var(--ink)}
   .worldmap .dot{fill:var(--red);stroke:var(--paper);stroke-width:.4}
-  .countries{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
-    gap:0 28px}
-  .country{display:flex;justify-content:space-between;gap:12px;padding:9px 0;
-    border-bottom:1px solid var(--faint)}
-  .country .flag{margin:0 8px 0 0}
-  .country>span:first-child{min-width:0;white-space:nowrap;overflow:hidden;
-    text-overflow:ellipsis}
-  .country>span:last-child{white-space:nowrap}
+  .worldmap{position:relative}
+  .pop{position:absolute;z-index:3;pointer-events:none;white-space:nowrap;
+    background:var(--card);border:1px solid var(--line);border-radius:6px;
+    box-shadow:0 6px 20px rgba(34,31,26,.14);padding:7px 11px;font-size:15px;
+    line-height:1.3;transform:translate(-50%,calc(-100% - 12px))}
+  .pop .flag{margin:0 7px 0 0}
+  .pop .q{display:block;font-size:13px;margin-top:1px}
+  .pop[hidden]{display:none}
 
   .more{color:var(--red);font-size:15px;cursor:pointer;background:none;
     border:none;font-family:inherit;padding:14px 0 0}
@@ -471,24 +479,47 @@
         return "M" + ring.map(xy).join("L") + "Z";
       }).join("");
       out += served[cc]
-        ? "<path class='on' style='fill-opacity:" + tone(served[cc]) + "' d='" + d + "'><title>" + label(cc) + "</title></path>"
+        ? "<path class='on' data-cc='" + esc(cc) + "' aria-label='" + label(cc) +
+          "' style='fill-opacity:" + tone(served[cc]) + "' d='" + d + "'></path>"
         : "<path class='land' d='" + d + "'></path>";
     });
     Object.keys(world.points || {}).forEach(function (cc) {
       if (!served[cc] || world.polys[cc]) return;
       var p = world.points[cc];
-      out += "<circle class='dot' cx='" + (p[0] + 180).toFixed(1) + "' cy='" + (T - p[1]).toFixed(1) +
-        "' r='1.8'><title>" + label(cc) + "</title></circle>";
+      out += "<circle class='dot' data-cc='" + esc(cc) + "' aria-label='" + label(cc) +
+        "' cx='" + (p[0] + 180).toFixed(1) + "' cy='" + (T - p[1]).toFixed(1) + "' r='1.8'></circle>";
     });
-    return "<div class='worldmap'><svg viewBox='0 0 " + W + " " + Hh + "' role='img' aria-label='Countries served'>" +
-      out + "</svg></div>";
+    return "<div class='worldmap' id='worldmap'><svg viewBox='0 0 " + W + " " + Hh +
+      "' role='img' aria-label='Countries served'>" + out + "</svg>" +
+      "<div class='pop' id='pop' hidden></div></div>";
+  }
+  // The popover: flag, name and route count beside the pointer; a tap
+  // does the same on a phone, a tap on open water closes it.
+  function mapPopover(list) {
+    var box = el("worldmap"), pop = el("pop"), hot = null;
+    if (!box) return;
+    var served = {};
+    list.forEach(function (c) { served[c.iso_country] = c.n_routes; });
+    function at(target, x, y) {
+      var cc = target && target.getAttribute && target.getAttribute("data-cc");
+      if (hot && hot !== target) hot.classList.remove("hot");
+      if (!cc) { pop.hidden = true; hot = null; return; }
+      hot = target; hot.classList.add("hot");
+      var n = served[cc] || 0;
+      pop.innerHTML = (H ? H.flag(cc) : "") + esc(countryName(cc)) +
+        "<span class='q'>" + n.toLocaleString() + (n === 1 ? " route" : " routes") + "</span>";
+      var r = box.getBoundingClientRect();
+      pop.style.left = Math.min(Math.max(x - r.left, 70), r.width - 70) + "px";
+      pop.style.top = (y - r.top) + "px";
+      pop.hidden = false;
+    }
+    box.addEventListener("mousemove", function (e) { at(e.target, e.clientX, e.clientY); });
+    box.addEventListener("mouseleave", function () { at(null); });
+    box.addEventListener("click", function (e) { at(e.target, e.clientX, e.clientY); });
   }
   function countriesPanel(list, world) {
-    el("p-countries").innerHTML = worldMap(list, world) + "<div class='countries'>" + list.map(function (c) {
-      return "<div class='country'><span>" + (H ? H.flag(c.iso_country) : "") +
-        esc(countryName(c.iso_country)) + "</span><span class='q small num'>" +
-        c.n_routes.toLocaleString() + (c.n_routes > 1 ? " routes" : " route") + "</span></div>";
-    }).join("") + "</div>";
+    el("p-countries").innerHTML = worldMap(list, world);
+    mapPopover(list);
   }
 
   Promise.all([get("/v1/airlines/" + icao), ready]).then(function (both) {
