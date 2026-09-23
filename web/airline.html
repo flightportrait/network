@@ -668,20 +668,35 @@
               customAttribution: "FlightPortrait network, ODbL &middot; <a href='/network/credits.html'>Credits</a>" } });
           map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
           map.on("load", function () {
-            if (window.fpPlaneIcons) fpPlaneIcons.kinds.forEach(function (k) {
-              map.addImage("pl-" + k, fpPlaneIcons.image(k, 64), { pixelRatio: 1.1 });
+            // as the live map draws it: ferry routes off (they read as
+            // flight paths), the generated silhouettes, drawn ones only
+            // where a file is missing
+            if (map.getLayer("ferry")) map.setLayoutProperty("ferry", "visibility", "none");
+            var kinds = window.fpPlaneIcons ? fpPlaneIcons.kinds
+              : ["narrow", "wide", "wide4", "bizjet", "ga", "prop", "heli"];
+            Promise.all(kinds.map(function (k) {
+              return map.loadImage("assets/icons/" + k + ".png").then(function (r) {
+                map.addImage("pl-" + k, r.data, { pixelRatio: 3 });
+              }).catch(function () {
+                if (window.fpPlaneIcons) map.addImage("pl-" + k, fpPlaneIcons.image(k, 96), { pixelRatio: 2 });
+              });
+            })).then(function () {
+              map.addSource("planes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+              map.addLayer({ id: "planes", type: "symbol", source: "planes", layout: {
+                "icon-image": ["concat", "pl-", ["get", "kind"]], "icon-size": 1.0,
+                "icon-rotate": ["get", "rot"], "icon-rotation-alignment": "map",
+                "icon-allow-overlap": true } });
+              if (map.getStyle().glyphs) map.addLayer({ id: "plane-labels", type: "symbol",
+                source: "planes", minzoom: 6.5, layout: {
+                  "text-field": ["get", "cs"], "text-font": ["Noto Sans Regular"], "text-size": 11,
+                  "text-offset": [0, 1.7], "text-anchor": "top", "text-optional": true },
+                paint: { "text-color": "rgba(34,31,26,.78)", "text-halo-color": "rgba(245,241,230,.85)",
+                         "text-halo-width": 1.2 } });
+              render();
             });
-            map.addSource("planes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-            map.addLayer({ id: "planes", type: "symbol", source: "planes", layout: {
-              "icon-image": ["concat", "pl-", ["get", "kind"]], "icon-rotate": ["get", "rot"],
-              "icon-rotation-alignment": "map", "icon-allow-overlap": true, "icon-size": 0.8,
-              "text-field": ["get", "cs"], "text-font": ["Noto Sans Regular"], "text-size": 11,
-              "text-offset": [0, 1.6], "text-optional": true } ,
-              paint: { "text-color": "#221F1A", "text-halo-color": "#F5F1E6", "text-halo-width": 1.2 } });
             map.on("click", "planes", function (e) { openPopup(find(e.features[0].properties.hex)); });
             map.on("mouseenter", "planes", function () { map.getCanvas().style.cursor = "pointer"; });
             map.on("mouseleave", "planes", function () { map.getCanvas().style.cursor = ""; });
-            render();
           });
         });
       };
