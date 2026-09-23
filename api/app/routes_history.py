@@ -245,22 +245,28 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
         raise ApiError(422, "invalid_request", "invalid flight")
     # A marketed number (LH996, BA272) resolves to the callsign that
     # flies it when a board has named the service.
+    # A row a board filed under the marketed number itself (a published
+    # leg) must not hide the operating callsign that carries the number.
     marketed = None
-    if not session.execute(
-            select(RefSchedule.callsign).where(RefSchedule.callsign == callsign)
-    ).first():
-        hit = session.execute(
-            select(RefSchedule.callsign).where(RefSchedule.flight == callsign)
-            .order_by(RefSchedule.n_flights.desc())).first()
-        if hit and hit[0] != callsign:
-            marketed, callsign = callsign, hit[0]
+    hit = session.execute(
+        select(RefSchedule.callsign)
+        .where(RefSchedule.flight == callsign, RefSchedule.callsign != callsign)
+        .order_by(RefSchedule.n_flights.desc())).first()
+    if hit:
+        marketed, callsign = callsign, hit[0]
 
     routes_book = request.app.state.routes
     legs_book = request.app.state.legs
     routes_up = routes_book.available()
     legs_up = legs_book.available()
+    # every schedule row that speaks for this flight: the callsign's
+    # own, and the rows a board filed under the marketed number (a
+    # published leg the network has not watched fly)
+    names = {callsign} | ({marketed} if marketed else set())
     scheduled = session.execute(
-        select(RefSchedule).where(RefSchedule.callsign == callsign)
+        select(RefSchedule).where(
+            RefSchedule.callsign.in_(names)
+            | (RefSchedule.flight == (marketed or callsign)))
         .order_by(RefSchedule.n_flights.desc())).scalars().all()
     if not routes_up and not legs_up and not scheduled:
         raise _dark()
@@ -298,6 +304,14 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
     if log is not None:
         out.update(legs=log["legs"], aircraft=log["aircraft"],
                    recent=log["recent"])
+        # a leg a board publishes that observation has not seen yet
+        # sits beside the observed ones
+        seen = {(leg["org"], leg["dst"]) for leg in out["legs"]}
+        for r in scheduled:
+            if r.source == "published" and (r.org, r.dst) not in seen:
+                out["legs"].append({"org": r.org, "dst": r.dst, "flights": 0,
+                                    "days": 0, "last": None})
+                seen.add((r.org, r.dst))
     elif published:
         out["legs"] = [{"org": r.org, "dst": r.dst, "flights": 0, "days": 0,
                         "last": None} for r in published]
@@ -306,10 +320,8 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
         out.update(legs=[], aircraft=[], recent=[])
     if out["legs"]:
         sched = {}
-        for r in session.execute(
-                select(RefSchedule).where(
-                    RefSchedule.callsign == callsign)).scalars():
-            sched[(r.org, r.dst)] = r
+        for r in sorted(scheduled, key=lambda r: r.source == "published"):
+            sched.setdefault((r.org, r.dst), r)   # the callsign's own row first
         for leg in out["legs"]:
             row = sched.get((leg["org"], leg["dst"]))
             leg["dep"] = _hhmm(row.dep_min) if row else None

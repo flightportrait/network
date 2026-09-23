@@ -536,6 +536,49 @@ def test_a_marketed_number_resolves_to_its_callsign(ctx, tmp_path):
     assert body["legs"][0]["flight"] == "SQ22" and body["legs"][0]["times"] == "both"
 
 
+def test_a_published_leg_sits_beside_the_observed_ones(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    db = tmp_path / "legs.db"
+    _build(str(db), AIRPORT_LEGS)
+    app.state.legs = LegBook(str(db))
+    app.state.routes = RouteBook(str(tmp_path / "absent.json.gz"))
+    from app.refdata_models import RefSchedule
+    with sm() as session:
+        # the observed service carries the number on one leg; an arrivals
+        # board published the same number on a leg never watched
+        session.add(RefSchedule(callsign="SQ322", org="SIN", dst="LHR",
+                                airline_icao="SQ3", dep_min=16 * 60,
+                                arr_min=22 * 60 + 35, type_code="A359",
+                                n_flights=30, flight="SQ22", source="both"))
+        session.add(RefSchedule(callsign="SQ22", org="HNL", dst="SIN",
+                                airline_icao="SIA", dep_min=None,
+                                arr_min=6 * 60 + 3, type_code=None,
+                                n_flights=1, flight="SQ22", source="published"))
+        session.commit()
+    body = client.get("/v1/flights/sq22").json()
+    assert body["callsign"] == "SQ322" and body["marketed"] == "SQ22"
+    legs = {(l["org"], l["dst"]): l for l in body["legs"]}
+    assert legs[("SIN", "LHR")]["times"] == "both"
+    assert legs[("HNL", "SIN")]["times"] == "published"
+    assert legs[("HNL", "SIN")]["arr"] == "06:03" and legs[("HNL", "SIN")]["dep"] is None
+
+
+def test_an_arrival_only_published_service_answers(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    app.state.legs = LegBook(str(tmp_path / "absent.db"))
+    app.state.routes = RouteBook(str(tmp_path / "absent.json.gz"))
+    from app.refdata_models import RefSchedule
+    with sm() as session:
+        session.add(RefSchedule(callsign="WN1717", org="DTW", dst="BNA",
+                                airline_icao="SWA", dep_min=None,
+                                arr_min=6 * 60 + 35, type_code=None,
+                                n_flights=1, flight="WN1717", source="published"))
+        session.commit()
+    body = client.get("/v1/flights/WN1717").json()
+    assert body["route"] == ["DTW", "BNA"] and body["route_source"] == "published"
+    assert body["legs"][0]["arr"] == "06:35" and body["legs"][0]["dep"] is None
+
+
 def test_a_published_only_service_answers_from_the_schedule(ctx, tmp_path):
     client, app, sm, settings, readsb = ctx
     app.state.legs = LegBook(str(tmp_path / "absent.db"))
