@@ -208,6 +208,31 @@
   .pop .q{display:block;font-size:13px;margin-top:1px}
   .pop[hidden]{display:none}
 
+  /* live now: the airline's aircraft in the network's sky */
+  .livemap{position:relative;height:440px;border-radius:8px;overflow:hidden;
+    border:1px solid var(--line);background:#E9E2D0}
+  @media (max-width:640px){ .livemap{height:320px} }
+  .livemap .maplibregl-popup-content{background:var(--card);border-radius:6px;
+    padding:8px 12px;font:15px/1.35 Palatino,Georgia,serif;color:var(--ink);
+    box-shadow:0 6px 20px rgba(34,31,26,.16)}
+  .livemap .maplibregl-popup-content a{color:var(--red);text-decoration:none}
+  .livemap .maplibregl-popup-content .q{display:block;font-size:13px}
+  .livemeta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    padding:10px 0 4px;color:var(--quiet);font-size:14px}
+  .livemeta a{color:var(--red);text-decoration:none}
+  .live .row{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr)
+    minmax(0,1.2fr) 90px 70px;cursor:pointer}
+  .live .row.head{cursor:default}
+  .live .row:not(.head):hover{background:rgba(34,31,26,.035)}
+  .live .cs{font-size:17px;white-space:nowrap}
+  @media (max-width:760px){
+    .live .row{grid-template-columns:minmax(0,1fr) auto;
+      grid-template-areas:"cs route" "type alt"}
+    .live .cs{grid-area:cs}.live .route{grid-area:route;text-align:right}
+    .live .type{grid-area:type}.live .alt{grid-area:alt;text-align:right}
+    .live .reg,.live .spd{display:none}
+  }
+
   .more{color:var(--red);font-size:15px;cursor:pointer;background:none;
     border:none;font-family:inherit;padding:14px 0 0}
   .more:hover{text-decoration:underline}
@@ -249,6 +274,7 @@
     </div>
     <nav class="tabs" id="tabs" hidden role="tablist"></nav>
     <section class="panel" id="p-aircraft" hidden></section>
+    <section class="panel" id="p-live" hidden></section>
     <section class="panel" id="p-routes" hidden></section>
     <section class="panel" id="p-countries" hidden></section>
     <div id="body"></div>
@@ -260,6 +286,7 @@
 </main>
 
 <script src="assets/history.js"></script>
+<script src="assets/plane-icons.js"></script>
 <script>
 (function () {
   "use strict";
@@ -317,8 +344,11 @@
   };
 
   // ---- tabs: one view at a time, remembered in the address ------------
-  var PANELS = ["aircraft", "routes", "countries"];
+  var PANELS = ["aircraft", "live", "routes", "countries"];
+  var TAB_LABEL = { aircraft: "Aircraft", live: "Live now", routes: "Routes",
+                    countries: "Countries" };
   function show(name, push) {
+    if (name === "live") live.open();
     PANELS.forEach(function (p) {
       el("p-" + p).hidden = p !== name;
       var b = el("t-" + p);
@@ -331,10 +361,10 @@
   function tabs(counts) {
     var html = "";
     PANELS.forEach(function (p) {
-      if (!counts[p]) return;
+      if (!counts[p] && p !== "live") return;
       html += "<button role='tab' id='t-" + p + "' data-p='" + p + "'>" +
-        p.charAt(0).toUpperCase() + p.slice(1) +
-        "<span class='c'>" + counts[p].toLocaleString() + "</span></button>";
+        TAB_LABEL[p] + "<span class='c' id='c-" + p + "'>" +
+        counts[p].toLocaleString() + "</span></button>";
     });
     el("tabs").innerHTML = html;
     el("tabs").hidden = !html;
@@ -343,8 +373,8 @@
       if (b) show(b.dataset.p, true);
     };
     var want = location.hash.replace(/^#/, "");
-    var first = PANELS.filter(function (p) { return counts[p]; })[0];
-    show(counts[want] ? want : first, false);
+    var first = PANELS.filter(function (p) { return counts[p] && p !== "live"; })[0] || "live";
+    show(counts[want] || want === "live" ? want : first, false);
   }
 
   // ---- aircraft: type chips filter, a sort, one row each --------------
@@ -522,6 +552,168 @@
     mapPopover(list);
   }
 
+  // ---- live now: the airline's aircraft in the network's sky ----------
+  // The whole sky is one small edge-cached call; the airline's aircraft
+  // are the ones flying its callsigns, airborne. MapLibre loads only when
+  // the tab opens, on the live map's basemap and silhouettes.
+  var BASEMAP = "https://tiles.openfreemap.org/styles/bright";
+  var live = (function () {
+    var state = { sky: [], map: null, loading: false, fitted: false,
+                  routes: {}, timer: null, popup: null };
+    function mine() {
+      return state.sky.filter(function (a) {
+        var cs = (a.flight || "").trim().toUpperCase();
+        return cs.slice(0, 3) === icao && /\d/.test(cs.charAt(3)) &&
+          a.lat != null && a.alt_baro !== "ground";
+      });
+    }
+    function poll() {
+      return get("/v1/aircraft").then(function (d) {
+        state.sky = d.aircraft || [];
+        var c = el("c-live");
+        if (c) c.textContent = mine().length;
+        routesFor(mine());
+        render();
+      }).catch(function () {});
+    }
+    function routesFor(list) {
+      var want = list.map(function (a) { return (a.flight || "").trim(); })
+        .filter(function (cs) { return cs && !(cs in state.routes); }).slice(0, 80);
+      if (!want.length) return;
+      want.forEach(function (cs) { state.routes[cs] = null; });
+      get("/v1/routes?cs=" + encodeURIComponent(want.join(","))).then(function (d) {
+        Object.keys(d.routes || {}).forEach(function (cs) { state.routes[cs] = d.routes[cs]; });
+        render();
+      }).catch(function () {});
+    }
+    function routeText(a) {
+      var r = state.routes[(a.flight || "").trim()];
+      return r && r.length > 1 ? r[0] + " → " + r[r.length - 1] : "";
+    }
+    function alt(a) {
+      if (typeof a.alt_baro !== "number") return "";
+      return a.alt_baro >= 10000 ? "FL" + Math.round(a.alt_baro / 100)
+        : a.alt_baro.toLocaleString() + " ft";
+    }
+    function feature(a) {
+      return { type: "Feature", properties: {
+          hex: a.hex, cs: (a.flight || "").trim(), rot: a.track || 0,
+          kind: window.fpPlaneIcons ? fpPlaneIcons.kindOf(a, types) : "narrow" },
+        geometry: { type: "Point", coordinates: [a.lon, a.lat] } };
+    }
+    function render() {
+      var list = mine().sort(function (x, y) {
+        return String(x.flight).localeCompare(String(y.flight)); });
+      var panel = el("p-live");
+      if (!panel || panel.hidden) return;
+      if (state.map && state.map.getSource("planes")) {
+        state.map.getSource("planes").setData({ type: "FeatureCollection",
+          features: list.map(feature) });
+        if (!state.fitted && list.length) {
+          state.fitted = true;
+          var b = new maplibregl.LngLatBounds();
+          list.forEach(function (a) { b.extend([a.lon, a.lat]); });
+          state.map.fitBounds(b, { padding: 60, maxZoom: 7, duration: 0 });
+        }
+      }
+      el("live-meta").innerHTML = list.length
+        ? list.length + (list.length === 1 ? " aircraft" : " aircraft") +
+          " in the network's sky now, updated every 15 s" +
+          " <a href='/network/?a=" + encodeURIComponent(icao) + "'>Open the live map &rarr;</a>"
+        : "None of this airline's aircraft are in the network's sky right now. " +
+          "The network hears what its stations hear. <a href='/network/'>Open the live map &rarr;</a>";
+      el("live-rows").innerHTML = list.length
+        ? "<div class='row head'><span>Flight</span><span>Route</span><span class='reg'>Registration</span>" +
+          "<span>Aircraft</span><span class='num'>Altitude</span><span class='num spd'>Speed</span></div>" +
+          list.map(function (a) {
+            return "<div class='row' data-hex='" + esc(a.hex) + "'>" +
+              "<span class='cs'>" + esc((a.flight || "").trim()) + "</span>" +
+              "<span class='route'>" + esc(routeText(a)) + "</span>" +
+              "<span class='reg q'>" + (a.r ? "<a href='plane.html?hex=" + esc(a.hex) + "'>" + esc(a.r) + "</a>" : "") + "</span>" +
+              "<span class='type'>" + (a.t ? "<span class='badge' title='" + esc(typeName(a.t)) + "'>" +
+                esc(shortType(typeName(a.t))) + "</span>" : "") + "</span>" +
+              "<span class='alt num'>" + esc(alt(a)) + "</span>" +
+              "<span class='spd num q small'>" + (a.gs != null ? Math.round(a.gs) + " kt" : "") + "</span></div>";
+          }).join("") : "";
+    }
+    function openPopup(a) {
+      if (!state.map || !a) return;
+      if (state.popup) state.popup.remove();
+      var cs = (a.flight || "").trim();
+      state.popup = new maplibregl.Popup({ closeButton: false, offset: 14 })
+        .setLngLat([a.lon, a.lat])
+        .setHTML(esc(cs) + (routeText(a) ? " <span class='q'>" + esc(routeText(a)) + "</span>" : "") +
+          "<span class='q'>" + esc([a.r, typeName(a.t), alt(a)].filter(Boolean).join(" · ")) + "</span>" +
+          "<a href='/network/#" + esc(a.hex) + "'>Live map</a> &middot; " +
+          "<a href='plane.html?hex=" + esc(a.hex) + "'>Aircraft</a>")
+        .addTo(state.map);
+    }
+    function find(hex) {
+      return state.sky.filter(function (a) { return a.hex === hex; })[0];
+    }
+    function buildMap() {
+      var css = document.createElement("link");
+      css.rel = "stylesheet"; css.href = "vendor/maplibre-gl.css";
+      document.head.appendChild(css);
+      var js = document.createElement("script");
+      js.src = "vendor/maplibre-gl.js";
+      js.onload = function () {
+        fetch(BASEMAP).then(function (r) { return r.json(); }).catch(function () {
+          return { version: 8, sources: { land: { type: "geojson", data: "assets/land.json" } },
+            layers: [{ id: "bg", type: "background", paint: { "background-color": "#E9E2D0" } },
+                     { id: "land", type: "fill", source: "land", paint: { "fill-color": "#F5F1E6" } }] };
+        }).then(function (style) {
+          var map = state.map = new maplibregl.Map({ container: "live-map", style: style,
+            center: [10, 30], zoom: 1.4, attributionControl: { compact: true,
+              customAttribution: "FlightPortrait network, ODbL &middot; <a href='/network/credits.html'>Credits</a>" } });
+          map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+          map.on("load", function () {
+            if (window.fpPlaneIcons) fpPlaneIcons.kinds.forEach(function (k) {
+              map.addImage("pl-" + k, fpPlaneIcons.image(k, 64), { pixelRatio: 1.1 });
+            });
+            map.addSource("planes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+            map.addLayer({ id: "planes", type: "symbol", source: "planes", layout: {
+              "icon-image": ["concat", "pl-", ["get", "kind"]], "icon-rotate": ["get", "rot"],
+              "icon-rotation-alignment": "map", "icon-allow-overlap": true, "icon-size": 0.8,
+              "text-field": ["get", "cs"], "text-font": ["Noto Sans Regular"], "text-size": 11,
+              "text-offset": [0, 1.6], "text-optional": true } ,
+              paint: { "text-color": "#221F1A", "text-halo-color": "#F5F1E6", "text-halo-width": 1.2 } });
+            map.on("click", "planes", function (e) { openPopup(find(e.features[0].properties.hex)); });
+            map.on("mouseenter", "planes", function () { map.getCanvas().style.cursor = "pointer"; });
+            map.on("mouseleave", "planes", function () { map.getCanvas().style.cursor = ""; });
+            render();
+          });
+        });
+      };
+      document.head.appendChild(js);
+    }
+    return {
+      count: function () { return mine().length; },
+      start: function () {
+        el("p-live").innerHTML = "<div class='livemap' id='live-map'></div>" +
+          "<div class='livemeta' id='live-meta'></div><div class='rows live' id='live-rows'></div>";
+        el("live-rows").addEventListener("click", function (e) {
+          if (e.target.closest("a")) return;
+          var row = e.target.closest(".row[data-hex]");
+          var a = row && find(row.dataset.hex);
+          if (!a || !state.map) return;
+          state.map.flyTo({ center: [a.lon, a.lat], zoom: Math.max(state.map.getZoom(), 6) });
+          openPopup(a);
+          el("live-map").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+        poll();
+        state.timer = setInterval(function () { if (!document.hidden) poll(); }, 15000);
+      },
+      open: function () {
+        if (!state.map && !state.loading && el("live-map")) { state.loading = true; buildMap(); }
+        setTimeout(function () {
+          render();
+          if (state.map) state.map.resize();
+        }, 0);
+      }
+    };
+  })();
+
   Promise.all([get("/v1/airlines/" + icao), ready]).then(function (both) {
     var a = both[0];
     document.title = a.name + " · FlightPortrait network";
@@ -557,7 +749,9 @@
     if (planes.length) aircraftPanel(planes);
     if (legs.length) routesPanel(legs);
     if (countries.length) countriesPanel(countries, world);
-    tabs({ aircraft: planes.length, routes: legs.length, countries: countries.length });
+    live.start();
+    tabs({ aircraft: planes.length, live: live.count(), routes: legs.length,
+           countries: countries.length });
     if (!planes.length && !legs.length && !countries.length) {
       el("body").innerHTML = "<div class='empty'>Nothing observed for this airline yet. The log grows nightly.</div>";
     }
