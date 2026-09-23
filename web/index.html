@@ -2761,6 +2761,8 @@
       ? " " + window.fpHistory.flag(rec.country) : "";
     if (typeName) facts.push(["Aircraft", esc(typeName)]);
     if (a.r) facts.push(["Registration", esc(a.r) + flag]);
+    var built = rec && ((rec.history && rec.history.built_year) || rec.year);
+    if (built) facts.push(["Built", esc(built)]);
     renderRecord(a.hex, rec);
     // a position older than half a minute explains a frozen icon
     var posAge = a.seen_pos != null
