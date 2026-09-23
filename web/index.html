@@ -1953,12 +1953,14 @@
     //   lights come on over the dimmed dusk, not after the swap
     // Labels switch palette over a narrow part of the swap instead of
     // fading through each other.
-    "  float warm = u_amount * exp(-pow((alt - 2.0) / 2.6, 2.0));" +
+    // (squares by hand: GLSL's pow() is undefined for a negative base)
+    "  float qw = (alt - 2.0) / 2.6, qr = (alt + 2.5) / 2.2;" +
+    "  float warm = u_amount * exp(-qw * qw);" +
     "  float dim = u_amount * (1.0 - smoothstep(" + TWILIGHT_DIM_TO.toFixed(1) +
           ", " + TWILIGHT_DIM_FROM.toFixed(1) + ", alt));" +
     "  float n = (1.0 - smoothstep(" + NIGHT_FULL.toFixed(1) + ", " +
           TWILIGHT_SWAP_FROM.toFixed(1) + ", alt)) * u_amount;" +
-    "  float rose = u_amount * exp(-pow((alt + 2.5) / 2.2, 2.0));" +
+    "  float rose = u_amount * exp(-qr * qr);" +
     "  float lights = u_amount * (1.0 - smoothstep(-6.5, -1.0, alt));" +
     "  if ((warm < 0.03 && dim <= 0.0 && n <= 0.0) ||" +
     "      v_merc.y < 0.0 || v_merc.y > 1.0) {" +
@@ -1969,7 +1971,7 @@
     // dimmed and cooled toward slate, a touch of rose at the edge
     "  vec3 tint = mix(vec3(1.0), vec3(1.0, 0.90, 0.74), warm * 0.55);" +
     "  tint *= mix(vec3(1.0), vec3(0.42, 0.43, 0.56), dim);" +
-    "  tint *= mix(vec3(1.0), vec3(1.10, 0.90, 1.02), rose * 0.45);" +
+    "  tint *= mix(vec3(1.0), vec3(1.10, 0.90, 1.02), rose * 0.32);" +
     "  vec3 dayBase = base * tint, dayFull = full * tint;" +
     // the basemap's lightness order kept, dropped into ink-navy:
     // water darkest, land above it, white roads faintly lit and warm
@@ -1992,7 +1994,7 @@
     "  float lab = smoothstep(0.02, 0.14, max(d.r, max(d.g, d.b)));" +
     "  vec3 txt = mix(vec3(0.94, 0.91, 0.84), vec3(0.05, 0.06, 0.085)," +
     "                 dot(full, LUM));" +
-    "  vec3 labc = mix(dayFull, txt, smoothstep(0.4, 0.6, n));" +
+    "  vec3 labc = mix(dayFull, txt, smoothstep(0.3, 0.7, n));" +
     "  vec3 outc = mix(bg, labc, lab);" +
     "  gl_FragColor = vec4(outc, 1.0); }";
   function nightShader(gl, vs, fs) {
