@@ -515,6 +515,31 @@
   .aftlabel b{color:var(--ink);font-weight:600}
   .afdetail .rrow .when{color:var(--quiet);font-size:12.5px;
     font-family:'Helvetica Neue',Arial,sans-serif}
+  /* The airframe's life (assets/history.js): the latest few entries,
+     date and source on a small line, the event beneath. */
+  .flag{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;
+    cursor:default}
+  .affacts{color:var(--quiet);font-size:13px;margin-top:2px}
+  .affacts:empty{display:none}
+  .afdetail .blockhead a{color:var(--quiet);text-decoration:none;
+    letter-spacing:.06em}
+  .afdetail .blockhead a:hover{color:var(--red)}
+  .afhist .tl{list-style:none;border-top:1px solid var(--line)}
+  .afhist .tl li{display:grid;grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:"when src" "what what";gap:1px 10px;padding:7px 0;
+    border-bottom:1px solid rgba(34,31,26,.06);font-size:14px;line-height:1.35}
+  .afhist .tl .when{grid-area:when;color:var(--quiet);font-size:12px;
+    font-family:'Helvetica Neue',Arial,sans-serif}
+  .afhist .tl .src{grid-area:src;color:var(--quiet);font-size:10.5px}
+  .afhist .tl .what{grid-area:what}
+  .afhist .tl .what a{color:var(--ink)}
+  .afhist .tl .more{display:block;font-size:12.5px;color:var(--quiet)}
+  .afhist .tl li.hi .what{color:var(--red)}
+  /* live card: the record's latest incident report or squawk */
+  .dhist{display:block;margin:8px 0 0;font-size:13.5px;line-height:1.35;
+    color:var(--red);text-decoration:none}
+  .dhist:hover{text-decoration:underline}
+  .dhist .more{color:var(--quiet)}
   .cardback{position:absolute;top:6px;left:8px;z-index:2;
     background:none;border:none;color:var(--quiet);font-size:26px;
     cursor:pointer;font-family:inherit;padding:2px 10px;line-height:1}
@@ -984,6 +1009,7 @@
   </div>
   <div class="sub" id="d-sub" hidden></div>
   <div class="alert" id="d-alert" hidden></div>
+  <a class="dhist" id="d-hist" href="#" hidden></a>
   <div class="photo" id="d-photo"></div>
   <div class="route" id="d-route"></div>
   <div class="links"><a id="d-history" class="hist" href="#">Airframe history</a><a id="d-flightlog" class="hist" href="#" hidden>Flight log</a></div>
@@ -1104,12 +1130,16 @@
   <button class="cardclose" id="af-close" aria-label="Close aircraft">&times;</button>
   <div class="nm" id="af-reg"></div>
   <div class="sub" id="af-sub"></div>
+  <div class="affacts" id="af-facts"></div>
   <div class="photo" id="af-photo"></div>
   <div class="figures">
     <div><span class="n" id="af-flights">&ndash;</span><span class="caps">flights</span></div>
     <div><span class="n" id="af-airports">&ndash;</span><span class="caps">airports</span></div>
     <div><span class="n" id="af-pair">&ndash;</span><span class="caps">most flown</span></div>
   </div>
+  <div class="blockhead caps" id="af-hist-head" hidden>History
+    <a id="af-hist-all" href="#">All</a></div>
+  <div class="afhist" id="af-hist" hidden></div>
   <div class="blockhead caps" id="af-tl-head" hidden>Timeline</div>
   <div class="aftimeline" id="af-timeline" hidden>
     <button id="af-play" type="button" aria-label="Play">&#9654;</button>
@@ -1326,6 +1356,7 @@
 
 <script src="vendor/maplibre-gl.js"></script>
 <script src="assets/search.js"></script>
+<script src="assets/history.js"></script>
 <script>
 (function () {
   "use strict";
@@ -2667,6 +2698,42 @@
       window.__openAirframe(this.dataset.hex);
     }
   });
+  el("d-hist").addEventListener("click", function (e) {
+    if (window.__openAirframe && this.dataset.hex) {
+      e.preventDefault();
+      window.__openAirframe(this.dataset.hex);
+    }
+  });
+
+  // The airframe's record, once per aircraft: its flag beside the
+  // registration and, when the record holds any, its latest incident
+  // report or squawk. undefined = not asked, null = asking, false = none.
+  var records = {};
+  function recordOf(hex) {
+    if (records[hex] === undefined) {
+      records[hex] = null;
+      fetch(API + "/v1/airframes/" + hex)
+        .then(function (r) { return r.ok ? r.json() : false; })
+        .then(function (d) {
+          records[hex] = d || false;
+          if (state.selected === hex) renderDetail();
+        }).catch(function () { records[hex] = false; });
+    }
+    return records[hex] || null;
+  }
+  function renderRecord(hex, rec) {
+    var link = el("d-hist"), H = window.fpHistory;
+    var notable = rec && H ? H.notable(rec) : [];
+    link.hidden = !notable.length;
+    if (!notable.length) return;
+    var top = notable[0];
+    link.href = "plane.html?hex=" + hex;
+    link.dataset.hex = hex;
+    link.innerHTML = top.what.replace(/<[^>]+>/g, "") +
+      " <span class='more'>" + H.day(top.at) +
+      (notable.length > 1 ? " · " + (notable.length - 1) + " more" : "") +
+      "</span>";
+  }
 
   function renderDetail() {
     var a = state.selected && findAircraft(state.selected);
@@ -2689,8 +2756,12 @@
     if (opTail) el("d-operator-tail").src = "assets/airline-tails/" + opTail;
     // the airframe leads the labelled rows further down (rows below)
     var facts = [];
+    var rec = recordOf(a.hex);
+    var flag = rec && rec.country && window.fpHistory
+      ? " " + window.fpHistory.flag(rec.country) : "";
     if (typeName) facts.push(["Aircraft", esc(typeName)]);
-    if (a.r) facts.push(["Registration", esc(a.r)]);
+    if (a.r) facts.push(["Registration", esc(a.r) + flag]);
+    renderRecord(a.hex, rec);
     // a position older than half a minute explains a frozen icon
     var posAge = a.seen_pos != null
       ? a.seen_pos + (Date.now() - (a._heard || state.fetchedAt)) / 1000 : null;
@@ -5993,6 +6064,10 @@ window.__initJoin = function () {
     if (window.__syncModeLayers) window.__syncModeLayers();
     el("af-reg").textContent = hex.toUpperCase();
     el("af-sub").textContent = "";
+    el("af-facts").innerHTML = "";
+    el("af-hist").innerHTML = "";
+    el("af-hist-head").hidden = el("af-hist").hidden = true;
+    el("af-hist-all").href = "plane.html?hex=" + hex;
     el("af-photo").className = "photo";
     el("af-photo").innerHTML = "";
     ["af-flights", "af-airports", "af-pair"].forEach(function (id) {
@@ -6045,8 +6120,19 @@ window.__initJoin = function () {
     var op = d.operator || (d.airline && d.airline.name);
     var bits = [(entry && entry[0]) || d.type_name || d.type,
                 hex.toUpperCase(), op];
-    el("af-sub").textContent = bits.filter(Boolean).join(" · ");
+    var H = window.fpHistory;
+    el("af-sub").innerHTML = bits.filter(Boolean).map(esc).join(" · ") +
+      (H && d.country ? " · " + H.flag(d.country) : "");
     af.kind = (entry && entry[1]) || "narrow";
+    // the airframe's life: the latest few entries, the rest a page away
+    if (H) {
+      el("af-facts").innerHTML = H.facts(d);
+      var life = H.rows(d);
+      if (life.length) {
+        el("af-hist").innerHTML = H.list(life, 4);
+        el("af-hist-head").hidden = el("af-hist").hidden = false;
+      }
+    }
 
     d.legs = d.legs || [];
     var airports = {}, pairs = {};
