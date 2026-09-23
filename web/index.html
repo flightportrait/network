@@ -2461,7 +2461,9 @@
         }) });
     }).catch(function () {});
   }
-  function hhmm(t) {
+  // the viewer's clock for unix seconds (the name is its own: the route
+  // card's hhmm(date, tz) lives in this scope too)
+  function estClock(t) {
     return new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit",
       minute: "2-digit" });
   }
@@ -2475,9 +2477,9 @@
       .setLngLat([a.lon, a.lat])
       .setHTML("<div style='font-size:16px'>" + esc(a.flight || a.hex) +
         " <span style='color:var(--quiet)'>estimated</span></div>" +
-        "<div>Last heard " + hhmm(a.last_seen.at) + ", " + ago + " min ago</div>" +
+        "<div>Last heard " + estClock(a.last_seen.at) + ", " + ago + " min ago</div>" +
         "<div>Heading for " + esc(a.destination) + ", arriving about " +
-        hhmm(a.eta) + "</div>" +
+        estClock(a.eta) + "</div>" +
         "<div style='color:var(--quiet)'>" + esc([typeName, a.r, alt ? alt + " when last heard" : ""]
           .filter(Boolean).join(" · ")) + "</div>" +
         "<div style='margin-top:6px'><a href='plane.html?hex=" + esc(a.hex) +
