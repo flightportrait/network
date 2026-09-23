@@ -262,6 +262,47 @@ def _same_number(callsign, flight):
     return bool(a) and a == b
 
 
+# Who flies a marketed number: the airline itself, or an operator that
+# flies under its numbers — regional partners and subsidiaries. A board
+# says AA5062; the aircraft calls itself JIA5062 (PSA) or SKW5062.
+_AFFILIATES = {
+    "AAL": {"JIA", "ENY", "PDT", "SKW", "RPA", "ASH", "MQ"},
+    "DAL": {"EDV", "SKW", "RPA"},
+    "UAL": {"SKW", "RPA", "ASH", "GJS", "AWI", "UCA"},
+    "ASA": {"QXE", "SKW"},
+    "ACA": {"JZA", "ROU", "SKV"},
+    "WJA": {"WEN", "WSW"},
+    "EZY": {"EJU", "EZS"},
+    "DLH": {"CLH", "OCN", "EWG", "LHA"},
+    "AFR": {"HOP", "FPO", "TVF"},
+    "KLM": {"KLC", "TRA"},
+    "BAW": {"CFE", "SHT", "EFW"},
+    "IBE": {"IBS", "ANE", "VLG"},
+    "SAS": {"SZS", "CNL", "LNK"},
+    "FIN": {"NRC"},
+    "AUA": {"AUA"},
+    "SWR": {"EDW", "HES"},
+    "QFA": {"JST", "QLK", "NWK"},
+    "ANZ": {"MCA"},
+    "RYR": {"RUK", "MAY", "RYS", "BCS"},
+    "WZZ": {"WUK", "WMT", "WAZ"},
+    "NAX": {"NSZ", "NOZ", "NRS"},
+    "JBU": set(), "SWA": set(),
+}
+
+
+def _same_carrier(icao, prefix, service_icao, same_number):
+    """Does a service (its airline code) belong to the board's airline?
+    Its own code, one of its operators, or — with the number's own
+    digits as evidence — a service whose airline we never learned."""
+    want = icao or prefix
+    if not service_icao:
+        return same_number
+    if service_icao == want:
+        return True
+    return service_icao in _AFFILIATES.get(icao or "", ())
+
+
 def _airline_of(flight, iata_icao):
     """The airline a flight number is written under: (designator,
     ICAO). Three letters before the digits is an ICAO designator as
@@ -341,7 +382,7 @@ def ingest_boards(session, path):
                                       RefSchedule.flight.is_not(None))
     ).scalars():
         prefix, icao = _airline_of(r.flight, iata_icao)
-        if icao and r.airline_icao and r.airline_icao != icao:
+        if icao and r.airline_icao and not _same_carrier(icao, prefix, r.airline_icao, True):
             r.flight, r.source = None, "observed"
     for (flight, org, dst), (sched, _n) in deps.items():
         prefix, icao = _airline_of(flight, iata_icao)
@@ -352,9 +393,7 @@ def ingest_boards(session, path):
         ).scalars().all()
         best = None
         for r in rows:
-            if icao and r.airline_icao != icao:
-                continue
-            if not icao and r.airline_icao != prefix:
+            if not _same_carrier(icao, prefix, r.airline_icao, _same_number(r.callsign, flight)):
                 continue
             d = abs(r.dep_min - sched)
             if _same_number(r.callsign, flight) and d <= 180:
@@ -394,7 +433,7 @@ def ingest_boards(session, path):
             continue
         best = None
         for r in rows:
-            if (icao and r.airline_icao != icao) or (not icao and r.airline_icao != prefix):
+            if not _same_carrier(icao, prefix, r.airline_icao, _same_number(r.callsign, flight)):
                 continue
             if r.arr_min is None:
                 continue
@@ -432,9 +471,9 @@ def ingest_boards(session, path):
             ).scalars().all()
         best = None
         for r in rows:
-            if (icao and r.airline_icao != icao) or (not icao and r.airline_icao != prefix):
-                continue
             if not _same_number(r.callsign, flight):
+                continue
+            if not _same_carrier(icao, prefix, r.airline_icao, True):
                 continue
             d = abs((r.dep_min if kind == "dep" else r.arr_min) - sched)
             if d <= 180 and (best is None or d < best[0]):

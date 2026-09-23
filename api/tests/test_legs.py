@@ -480,6 +480,44 @@ def test_a_board_without_counterparts_still_names_the_service(ctx, tmp_path):
         session.close()
 
 
+def test_a_board_number_pins_its_regional_operator(ctx, tmp_path):
+    import sqlite3 as s3
+    from app import refdata_ingest
+    from app.refdata_models import RefAirline, RefSchedule
+    client, app, sm, settings, readsb = ctx
+    bdb = tmp_path / "boards.db"
+    conn = s3.connect(str(bdb))
+    conn.execute("CREATE TABLE boards (airport TEXT, kind TEXT, flight TEXT,"
+                 " counterpart TEXT, sched_min INT, day TEXT, source TEXT,"
+                 " fetched_at TEXT)")
+    conn.execute("INSERT INTO boards VALUES ('CAK','dep','AA5062','DCA',332,"
+                 "'2026-09-23','t','now')")
+    conn.execute("INSERT INTO boards VALUES ('CAK','dep','UA4646','ORD',360,"
+                 "'2026-09-23','t','now')")
+    conn.commit(); conn.close()
+    session = sm()
+    try:
+        session.add(RefAirline(icao="AAL", iata="AA", name="American", palette=[]))
+        session.add(RefAirline(icao="UAL", iata="UA", name="United", palette=[]))
+        # PSA flies American's number; a service with no airline known
+        # flies United's, same digits
+        session.add(RefSchedule(callsign="JIA5062", org="CAK", dst="DCA",
+                                airline_icao="JIA", dep_min=330, arr_min=400,
+                                type_code=None, n_flights=30))
+        session.add(RefSchedule(callsign="GJS4646", org="CAK", dst="ORD",
+                                airline_icao="", dep_min=362, arr_min=420,
+                                type_code=None, n_flights=20))
+        session.commit()
+        refdata_ingest.ingest_boards(session, str(bdb))
+        session.commit()
+        psa = session.get(RefSchedule, ("JIA5062", "CAK", "DCA"))
+        unk = session.get(RefSchedule, ("GJS4646", "CAK", "ORD"))
+        assert psa.flight == "AA5062" and psa.source == "both"
+        assert unk.flight == "UA4646" and unk.source == "both"
+    finally:
+        session.close()
+
+
 def test_a_marketed_number_resolves_to_its_callsign(ctx, tmp_path):
     client, app, sm, settings, readsb = ctx
     db = tmp_path / "legs.db"
