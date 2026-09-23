@@ -127,6 +127,10 @@ class Settings:
     # Per-airframe flight logs (SQLite artifact, legs_db.py).
     legs_path: str = field(default_factory=lambda: _env(
         "NETWORK_API_LEGS_PATH", "data/legs.db"))
+    # Published boards (SQLite artifact, boards_db.py): today's board
+    # as the airports publish it.
+    boards_path: str = field(default_factory=lambda: _env(
+        "NETWORK_API_BOARDS_PATH", "data/boards.db"))
     airframe_rate_limit: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_AIRFRAME_RATE_LIMIT", 300))
     airport_rate_limit: int = field(default_factory=lambda: _env_int(

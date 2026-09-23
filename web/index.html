@@ -1326,6 +1326,7 @@
       <button type="button" id="apt-arr" role="tab" aria-selected="false">Arrivals</button>
     </div>
     <span class="caps clock" id="apt-clock"></span>
+    <span class="caps clock" id="apt-board-src"></span>
   </div>
   <div class="board" id="apt-board" hidden>
     <div class="bcols caps"><span>time</span><span id="apt-col-place">destination</span><span>flight</span><span class="r">aircraft</span></div>
@@ -7216,7 +7217,14 @@ window.__initJoin = function () {
     el("apt-dep").setAttribute("aria-selected", dep ? "true" : "false");
     el("apt-arr").setAttribute("aria-selected", dep ? "false" : "true");
     el("apt-col-place").textContent = dep ? "destination" : "origin";
-    var rows = ((d && (dep ? d.board : d.arrivals)) || []).filter(function (b) {
+    // today's board as the airport publishes it when we hold one; the
+    // typical board inferred from observation otherwise
+    var today = d && d.today;
+    var pool = today ? (dep ? today.departures : today.arrivals)
+                     : ((d && (dep ? d.board : d.arrivals)) || []);
+    el("apt-board-src").textContent = today ? "today \u00b7 published"
+                                            : (d && (d.board || d.arrivals) ? "typical \u00b7 observed" : "");
+    var rows = (pool || []).filter(function (b) {
       return dep ? (b.dst && b.dep) : (b.org && b.arr);
     }).sort(function (x, y) {
       var a = dep ? x.dep : x.arr, b = dep ? y.dep : y.arr;
@@ -7248,8 +7256,10 @@ window.__initJoin = function () {
     }).join("");
     var empty = el("apt-board-empty");
     empty.hidden = !!rows.length;
-    empty.textContent = dep ? "No departures observed here yet."
-                            : "No arrivals observed here yet.";
+    empty.textContent = today ? (dep ? "No departures published for today."
+                                     : "No arrivals published for today.")
+                              : (dep ? "No departures observed here yet."
+                                     : "No arrivals observed here yet.");
     // rows before now sit a scroll above; the next one leads
     wrap.scrollTop = 0;
     if (nextIdx > 0) {
@@ -7264,11 +7274,11 @@ window.__initJoin = function () {
     var a = apts[code];
     el("apt-name").textContent = (a && a[0]) || (d && d.name) || code;
     el("apt-sub").textContent = code + (d && d.name ? " · " + d.name : "");
-    var hasBoard = !!(d && ((d.board && d.board.length) ||
+    var hasBoard = !!(d && (d.today || (d.board && d.board.length) ||
                             (d.arrivals && d.arrivals.length)));
     el("apt-board-head").hidden = el("apt-board").hidden = !hasBoard;
     // arrivals only where the API serves them
-    el("apt-arr").hidden = !(d && d.arrivals);
+    el("apt-arr").hidden = !(d && (d.arrivals || d.today));
     if (el("apt-arr").hidden) side = "dep";
     clearInterval(clockTimer);
     function tickClock() {

@@ -628,3 +628,42 @@ def test_an_arrivals_board_names_the_service_too(ctx, tmp_path):
         assert vs is not None and vs.arr_min == 600 and vs.source == "published"
     finally:
         session.close()
+
+
+def test_the_airport_page_carries_todays_published_board(ctx, tmp_path):
+    import datetime
+    import sqlite3 as s3
+    from zoneinfo import ZoneInfo
+    from app.boards_db import BoardBook
+    from app.refdata_models import RefAirport, RefSchedule
+    client, app, sm, settings, readsb = ctx
+    app.state.legs = LegBook(str(tmp_path / "absent.db"))
+    app.state.routes = RouteBook(str(tmp_path / "absent.json.gz"))
+    day = datetime.datetime.now(ZoneInfo("Asia/Singapore")).date().isoformat()
+    bdb = tmp_path / "boards.db"
+    conn = s3.connect(str(bdb))
+    conn.execute("CREATE TABLE boards (airport TEXT, kind TEXT, flight TEXT,"
+                 " counterpart TEXT, sched_min INT, day TEXT, source TEXT,"
+                 " fetched_at TEXT)")
+    conn.execute("INSERT INTO boards VALUES ('SIN','dep','SQ322','LHR',540,?,'t','now')", (day,))
+    conn.execute("INSERT INTO boards VALUES ('SIN','arr','SQ317','LHR',415,?,'t','now')", (day,))
+    conn.execute("INSERT INTO boards VALUES ('SIN','dep','SQ999','KUL',60,'2000-01-01','t','now')")
+    conn.commit(); conn.close()
+    app.state.boards = BoardBook(str(bdb))
+    with sm() as session:
+        session.add(RefAirport(ident="WSSS", iata="SIN", name="Singapore Changi",
+                               kind="large_airport", role="commercial",
+                               lat=1.35, lon=103.99, iso_country="SG",
+                               municipality="Singapore", tz="Asia/Singapore"))
+        session.add(RefSchedule(callsign="SIA322", org="SIN", dst="LHR",
+                                airline_icao="SIA", dep_min=540, arr_min=910,
+                                type_code="A359", n_flights=12, flight="SQ322",
+                                source="both"))
+        session.commit()
+    body = client.get("/v1/airports/SIN").json()
+    today = body["today"]
+    assert today["day"] == day and today["source"] == "published"
+    assert today["departures"] == [{"flight": "SQ322", "dst": "LHR", "dep": "09:00",
+                                    "callsign": "SIA322", "type": "A359"}]
+    assert today["arrivals"] == [{"flight": "SQ317", "org": "LHR", "arr": "06:55",
+                                  "callsign": None, "type": None}]

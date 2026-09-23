@@ -413,9 +413,36 @@ def airport(code: spec.AirportCode, request: Request, response: Response,
                              "type": r.type_code, "flights": r.n_flights,
                              "source": r.source})
     arrivals.sort(key=lambda b: (b["arr"] is None, b["arr"] or ""))
+
+    # Today's board as the airport publishes it, when we hold one: the
+    # marketed number, the other end, the published time, and the
+    # callsign and type of the observed service that carries it.
+    today = None
+    boards = getattr(request.app.state, "boards", None)
+    if boards is not None and iata:
+        today = boards.today(iata, reg.tz if reg else None)
+    if today:
+        names = {r["flight"] for r in today["departures"]} | {r["flight"] for r in today["arrivals"]}
+        carried = {}
+        for r in session.execute(
+                select(RefSchedule).where(
+                    RefSchedule.flight.in_(names),
+                    (RefSchedule.org == iata) | (RefSchedule.dst == iata))).scalars():
+            if r.source == "both":
+                carried[(r.flight, r.org, r.dst)] = r
+        for row in today["departures"]:
+            r = carried.get((row["flight"], iata, row["dst"]))
+            row["callsign"] = r.callsign if r else None
+            row["type"] = r.type_code if r else None
+        for row in today["arrivals"]:
+            r = carried.get((row["flight"], row["org"], iata))
+            row["callsign"] = r.callsign if r else None
+            row["type"] = r.type_code if r else None
+        today["source"] = "published"
     response.headers["Cache-Control"] = CACHE
     return {
         "iata": iata,
+        "today": today,
         "ident": reg.ident if reg else None,
         "name": reg.name if reg else None,
         "kind": reg.kind if reg else None,

@@ -113,6 +113,8 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     app.state.gaps = GapBook(settings.gaps_path)
     from .legs_db import LegBook
     app.state.legs = LegBook(settings.legs_path)
+    from .boards_db import BoardBook
+    app.state.boards = BoardBook(settings.boards_path)
 
     # Credential-less open-data API: wildcard origins are safe because no
     # cookie or token ever grants more than anonymous access.

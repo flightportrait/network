@@ -546,6 +546,29 @@ SCH_AIRPORT = _obj({
                          "days": _t("integer"),
                      }), description="Busiest routes, top 15."),
                  }), {"type": "null"}]},
+    "today": {"description": "Today's board as the airport publishes it, "
+                             "in the airport's local day. Null when no "
+                             "published board is held for it.",
+              "oneOf": [_obj({
+                  "day": _t("string", "YYYY-MM-DD, local."),
+                  "source": _t("string", "published"),
+                  "departures": _arr(_obj({
+                      "flight": _t("string", "Marketed number."),
+                      "dst": _t("string", nullable=True),
+                      "dep": _t("string", "HH:MM, local."),
+                      "callsign": _t("string", "The observed service that "
+                                               "carries the number, when "
+                                               "known.", nullable=True),
+                      "type": _t("string", nullable=True),
+                  })),
+                  "arrivals": _arr(_obj({
+                      "flight": _t("string", "Marketed number."),
+                      "org": _t("string", nullable=True),
+                      "arr": _t("string", "HH:MM, local."),
+                      "callsign": _t("string", nullable=True),
+                      "type": _t("string", nullable=True),
+                  })),
+              }), {"type": "null"}]},
     "board": _arr(_obj({
         "flight": _t("string", "Marketed number when known, else the "
                                "callsign."),
@@ -590,6 +613,11 @@ EX_AIRPORT = {
     "observed": {"departures": 120, "destinations": 40, "tails": 80,
                  "days_observed": 60,
                  "routes": [{"dst": "LHR", "flights": 14, "days": 7}]},
+    "today": {"day": "2026-09-23", "source": "published",
+              "departures": [{"flight": "SQ322", "dst": "LHR", "dep": "09:00",
+                              "callsign": "SIA322", "type": "A359"}],
+              "arrivals": [{"flight": "SQ317", "org": "LHR", "arr": "06:55",
+                            "callsign": "SIA317", "type": "A359"}]},
     "board": [{"flight": "SQ322", "dst": "LHR", "dep": "09:00",
                "arr": "15:10", "type": "A359", "flights": 12,
                "source": "observed"}],
