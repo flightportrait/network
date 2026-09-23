@@ -221,8 +221,11 @@
     padding:10px 0 4px;color:var(--quiet);font-size:14px}
   .livemeta a{color:var(--red);text-decoration:none}
   .live .row{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr)
-    minmax(0,1.2fr) 90px 70px;cursor:pointer}
+    minmax(0,1.2fr) 80px 96px;cursor:pointer}
+  .live .spd{white-space:nowrap}
   .live .row.head{cursor:default}
+  .live .row.est{color:var(--quiet)}
+  .live .row.est .tag{margin-left:8px}
   .live .row:not(.head):hover{background:rgba(34,31,26,.035)}
   .live .cs{font-size:17px;white-space:nowrap}
   @media (max-width:760px){
@@ -558,7 +561,7 @@
   // the tab opens, on the live map's basemap and silhouettes.
   var BASEMAP = "https://tiles.openfreemap.org/styles/bright";
   var live = (function () {
-    var state = { sky: [], map: null, loading: false, fitted: false,
+    var state = { sky: [], est: [], map: null, loading: false, fitted: false,
                   routes: {}, timer: null, popup: null };
     function mine() {
       return state.sky.filter(function (a) {
@@ -567,12 +570,26 @@
           a.lat != null && a.alt_baro !== "ground";
       });
     }
+    // the airline's estimated aircraft: lost from the sky while cruising,
+    // drawn grey where they most likely are (/v1/estimated), never counted
+    function minesEstimated() {
+      var heard = {};
+      state.sky.forEach(function (a) { heard[a.hex] = 1; });
+      return state.est.filter(function (a) {
+        var cs = (a.flight || "").trim().toUpperCase();
+        return cs.slice(0, 3) === icao && /\d/.test(cs.charAt(3)) && !heard[a.hex];
+      });
+    }
     function poll() {
-      return get("/v1/aircraft").then(function (d) {
-        state.sky = d.aircraft || [];
+      return Promise.all([
+        get("/v1/aircraft"),
+        get("/v1/estimated").catch(function () { return { aircraft: [] }; })
+      ]).then(function (both) {
+        state.sky = both[0].aircraft || [];
+        state.est = both[1].aircraft || [];
         var c = el("c-live");
         if (c) c.textContent = mine().length;
-        routesFor(mine());
+        routesFor(mine().concat(minesEstimated()));
         render();
       }).catch(function () {});
     }
@@ -597,28 +614,35 @@
     }
     function feature(a) {
       return { type: "Feature", properties: {
-          hex: a.hex, cs: (a.flight || "").trim(), rot: a.track || 0,
+          hex: a.hex, cs: (a.flight || "").trim() + (a.estimated ? " · est" : ""),
+          rot: a.track || 0, est: a.estimated ? 1 : 0,
           kind: window.fpPlaneIcons ? fpPlaneIcons.kindOf(a, types) : "narrow" },
         geometry: { type: "Point", coordinates: [a.lon, a.lat] } };
     }
+    function clock(t) {
+      return new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
     function render() {
       var list = mine().sort(function (x, y) {
+        return String(x.flight).localeCompare(String(y.flight)); });
+      var ests = minesEstimated().sort(function (x, y) {
         return String(x.flight).localeCompare(String(y.flight)); });
       var panel = el("p-live");
       if (!panel || panel.hidden) return;
       if (state.map && state.map.getSource("planes")) {
         state.map.getSource("planes").setData({ type: "FeatureCollection",
-          features: list.map(feature) });
-        if (!state.fitted && list.length) {
+          features: list.concat(ests).map(feature) });
+        if (!state.fitted && (list.length || ests.length)) {
           state.fitted = true;
           var b = new maplibregl.LngLatBounds();
-          list.forEach(function (a) { b.extend([a.lon, a.lat]); });
+          list.concat(ests).forEach(function (a) { b.extend([a.lon, a.lat]); });
           state.map.fitBounds(b, { padding: 60, maxZoom: 7, duration: 0 });
         }
       }
       el("live-meta").innerHTML = list.length
         ? list.length + (list.length === 1 ? " aircraft" : " aircraft") +
-          " in the network's sky now, updated every 15 s" +
+          " in the network's sky now" + (ests.length ? ", " + ests.length + " estimated" : "") +
+          ", updated every 15 s" +
           " <a href='/network/?a=" + encodeURIComponent(icao) + "'>Open the live map &rarr;</a>"
         : "None of this airline's aircraft are in the network's sky right now. " +
           "The network hears what its stations hear. <a href='/network/'>Open the live map &rarr;</a>";
@@ -634,6 +658,15 @@
                 esc(shortType(typeName(a.t))) + "</span>" : "") + "</span>" +
               "<span class='alt num'>" + esc(alt(a)) + "</span>" +
               "<span class='spd num q small'>" + (a.gs != null ? Math.round(a.gs) + " kt" : "") + "</span></div>";
+          }).join("") + ests.map(function (a) {
+            return "<div class='row est' data-hex='" + esc(a.hex) + "'>" +
+              "<span class='cs'>" + esc((a.flight || "").trim()) + "<span class='tag'>estimated</span></span>" +
+              "<span class='route'>" + esc(routeText(a)) + "</span>" +
+              "<span class='reg q'>" + (a.r ? "<a href='plane.html?hex=" + esc(a.hex) + "'>" + esc(a.r) + "</a>" : "") + "</span>" +
+              "<span class='type'>" + (a.t ? "<span class='badge' title='" + esc(typeName(a.t)) + "'>" +
+                esc(shortType(typeName(a.t))) + "</span>" : "") + "</span>" +
+              "<span class='alt num'>" + esc(alt(a)) + "</span>" +
+              "<span class='spd num q small'>heard " + esc(clock(a.last_seen.at)) + "</span></div>";
           }).join("") : "";
     }
     function openPopup(a) {
@@ -643,13 +676,26 @@
       state.popup = new maplibregl.Popup({ closeButton: false, offset: 14 })
         .setLngLat([a.lon, a.lat])
         .setHTML(esc(cs) + (routeText(a) ? " <span class='q'>" + esc(routeText(a)) + "</span>" : "") +
+          (a.estimated ? "<span class='q'>Estimated position, last heard " +
+            esc(clock(a.last_seen.at)) + "</span>" : "") +
           "<span class='q'>" + esc([a.r, typeName(a.t), alt(a)].filter(Boolean).join(" · ")) + "</span>" +
           "<a href='/network/#" + esc(a.hex) + "'>Live map</a> &middot; " +
           "<a href='plane.html?hex=" + esc(a.hex) + "'>Aircraft</a>")
         .addTo(state.map);
     }
     function find(hex) {
-      return state.sky.filter(function (a) { return a.hex === hex; })[0];
+      return state.sky.concat(state.est).filter(function (a) { return a.hex === hex; })[0];
+    }
+    // the live map's grey for estimates: the silhouette recoloured
+    function grey(img) {
+      var c = document.createElement("canvas");
+      c.width = img.width; c.height = img.height;
+      var g = c.getContext("2d");
+      g.drawImage(img, 0, 0);
+      g.globalCompositeOperation = "source-in";
+      g.fillStyle = "#6B665E";
+      g.fillRect(0, 0, c.width, c.height);
+      return g.getImageData(0, 0, c.width, c.height);
     }
     function buildMap() {
       var css = document.createElement("link");
@@ -677,15 +723,19 @@
             Promise.all(kinds.map(function (k) {
               return map.loadImage("assets/icons/" + k + ".png").then(function (r) {
                 map.addImage("pl-" + k, r.data, { pixelRatio: 3 });
+                map.addImage("pe-" + k, grey(r.data), { pixelRatio: 3 });
               }).catch(function () {
                 if (window.fpPlaneIcons) map.addImage("pl-" + k, fpPlaneIcons.image(k, 96), { pixelRatio: 2 });
               });
             })).then(function () {
               map.addSource("planes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
               map.addLayer({ id: "planes", type: "symbol", source: "planes", layout: {
-                "icon-image": ["concat", "pl-", ["get", "kind"]], "icon-size": 1.0,
+                "icon-image": ["case", ["==", ["get", "est"], 1],
+                  ["concat", "pe-", ["get", "kind"]], ["concat", "pl-", ["get", "kind"]]],
+                "icon-size": 1.0,
                 "icon-rotate": ["get", "rot"], "icon-rotation-alignment": "map",
-                "icon-allow-overlap": true } });
+                "icon-allow-overlap": true },
+                paint: { "icon-opacity": ["case", ["==", ["get", "est"], 1], 0.55, 1] } });
               if (map.getStyle().glyphs) map.addLayer({ id: "plane-labels", type: "symbol",
                 source: "planes", minzoom: 6.5, layout: {
                   "text-field": ["get", "cs"], "text-font": ["Noto Sans Regular"], "text-size": 11,
