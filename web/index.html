@@ -2087,18 +2087,45 @@
   };
   NightControl.prototype.onRemove = function () {};
 
+  // Where the map opens. A returning visitor finds the view they left;
+  // a first visit opens on the whole world turned to their side of it
+  // (longitude from the time zone offset, no location prompt), so the
+  // fit to the sky that follows has nothing left to jump to.
+  function openingView() {
+    try {
+      var v = JSON.parse(localStorage.getItem("fp-view") || "null");
+      if (v && v.c && isFinite(v.z)) {
+        state.fitted = true;
+        return { center: v.c, zoom: v.z };
+      }
+    } catch (e) {}
+    var lon = -new Date().getTimezoneOffset() / 60 * 15;
+    var w = (el("map") && el("map").clientWidth) || 800;
+    return { center: [Math.max(-180, Math.min(180, lon)), 20],
+             zoom: Math.max(0.5, Math.log2(w / 512)) };
+  }
+
   function startMap(style) {
+    var view = openingView();
     window.__fpMap = map = new maplibregl.Map({
       container: "map",
       style: style,
-      center: [103.82, 1.35],
-      zoom: 6,
+      center: view.center,
+      zoom: view.zoom,
       attributionControl: { compact: true,
         customAttribution: 'FlightPortrait network, ODbL &middot; <a href="/network/credits.html">Credits</a>' }
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }),
                    "bottom-right");
     map.on("dragstart", function () { state.touched = true; });
+    map.on("moveend", function () {
+      if (!state.touched) return;
+      var c = map.getCenter();
+      try {
+        localStorage.setItem("fp-view", JSON.stringify({
+          c: [+c.lng.toFixed(3), +c.lat.toFixed(3)], z: +map.getZoom().toFixed(2) }));
+      } catch (e) {}
+    });
     map.on("moveend", renderListSoon);
     map.on("moveend", onViewMoved);
     map.on("moveend", gpuSync);
@@ -3671,8 +3698,11 @@
     if (!pts.length) return;
     var b = new maplibregl.LngLatBounds(pts[0], pts[0]);
     pts.forEach(function (p) { b.extend(p); });
-    map.fitBounds(b, { padding: 90, maxZoom: 9, duration: 1200 });
     state.fitted = true;
+    // a sky that spans the globe is the world view already open
+    if (b.getEast() - b.getWest() > 270) { renderListSoon(); return; }
+    map.fitBounds(b, { padding: 90, maxZoom: 9,
+                       duration: reducedMotion ? 0 : 1200 });
     renderListSoon();
   }
 
