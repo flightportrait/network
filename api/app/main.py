@@ -48,6 +48,14 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
             if settings.live_json and app.state.live is not None:
                 from .livesky import start as _start_live
                 tasks += _start_live(app, app.state.live, settings.live_json)
+            if settings.source_mode != "point":
+                # our own sky only: emergency squawks become airframe events
+                import asyncio
+                from .squawks import SquawkWatcher, flush_loop
+                watcher = app.state.squawks = SquawkWatcher()
+                if app.state.live is not None:
+                    app.state.live.on_line = watcher.observe
+                tasks.append(asyncio.create_task(flush_loop(app, watcher)))
         try:
             yield
         finally:
@@ -69,6 +77,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     app.state.readsb = readsb or ReadsbClient(
         settings.upstream_url, settings.upstream_timeout_s)
     app.state.snapshot = Snapshot()
+    app.state.squawks = None
     from .livesky import LiveSky
     app.state.live = LiveSky(settings.max_aircraft) if settings.live_json \
         or not start_pollers else None

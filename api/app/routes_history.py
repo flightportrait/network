@@ -61,7 +61,8 @@ def airframe(hex: spec.Hex, request: Request, response: Response,
     legs_book = request.app.state.legs
     log = legs_book.get(hex_id) if legs_book.available() else None
     frame = session.get(RefAirframe, hex_id)
-    if frame is None and log is None:
+    history = _airframe_history(session, hex_id)
+    if frame is None and log is None and history is None:
         if not legs_book.available():
             # the registry is silent and the log is dark: unknowable
             raise _dark()
@@ -102,7 +103,7 @@ def airframe(hex: spec.Hex, request: Request, response: Response,
         if ref_type is not None:
             out["type_name"] = ref_type.name
             out["category"] = ref_type.category
-    out["history"] = _airframe_history(session, hex_id)
+    out["history"] = history
     response.headers["Cache-Control"] = CACHE
     return out
 

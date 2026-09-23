@@ -28,6 +28,11 @@ async def poll_snapshot_once(app) -> None:
             settings.source_lon, settings.source_radius_nm)
     else:
         raw = await app.state.readsb.aircraft()
+        watcher = getattr(app.state, "squawks", None)
+        if watcher is not None:
+            now = time.time()
+            for item in raw.get("aircraft") or []:
+                watcher.observe(item, now)
     app.state.snapshot = build_snapshot(raw, settings.max_aircraft)
     app.state.traces.record(app.state.snapshot)
     if live is not None:

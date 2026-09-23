@@ -36,6 +36,7 @@ class LiveSky:
         self.seed_source = None     # () -> Snapshot, the poll's last word
         self.seeded = False         # once per connection, at first publish
         self.cond = asyncio.Condition()
+        self.on_line = None         # (item, now) -> None, the squawk watcher
 
     # ---- state ---------------------------------------------------------
     def fresh(self, now: float | None = None) -> bool:
@@ -57,6 +58,8 @@ class LiveSky:
         item["_at"] = now
         self.version += 1
         self.aircraft[hex_id] = item
+        if self.on_line is not None:
+            self.on_line(item, now)
         self.last_line_at = now
         return True
 
