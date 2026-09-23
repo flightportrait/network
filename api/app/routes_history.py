@@ -21,8 +21,8 @@ from .db import get_session
 from .errors import ApiError
 from .contributions import catalog_current, catalog_route
 from .address_blocks import state_of
-from .refdata_models import RefAirframe, RefAirline, RefAirport, RefSchedule, \
-    RefType
+from .refdata_models import Airframe, AirframeEvent, AirframeSpell, \
+    RefAirframe, RefAirline, RefAirport, RefSchedule, RefType
 from .routes_refdata import _hhmm, _memberships_by_airline, _serialize_airline
 
 router = APIRouter(tags=["History"])
@@ -102,8 +102,56 @@ def airframe(hex: spec.Hex, request: Request, response: Response,
         if ref_type is not None:
             out["type_name"] = ref_type.name
             out["category"] = ref_type.category
+    out["history"] = _airframe_history(session, hex_id)
     response.headers["Cache-Control"] = CACHE
     return out
+
+
+def _airframe_history(session, hex_id):
+    """The lifetime record behind a hex (AIRFRAMES.md): registrations,
+    operators and public events, oldest spell first, newest event first.
+    Null when the record holds no airframe for this hex."""
+    airframe_id = session.execute(
+        select(AirframeSpell.airframe_id)
+        .where(AirframeSpell.kind == "hex", AirframeSpell.value == hex_id)
+        .order_by(AirframeSpell.first_date.desc()).limit(1)).scalar()
+    if airframe_id is None:
+        return None
+    frame = session.get(Airframe, airframe_id)
+    spells = session.execute(
+        select(AirframeSpell).where(AirframeSpell.airframe_id == airframe_id)
+        .order_by(AirframeSpell.first_date)).scalars().all()
+    events = session.execute(
+        select(AirframeEvent)
+        .where(AirframeEvent.airframe_id == airframe_id,
+               AirframeEvent.visibility == "public")
+        .order_by(AirframeEvent.at.desc())).scalars().all()
+    icaos = {s.value for s in spells if s.kind == "operator"}
+    names = {a.icao: a.name for a in session.execute(
+        select(RefAirline).where(RefAirline.icao.in_(icaos))).scalars()}
+
+    def spell(s, **extra):
+        return {**extra, "from": _iso(s.first_date), "to": _iso(s.last_date),
+                "legs": s.n_obs, "source": s.source}
+
+    return {
+        "airframe_id": frame.id,
+        "msn": frame.msn,
+        "first_observed": _iso(frame.first_observed),
+        "last_observed": _iso(frame.last_observed),
+        "hexes": [spell(s, hex=s.value) for s in spells if s.kind == "hex"],
+        "registrations": [spell(s, reg=s.value) for s in spells
+                          if s.kind == "registration"],
+        "operators": [spell(s, icao=s.value, name=names.get(s.value))
+                      for s in spells if s.kind == "operator"],
+        "events": [{"kind": e.kind, "at": e.at.isoformat(),
+                    "lat": e.lat, "lon": e.lon, "detail": e.detail,
+                    "source": e.source} for e in events],
+    }
+
+
+def _iso(day):
+    return day.isoformat() if day else None
 
 
 @router.get(

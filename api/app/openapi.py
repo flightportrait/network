@@ -347,6 +347,18 @@ SCH_AIRFRAME = _obj({
              "oneOf": [_arr(SCH_AIRFRAME_LEG), {"type": "null"}]},
     "window_days": _SCH_WINDOW,
     "coverage": _SCH_COVERAGE,
+    "history": _t("object", "The lifetime record behind this hex: "
+                            "airframe_id, msn, first_observed, "
+                            "last_observed, and dated spells (hexes, "
+                            "registrations, operators; each with from, "
+                            "to, legs, source) plus public events, newest "
+                            "first (kind, at, lat, lon, detail, source). "
+                            "Observed spells and events come from the "
+                            "network's own evidence and say what it saw: "
+                            "first_observed is when the network first "
+                            "heard the airframe, not a delivery; "
+                            "not_observed is our silence, not storage. "
+                            "Null when no record exists.", nullable=True),
 }, required=["hex", "legs", "window_days", "coverage"])
 
 EX_AIRFRAME = {
@@ -363,6 +375,23 @@ EX_AIRFRAME = {
     }],
     "window_days": 60,
     "coverage": "observed",
+    "history": {
+        "airframe_id": 4211, "msn": None,
+        "first_observed": "2025-08-28", "last_observed": "2026-09-21",
+        "hexes": [{"hex": "76cd06", "from": "2025-08-28",
+                   "to": "2026-09-21", "legs": 812, "source": "observed"}],
+        "registrations": [{"reg": "9V-SHF", "from": "2025-08-28",
+                           "to": "2026-09-21", "legs": 812,
+                           "source": "observed"}],
+        "operators": [{"icao": "SIA", "name": "Singapore Airlines",
+                       "from": "2025-08-28", "to": "2026-09-21",
+                       "legs": 809, "source": "observed"}],
+        "events": [{"kind": "not_observed", "at": "2026-02-03T00:00:00+00:00",
+                    "lat": None, "lon": None,
+                    "detail": {"last_seen": "2026-02-02",
+                               "seen_again": "2026-03-10", "days": 35},
+                    "source": "observed"}],
+    },
 }
 
 SCH_ROUTES = _obj({

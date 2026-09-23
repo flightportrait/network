@@ -13,8 +13,8 @@ posture sours: DELETE WHERE source = X, re-derive, done.
 """
 import datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, JSON, \
-    String, UniqueConstraint
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, \
+    JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -330,3 +330,109 @@ class RouteCatalog(Base):
     # Why a row closed: superseded, contradicted (by observation), withdrawn.
     closed_reason: Mapped[str | None] = mapped_column(String(20),
                                                       nullable=True)
+
+
+# ---- the airframe lifetime record ------------------------------------------
+# One row per physical aircraft; hexes, registrations and operators are
+# dated spells pointing at it, because a hex follows the registration and
+# an aircraft sold abroad gets a new one. Spells join one airframe only on
+# a serial number from a named source, never on a guess: a missing merge
+# leaves a history incomplete, a wrong one corrupts two.
+
+class Airframe(Base):
+    __tablename__ = "airframes"
+    __table_args__ = (UniqueConstraint("type_code", "msn",
+                                       name="uq_airframes_type_msn"),)
+
+    id: Mapped[int] = mapped_column(PKBigInt, primary_key=True,
+                                    autoincrement=True)
+    type_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # Manufacturer serial number; null until a registry gives it.
+    msn: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    manufacturer: Mapped[str | None] = mapped_column(String(80),
+                                                     nullable=True)
+    built_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    first_observed: Mapped[datetime.date | None] = mapped_column(
+        Date, nullable=True)
+    last_observed: Mapped[datetime.date | None] = mapped_column(
+        Date, nullable=True, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class AirframeSpell(Base):
+    """A dated stretch of one identity: kind hex, registration or
+    operator (ICAO airline designator). last_date null = current per a
+    registry; observed spells always carry both dates."""
+    __tablename__ = "airframe_spells"
+    __table_args__ = (Index("ix_airframe_spells_kind_value", "kind",
+                            "value"),)
+
+    id: Mapped[int] = mapped_column(PKBigInt, primary_key=True,
+                                    autoincrement=True)
+    airframe_id: Mapped[int] = mapped_column(
+        PKBigInt, ForeignKey("airframes.id", ondelete="CASCADE"),
+        nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(12), nullable=False)
+    value: Mapped[str] = mapped_column(String(16), nullable=False)
+    first_date: Mapped[datetime.date | None] = mapped_column(Date,
+                                                             nullable=True)
+    last_date: Mapped[datetime.date | None] = mapped_column(Date,
+                                                            nullable=True)
+    # Observed legs behind the spell; null for registry spells.
+    n_obs: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+
+
+class AirframeClaim(Base):
+    """One source's statement of one field. Re-seeing the same statement
+    moves last_seen; a changed value is a new row, so the history of what
+    each source said stays."""
+    __tablename__ = "airframe_claims"
+    __table_args__ = (UniqueConstraint("airframe_id", "field", "source",
+                                       "value", name="uq_airframe_claims"),)
+
+    id: Mapped[int] = mapped_column(PKBigInt, primary_key=True,
+                                    autoincrement=True)
+    airframe_id: Mapped[int] = mapped_column(
+        PKBigInt, ForeignKey("airframes.id", ondelete="CASCADE"),
+        nullable=False, index=True)
+    field: Mapped[str] = mapped_column(String(24), nullable=False)
+    value: Mapped[str] = mapped_column(String(200), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_ref: Mapped[str | None] = mapped_column(String(200),
+                                                   nullable=True)
+    licence: Mapped[str] = mapped_column(String(24), nullable=False)
+    first_seen: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow)
+    last_seen: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class AirframeEvent(Base):
+    """Something that happened to an airframe, worded as what we observed
+    or what a named source states. visibility 'held' keeps a row out of
+    every public response until reviewed (a 7500 squawk)."""
+    __tablename__ = "airframe_events"
+    __table_args__ = (UniqueConstraint("airframe_id", "kind", "at", "source",
+                                       name="uq_airframe_events"),)
+
+    id: Mapped[int] = mapped_column(PKBigInt, primary_key=True,
+                                    autoincrement=True)
+    airframe_id: Mapped[int] = mapped_column(
+        PKBigInt, ForeignKey("airframes.id", ondelete="CASCADE"),
+        nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True),
+                                                  nullable=False, index=True)
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    evidence_ref: Mapped[str | None] = mapped_column(String(200),
+                                                     nullable=True)
+    visibility: Mapped[str] = mapped_column(String(8), nullable=False,
+                                            default="public",
+                                            server_default="public")
