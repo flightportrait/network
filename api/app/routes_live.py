@@ -201,10 +201,11 @@ def airport_coords(app):
                 "the last observed values. An aircraft appears 90 s after it "
                 "was last heard and leaves when it is heard again, nears its "
                 "destination, or its flight time runs out. Kept in memory, "
-                "never archived or exported. Backtested on recorded coverage "
-                "gaps: median 1 km off after 5-15 minutes, 77 km after 1-2 "
-                "hours. Rate: 300 per 600 s (bucket `estimated`). Cache: 15 s "
-                "edge, 10 s browser.",
+                "never archived or exported. Scored every night against the "
+                "previous day's real coverage gaps; `accuracy` is the latest "
+                "night's result for the method in use (median error by gap "
+                "length), null before the first. Rate: 300 per 600 s (bucket "
+                "`estimated`). Cache: 15 s edge, 10 s browser.",
     operation_id="estimated",
     responses=spec.ok(spec.EX_ESTIMATED, spec.R429, schema=spec.SCH_ESTIMATED),
     openapi_extra=spec.MAP_TIER,
@@ -218,7 +219,34 @@ def estimated(request: Request, response: Response):
     listed = book.estimates(now) if book is not None else []
     response.headers["Cache-Control"] = "public, max-age=10, s-maxage=15"
     return {"generated_at": now, "method": "converge-to-destination",
-            "aircraft": listed}
+            "accuracy": _latest_accuracy(request.app), "aircraft": listed}
+
+
+_ACCURACY = {"at": 0.0, "value": None}
+
+
+def _latest_accuracy(app):
+    """The last night's measured accuracy of the method in use, cached
+    ten minutes: {day, n, median_km, by_gap_min}, or null before the
+    first night."""
+    now = time.time()
+    if now - _ACCURACY["at"] > 600:
+        _ACCURACY["at"] = now
+        try:
+            from .refdata_models import EstimateScore
+            with app.state.sessionmaker() as session:
+                row = session.execute(select(EstimateScore)
+                                      .order_by(EstimateScore.day.desc())
+                                      .limit(1)).scalar_one_or_none()
+            if row is not None:
+                m = (row.detail.get("methods") or {}).get("converge") or {}
+                _ACCURACY["value"] = {
+                    "day": row.day.isoformat(), "n": m.get("n", 0),
+                    "median_km": m.get("median_km"),
+                    "by_gap_min": m.get("by_gap_min", {})}
+        except Exception:                 # noqa: BLE001 — accuracy is optional
+            pass
+    return _ACCURACY["value"]
 
 
 @router.get(

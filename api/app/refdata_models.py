@@ -438,3 +438,14 @@ class AirframeEvent(Base):
     visibility: Mapped[str] = mapped_column(String(8), nullable=False,
                                             default="public",
                                             server_default="public")
+
+
+class EstimateScore(Base):
+    """One night's measured accuracy of the position estimator: the
+    summary app.estimate_score records for a UTC day of traces."""
+    __tablename__ = "estimate_scores"
+
+    day: Mapped[datetime.date] = mapped_column(Date, primary_key=True)
+    detail: Mapped[dict] = mapped_column(JSON, nullable=False)
+    recorded_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow)

@@ -406,6 +406,8 @@ EX_AIRFRAME = {
 SCH_ESTIMATED = _obj({
     "generated_at": _t("number", "Unix seconds the estimates are for."),
     "method": _t("string", "How positions are estimated."),
+    "accuracy": _t("object", "The latest night's measured accuracy: day, "
+                             "n, median_km, by_gap_min.", nullable=True),
     "aircraft": {"type": "array", "description": "Estimated aircraft; "
                  "every entry is an estimate, never an observation.",
                  "items": {"type": "object"}},
@@ -413,6 +415,9 @@ SCH_ESTIMATED = _obj({
 
 EX_ESTIMATED = {
     "generated_at": 1790140000.0, "method": "converge-to-destination",
+    "accuracy": {"day": "2026-09-22", "n": 208, "median_km": 2.3,
+                 "by_gap_min": {"5-15": {"n": 153, "median_km": 1.4},
+                                "60-120": {"n": 43, "median_km": 76.9}}},
     "aircraft": [{
         "hex": "4ca8e4", "flight": "RYR1153", "t": "B738", "r": "9H-QDS",
         "category": "A3", "lat": 43.1021, "lon": 11.9403, "track": 312.4,

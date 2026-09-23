@@ -91,3 +91,39 @@ def test_endpoint_serves_estimates(ctx):
     assert body["method"] == "converge-to-destination"
     [a] = body["aircraft"]
     assert a["hex"] == "4ca8e4" and a["estimated"] is True
+
+
+def _trace(points, cs="RYR1153"):
+    return {"timestamp": 0, "trace": [
+        [t, la, lo, alt, gs, trk, 0, None, {"flight": cs}] for t, la, lo, alt, gs, trk in points]}
+
+
+def test_score_measures_the_error_at_reacquisition():
+    from app import estimate_score as S
+    # cruising toward Pisa (275 km off, so a horizon near 590 s), lost
+    # 400 s, heard again exactly where holding the track would put it
+    la2, lo2 = E.forward(42.2, 13.1, 312.0, 452 * E.KT_TO_KMS * 400)
+    tr = _trace([(0, 42.2, 13.1, 36000, 452.0, 312.0),
+                 (400, la2, lo2, 36000, 452.0, 312.0)])
+    counts, results = S.score([tr], lambda cs: ["CFU", "PSA"], AIRPORTS)
+    assert counts["estimated"] == 1 and counts["reacquired_en_route"] == 1
+    [(gap_min, err)] = results["converge"]
+    assert abs(gap_min - 400 / 60) < 1e-9 and err < 1.0
+    doc = S.summary(counts, results)
+    assert doc["methods"]["converge"]["by_gap_min"]["5-15"]["n"] == 1
+
+
+def test_endpoint_carries_the_latest_accuracy(ctx):
+    client, app, sm, settings, readsb = ctx
+    import datetime
+    from app import routes_live
+    from app.refdata_models import EstimateScore
+    with sm() as session:
+        session.add(EstimateScore(day=datetime.date(2026, 9, 22), detail={
+            "methods": {"converge": {"n": 208, "median_km": 2.3,
+                                     "by_gap_min": {"5-15": {"n": 153, "median_km": 1.4}}}}}))
+        session.commit()
+    routes_live._ACCURACY["at"] = 0.0
+    body = client.get("/v1/estimated").json()
+    assert body["accuracy"]["day"] == "2026-09-22"
+    assert body["accuracy"]["by_gap_min"]["5-15"]["median_km"] == 1.4
