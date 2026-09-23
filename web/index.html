@@ -247,6 +247,8 @@
     justify-content:center;color:color-mix(in srgb,var(--ink) 38%,transparent)}
   .maplibregl-ctrl button.night-toggle.on{color:var(--ink)}
   .maplibregl-ctrl button.night-toggle:hover{color:var(--red)}
+  /* an open card sits above the map's buttons, never under them */
+  .maplibregl-popup{z-index:3}
   .maplibregl-popup-content{background:var(--paper);color:var(--ink);
     border-radius:6px;padding:12px 16px;font:14px/1.5 Palatino,Georgia,serif;
     box-shadow:0 2px 14px color-mix(in srgb,var(--shade) 25%,transparent)}
