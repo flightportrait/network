@@ -402,7 +402,15 @@
     object-fit:contain}
   .aclist .tail[data-a]{cursor:pointer}
   .aclist .tail[data-a]:hover{transform:scale(1.08)}
-  .aclist .pic{padding:5px;transform:rotate(45deg);opacity:.85}
+  /* The icon PNGs are map sprites: each kind fills a different share
+     of its 128px canvas (a bizjet under half). In the list they are a
+     mark beside the airline tails, so each kind is scaled to the same
+     ~24px reach as a tail instead of its map size. */
+  .aclist .pic{transform:rotate(45deg) scale(var(--fill,1.3));opacity:.85}
+  .aclist .pic.k-narrow{--fill:1.34}.aclist .pic.k-wide{--fill:1.12}
+  .aclist .pic.k-wide4{--fill:.98}.aclist .pic.k-bizjet{--fill:1.83}
+  .aclist .pic.k-ga{--fill:2.19}.aclist .pic.k-prop{--fill:1.66}
+  .aclist .pic.k-heli{--fill:1.39}
   .aclist .who{flex:1;min-width:0;display:flex;flex-direction:column}
   .aclist .cs{font-size:15px;line-height:1.2;white-space:nowrap}
   .aclist .ty{color:var(--quiet);font-size:12px;line-height:1.2;
@@ -447,8 +455,8 @@
   /* ---- one stage. The map is always the live sky; body.mode-airlines
      only swaps the column's browse panel. An airline, once picked, is
      an overlay on the sky (routes, shading when zoomed out) with its
-     card on the stage, and it stays until closed, whichever panel the
-     column shows. body.al-on marks that overlay. ---- */
+     card on the stage, and it stays until closed or until the visitor
+     goes back to the live map. body.al-on marks that overlay. ---- */
   .mode-panel{flex:1;min-height:0;display:flex;flex-direction:column}
   #al-panel{display:none}
   body.mode-airlines #al-panel{display:flex}
@@ -5070,7 +5078,8 @@
       ? "<img class='tail' data-a='" + op + "' title='" +
         esc(operatorName(op) || op) +
         "' alt='' src='assets/airline-tails/" + esc(rel) + "'>"
-      : "<img class='pic' alt='' src='assets/icons/" + iconFor(a) + ".png'>";
+      : "<img class='pic k-" + iconFor(a) + "' alt='' src='assets/icons/" +
+        iconFor(a) + ".png'>";
   }
   // names and marks the other cards borrow
   window.__airlineName = function (icao) {
@@ -7897,12 +7906,18 @@ window.__initJoin = function () {
      ["al-detail", "al-close"], ["ag-detail", "ag-close"]].forEach(function (t) {
       if (!el(t[0]).hidden) el(t[1]).click();
     });
+    // the fleet drill-down hides the airline card; closing it alone
+    // would strand the overlay with nothing left to dismiss it
+    if (!el("ft-detail").hidden && window.__closeAirline) window.__closeAirline();
     el("ft-detail").hidden = true;
     if (el("detail").classList.contains("show")) el("d-close").click();
   }
   function setPageMode(mode, push) {
     var airlines = mode === "airlines", join = mode === "join";
     if (isMobile() && mode !== currentMode()) dismissCards();
+    // back to the live map means the live sky: the airline overlay
+    // (routes, country shading, its card) closes and hands the camera back
+    if (mode === "sky" && window.__closeAirline) window.__closeAirline();
     document.body.classList.toggle("mode-airlines", airlines);
     document.body.classList.toggle("mode-join", join);
     [["nav-sky", "tb-sky", !airlines && !join],
