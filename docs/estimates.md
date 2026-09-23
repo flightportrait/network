@@ -2,9 +2,9 @@
 
 The network hears an aircraft only while one of its stations is in
 range. Over the sea, and anywhere between stations, a cruising aircraft
-drops out of the sky for minutes or hours. The map keeps drawing it
-where it most likely is, and says plainly that this position is
-estimated.
+drops out of the sky for minutes or hours. For a short while the map
+can keep drawing it where it most likely is, and says plainly that
+this position is estimated.
 
 ## What gets an estimate
 
@@ -35,8 +35,11 @@ From the last observed position, at the last observed ground speed:
    the great circle to it.
 
 It appears 90 seconds after the aircraft was last heard, and disappears
-when the aircraft is heard again, when it would be 150 km from its
-destination, or when its remaining flight time (plus 10 %) has run out.
+when the aircraft is heard again, 15 minutes after it was last heard,
+or sooner when it would be 150 km from its destination. The 15 minutes
+follow the error: about 1 km within them, 16 km by half an hour, 77 km
+after one to two hours (below). Showing less beats guessing; the limit
+rises only where a method is measured to hold longer.
 Altitude and speed shown are the last observed ones.
 
 ## How well it works
@@ -104,8 +107,9 @@ in grey ink instead of the sky's red, with "est" beside the callsign.
 Their card says when the aircraft was last heard, where it is heading
 and when it should arrive, and that the position is placed, not
 observed. They never enter the counts or the list of aircraft in view.
-The dashed-circle button hides them (remembered per browser), and
-playback hides them: an estimate belongs to the present.
+They are off until the dashed-circle button turns them on (remembered
+per browser), and playback hides them: an estimate belongs to the
+present.
 
 ## What it is not
 

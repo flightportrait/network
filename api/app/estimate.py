@@ -45,6 +45,11 @@ STEP_S = 30.0
 # The live book: an aircraft counts as lost this long after its last
 # position (the live sky drops it at 60 s).
 LOST_AFTER_S = 90.0
+# ... and is shown only this long after it: the backtest's median error
+# is about 1 km within 15 minutes, 16 km by 30, 77 km at one to two
+# hours, and a map that shows less beats one that guesses. The book
+# keeps following it to MAX_AGE_S, so raising this costs nothing.
+SHOW_MAX_S = 15 * 60
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
@@ -212,7 +217,7 @@ class EstimateBook:
             if dt > MAX_AGE_S:
                 del self._last[hex_id]
                 continue
-            if dt < LOST_AFTER_S or not obs["flight"]:
+            if dt < LOST_AFTER_S or dt > SHOW_MAX_S or not obs["flight"]:
                 continue
             if obs["dest"] is None:
                 airports = airports if airports is not None else self._airports()

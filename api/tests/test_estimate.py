@@ -177,3 +177,13 @@ def test_route_of_falls_back_to_the_schedule(ctx):
     _ROUTES.clear()
     assert route_of(app, "EWG2882") == ["STR", "FCO"]
     assert route_of(app, "EWG9999") is None
+
+
+def test_estimates_are_shown_for_fifteen_minutes_only():
+    # mid-Atlantic for JFK: hours of flight left, so only the limit ends it
+    book = E.EstimateBook(lambda cs: ["LHR", "JFK"], lambda: AIRPORTS)
+    t0 = 1_790_000_000
+    book.observe([_ac(lat=50.0, lon=-20.0, track=290.0)], t0)
+    book.observe([], t0 + 60)
+    assert len(book.estimates(t0 + E.SHOW_MAX_S - 30)) == 1
+    assert book.estimates(t0 + E.SHOW_MAX_S + 30) == []

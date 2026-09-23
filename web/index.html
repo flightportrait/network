@@ -2458,9 +2458,11 @@
   // most likely are (/v1/estimated: last position, last speed, toward the
   // route's destination). Grey ink, never the sky's red, "est" beside
   // the callsign, a card that says what was observed and when. Never in
-  // the counts or the lists; a switch hides them, remembered here.
-  var est = { on: true, timer: null, data: [], at: 0, recv: 0, glide: null };
-  try { est.on = localStorage.getItem("fp-estimated") !== "0"; } catch (e) {}
+  // the counts or the lists. Off until switched on (remembered here):
+  // with few receivers most of the sky is out of coverage, and the map
+  // shows what was heard before it shows what was guessed.
+  var est = { on: false, timer: null, data: [], at: 0, recv: 0, glide: null };
+  try { est.on = localStorage.getItem("fp-estimated") === "1"; } catch (e) {}
   function greyIcon(bm) {
     var d = bm.data, c = document.createElement("canvas");
     c.width = d.width; c.height = d.height;
