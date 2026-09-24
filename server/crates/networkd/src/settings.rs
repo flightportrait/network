@@ -53,6 +53,9 @@ pub struct Settings {
     pub deflate_takeover: bool,
     /// where routes networkd does not serve are forwarded (empty: 404)
     pub fallback: String,
+    /// the nightly reference snapshot (api: python -m app.refdata_export)
+    pub refdata_path: String,
+    pub refdata_rate_limit: usize,
 }
 
 impl Settings {
@@ -100,6 +103,8 @@ impl Settings {
             ),
             credits_url: s("NETWORK_API_CREDITS_URL", "https://flightportrait.com/network/credits.html"),
             fallback: s("NETWORKD_FALLBACK", ""),
+            refdata_path: s("NETWORKD_REFDATA_PATH", "data/refdata.sqlite"),
+            refdata_rate_limit: int("NETWORK_API_REFDATA_RATE_LIMIT", 300) as usize,
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),
         }
     }

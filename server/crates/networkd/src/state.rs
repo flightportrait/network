@@ -36,6 +36,7 @@ pub struct App {
     pub open_sockets: Mutex<HashMap<String, usize>>,
     pub bounds_cache: Mutex<HashMap<String, (f64, crate::departure::Bounds)>>,
     pub fallback: Option<crate::proxy::Fallback>,
+    pub refdb: Arc<crate::refdb::RefDb>,
     published: watch::Sender<u64>,
 }
 
@@ -56,6 +57,7 @@ impl App {
             open_sockets: Mutex::new(HashMap::new()),
             bounds_cache: Mutex::new(HashMap::new()),
             fallback: crate::proxy::Fallback::new(&settings.fallback),
+            refdb: crate::refdb::RefDb::new(&settings.refdata_path),
             snapshot: SnapshotCell::new(),
             published,
             settings,

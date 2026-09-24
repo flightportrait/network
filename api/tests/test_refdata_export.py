@@ -41,6 +41,9 @@ def test_export_copies_every_row(tmp_path):
     names = {r[0] for r in con.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert "stations" not in names and "route_catalog" not in names
+    ranks = [k for k, in con.execute(
+        "SELECT key FROM rank_ref_airlines_icao ORDER BY rank")]
+    assert ranks == sorted(ranks) and len(ranks) == counts["ref_airlines"]
     meta = dict(con.execute("SELECT key, value FROM snapshot_meta"))
     assert '"ref_airframes": 3' in meta["tables"] and meta["created_at"]
 

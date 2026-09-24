@@ -11,6 +11,8 @@ mod legs;
 mod live;
 mod proxy;
 mod pyjson;
+mod refdata;
+mod refdb;
 mod ratelimit;
 mod settings;
 mod sky;
@@ -119,6 +121,9 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/aircraft", get(live::aircraft))
         .route("/v1/trace/{hex}", get(live::trace))
         .route("/v2/point/{lat}/{lon}/{radius}", get(live::point))
+        .route("/v1/airlines", get(refdata::airlines))
+        .route("/v1/airlines/{icao}", get(refdata::airline))
+        .route("/v1/alliances", get(refdata::alliances))
         .route("/v1/stream", get(stream::stream_v1))
         .route("/v2/stream", get(stream::stream_v2))
         .fallback(proxy::forward)

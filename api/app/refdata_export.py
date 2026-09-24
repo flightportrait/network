@@ -35,6 +35,15 @@ TABLES = (
 )
 BATCH = 5000
 
+# Text orders a reader must reproduce exactly. Postgres sorts text by the
+# database's collation (en_US), which SQLite does not have; the export
+# asks Postgres for each order and stores it as ranks, one table per
+# (table, key column, sort column): rank_<table>_<column>(key, rank).
+RANKS = (
+    ("ref_airlines", "icao", "icao"),
+    ("ref_alliances", "slug", "name"),
+)
+
 
 def export(source_url: str, out_path: str, log=print) -> dict:
     """Copy TABLES from `source_url` into a new SQLite file at `out_path`.
@@ -68,6 +77,17 @@ def export(source_url: str, out_path: str, log=print) -> dict:
                                    % (table.name, want, n, got))
             counts[table.name] = n
             log("  %-26s %9d rows  %5.1f s" % (table.name, n, time.time() - t0))
+        for tname, key, col in RANKS:
+            t = Base.metadata.tables[tname]
+            rank_table = "rank_%s_%s" % (tname, col)
+            d.exec_driver_sql("CREATE TABLE %s (key TEXT PRIMARY KEY, "
+                              "rank INTEGER NOT NULL)" % rank_table)
+            ordered = s.execute(select(t.c[key]).order_by(t.c[col], t.c[key]))
+            ranks = [(k, i) for i, (k,) in enumerate(ordered)]
+            if ranks:
+                d.exec_driver_sql("INSERT INTO %s VALUES (?, ?)" % rank_table,
+                                  ranks)
+            d.commit()
         d.exec_driver_sql(
             "CREATE TABLE snapshot_meta (key TEXT PRIMARY KEY, value TEXT)")
         meta = {
