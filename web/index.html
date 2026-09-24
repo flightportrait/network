@@ -4375,17 +4375,20 @@
   // ---- the live stream ------------------------------------------------
   // One socket per open map: the page says which box it looks at, the
   // network answers with everything in it and then only what changed,
-  // every snapshot (5 s). Polling stays as the fallback and resumes by
-  // itself whenever the socket is down.
+  // every snapshot. Polling stays as the fallback and resumes by itself
+  // whenever the socket is down. /v2/stream sends only the fields that
+  // changed (merged into the held aircraft); a server without it (the
+  // socket never opens) is asked for /v1/stream instead.
   var stream = { ws: null, open: false, backoff: 2000, byHex: {}, sentBox: "",
-                 timer: null, sendAt: 0 };
+                 timer: null, sendAt: 0, path: "/v2/stream" };
   stream.connect = function () {
     if (!("WebSocket" in window) || stream.ws) return;
-    var url = API.replace(/^http/, "ws") + "/v1/stream";
-    var ws;
+    var url = API.replace(/^http/, "ws") + stream.path;
+    var ws, opened = false;
     try { ws = new WebSocket(url); } catch (e) { return; }
     stream.ws = ws;
     ws.onopen = function () {
+      opened = true;
       stream.open = true; stream.backoff = 2000;
       stream.byHex = {}; stream.sentBox = "";
       stream.sendBox(true);
@@ -4399,9 +4402,17 @@
         setStatus(true, "live");
         return;
       }
-      if (m.full) stream.byHex = {};
+      var patches = stream.path === "/v2/stream";
+      if (m.full && !patches) stream.byHex = {};
       var now = Date.now();
       (m.upd || []).forEach(function (a) {
+        if (patches && stream.byHex[a.hex]) {
+          var o = stream.byHex[a.hex];
+          for (var k in a) {
+            if (a[k] === null) delete o[k]; else o[k] = a[k];
+          }
+          a = o;
+        }
         a._heard = now; stream.byHex[a.hex] = a;
       });
       (m.del || []).forEach(function (h) { delete stream.byHex[h]; });
@@ -4414,6 +4425,11 @@
       if (stream.ws !== ws) return;
       stream.ws = null; stream.open = false;
       clearTimeout(stream.timer);
+      if (!opened && stream.path === "/v2/stream") {
+        stream.path = "/v1/stream";          // an older server: ask v1 now
+        stream.connect();
+        return;
+      }
       stream.timer = setTimeout(stream.connect, stream.backoff);
       stream.backoff = Math.min(30000, stream.backoff * 2);
     };
