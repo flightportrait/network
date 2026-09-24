@@ -4434,8 +4434,9 @@
       stream.backoff = Math.min(30000, stream.backoff * 2);
     };
   };
-  // the box the page looks at, sent when it changes (at most once a
-  // second); the same rules as the poll's box
+  // the box the page looks at, sent when it changes; the same rules as
+  // the poll's box. On v2 a new box costs only the aircraft it adds, so
+  // it may follow quick pans every quarter second (v1: once a second).
   stream.sendBox = function (force) {
     if (!stream.open) return;
     var box = viewBox();
@@ -4443,9 +4444,10 @@
       .map(function (x) { return x.toFixed(3); }).join(",") : "";
     if (!force && key === stream.sentBox) return;
     var now = Date.now();
-    if (!force && now - stream.sendAt < 1000) {
+    var gap = stream.path === "/v2/stream" ? 250 : 1000;
+    if (!force && now - stream.sendAt < gap) {
       clearTimeout(stream.boxTimer);
-      stream.boxTimer = setTimeout(function () { stream.sendBox(); }, 1000);
+      stream.boxTimer = setTimeout(function () { stream.sendBox(); }, gap);
       return;
     }
     stream.sendAt = now; stream.sentBox = key;
