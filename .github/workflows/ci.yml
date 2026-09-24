@@ -28,4 +28,7 @@ jobs:
         working-directory: server
     steps:
       - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
       - run: cargo test --release --locked

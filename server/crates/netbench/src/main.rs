@@ -39,6 +39,10 @@ enum Cmd {
         /// byte-for-byte comparisons between servers
         #[arg(long)]
         frozen: bool,
+        /// seconds between two reports of one aircraft (readsb's
+        /// --net-json-port-interval)
+        #[arg(long, default_value_t = 1.0)]
+        interval: f64,
     },
     /// Connect a crowd of viewers and measure what they receive.
     Viewers {
@@ -76,8 +80,8 @@ enum Cmd {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     match Cli::parse().cmd {
-        Cmd::Sky { aircraft, json_port, http_port, bind, seed, frozen } => {
-            sky::run(aircraft, json_port, http_port, seed, &bind, frozen).await
+        Cmd::Sky { aircraft, json_port, http_port, bind, seed, frozen, interval } => {
+            sky::run(aircraft, json_port, http_port, seed, &bind, frozen, interval).await
         }
         Cmd::Viewers { url, count, ramp, mix, warmup, duration, pid, seed, no_deflate, label, out } => {
             viewers::run(viewers::Plan {

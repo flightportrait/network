@@ -103,9 +103,9 @@ impl Plane {
         }
     }
 
-    /// One second of flight.
-    fn step(&mut self, rng: &mut impl Rng) {
-        let d_m = self.gs * 0.514444;
+    /// `dt` seconds of flight.
+    fn step(&mut self, dt: f64, rng: &mut impl Rng) {
+        let d_m = self.gs * 0.514444 * dt;
         let t = self.track.to_radians();
         self.lat += d_m * t.cos() / 111_320.0;
         self.lon = wrap(self.lon + d_m * t.sin() / (111_320.0 * self.lat.to_radians().cos().max(0.05)));
@@ -113,11 +113,11 @@ impl Plane {
             self.lat = self.lat.signum() * 80.0;
             self.track = (540.0 - self.track) % 360.0;
         }
-        if rng.gen_bool(0.02) {
+        if rng.gen_bool(0.02 * dt) {
             self.track = (self.track + rng.gen_range(-15.0..15.0) + 360.0) % 360.0;
         }
-        self.alt = (self.alt + self.rate / 60.0).clamp(0.0, 45000.0);
-        if self.alt >= 41000.0 || self.alt <= 1000.0 || rng.gen_bool(0.005) {
+        self.alt = (self.alt + self.rate / 60.0 * dt).clamp(0.0, 45000.0);
+        if self.alt >= 41000.0 || self.alt <= 1000.0 || rng.gen_bool(0.005 * dt) {
             self.rate = if self.alt > 20000.0 { rng.gen_range(-2000.0..0.0) } else { rng.gen_range(0.0..2500.0) };
             if rng.gen_bool(0.5) {
                 self.rate = 0.0;
@@ -187,12 +187,12 @@ impl Sky {
         Sky { planes, rng }
     }
 
-    /// Advance planes `range` by one second each and render their lines.
-    fn step_lines(&mut self, range: std::ops::Range<usize>) -> String {
+    /// Advance planes `range` by `dt` seconds each and render their lines.
+    fn step_lines(&mut self, range: std::ops::Range<usize>, dt: f64) -> String {
         let mut out = String::with_capacity(range.len() * 620);
         for i in range {
             let p = &mut self.planes[i];
-            p.step(&mut self.rng);
+            p.step(dt, &mut self.rng);
             let seen = self.rng.gen_range(0.0..0.5);
             p.write_json(&mut out, seen);
             out.push('\n');
@@ -221,7 +221,7 @@ impl Sky {
     }
 }
 
-pub async fn run(aircraft: usize, json_port: u16, http_port: u16, seed: u64, bind: &str, frozen: bool) -> anyhow::Result<()> {
+pub async fn run(aircraft: usize, json_port: u16, http_port: u16, seed: u64, bind: &str, frozen: bool, interval_s: f64) -> anyhow::Result<()> {
     let sky = Arc::new(Mutex::new(Sky::new(aircraft, seed)));
     let (tx, _) = broadcast::channel::<Arc<String>>(64);
     // frozen: nothing moves and aircraft.json always says the same thing,
@@ -235,8 +235,10 @@ pub async fn run(aircraft: usize, json_port: u16, http_port: u16, seed: u64, bin
         if frozen {
             return;
         }
+        // every aircraft reports once per interval (readsb's
+        // --net-json-port-interval), spread evenly across it
         const SLICES: usize = 10;
-        let mut tick = tokio::time::interval(Duration::from_millis(1000 / SLICES as u64));
+        let mut tick = tokio::time::interval(Duration::from_secs_f64(interval_s / SLICES as f64));
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         let mut slice = 0;
         loop {
@@ -246,7 +248,7 @@ pub async fn run(aircraft: usize, json_port: u16, http_port: u16, seed: u64, bin
                 let n = s.planes.len();
                 let lo = n * slice / SLICES;
                 let hi = n * (slice + 1) / SLICES;
-                s.step_lines(lo..hi)
+                s.step_lines(lo..hi, interval_s)
             };
             let _ = pacer_tx.send(Arc::new(lines));
             slice = (slice + 1) % SLICES;
