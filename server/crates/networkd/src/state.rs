@@ -30,7 +30,7 @@ pub struct App {
     pub live: Mutex<LiveSky>,
     pub traces: Mutex<TraceBook>,
     pub presence: Mutex<Presence>,
-    pub legs: LegBook,
+    pub legs: Arc<LegBook>,
     pub limiter: RateLimiter,
     pub upstream: Upstream,
     pub open_sockets: Mutex<HashMap<String, usize>>,

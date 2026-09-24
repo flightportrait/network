@@ -56,6 +56,9 @@ pub struct Settings {
     /// the nightly reference snapshot (api: python -m app.refdata_export)
     pub refdata_path: String,
     pub refdata_rate_limit: usize,
+    pub airport_rate_limit: usize,
+    pub schedule_min_flights: i64,
+    pub boards_path: String,
 }
 
 impl Settings {
@@ -105,6 +108,9 @@ impl Settings {
             fallback: s("NETWORKD_FALLBACK", ""),
             refdata_path: s("NETWORKD_REFDATA_PATH", "data/refdata.sqlite"),
             refdata_rate_limit: int("NETWORK_API_REFDATA_RATE_LIMIT", 300) as usize,
+            airport_rate_limit: int("NETWORK_API_AIRPORT_RATE_LIMIT", 120) as usize,
+            schedule_min_flights: int("NETWORK_API_SCHEDULE_MIN_FLIGHTS", 5),
+            boards_path: s("NETWORK_API_BOARDS_PATH", "data/boards.db"),
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),
         }
     }

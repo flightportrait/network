@@ -5,7 +5,9 @@
 //! the live stream. Configured by the same NETWORK_API_* environment as
 //! the Python service it replaces; NETWORKD_BIND sets the listen address.
 
+mod boards;
 mod departure;
+mod history;
 mod http;
 mod legs;
 mod live;
@@ -124,6 +126,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/airlines", get(refdata::airlines))
         .route("/v1/airlines/{icao}", get(refdata::airline))
         .route("/v1/alliances", get(refdata::alliances))
+        .route("/v1/airports/{code}", get(history::airport))
         .route("/v1/stream", get(stream::stream_v1))
         .route("/v2/stream", get(stream::stream_v2))
         .fallback(proxy::forward)

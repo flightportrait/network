@@ -42,6 +42,16 @@ BATCH = 5000
 RANKS = (
     ("ref_airlines", "icao", "icao"),
     ("ref_alliances", "slug", "name"),
+    ("ref_airports", "ident", "ident"),
+)
+
+# Indexes for the reader's lookups that the Postgres schema does not
+# carry (the airport page's boards, the published board's flights).
+INDEXES = (
+    "CREATE INDEX ix_snap_schedule_org_n ON ref_schedule (org, n_flights)",
+    "CREATE INDEX ix_snap_schedule_dst_n ON ref_schedule (dst, n_flights)",
+    "CREATE INDEX ix_snap_schedule_flight ON ref_schedule (flight)",
+    "CREATE INDEX ix_snap_airports_iata ON ref_airports (iata)",
 )
 
 
@@ -88,6 +98,8 @@ def export(source_url: str, out_path: str, log=print) -> dict:
                 d.exec_driver_sql("INSERT INTO %s VALUES (?, ?)" % rank_table,
                                   ranks)
             d.commit()
+        for sql in INDEXES:
+            d.exec_driver_sql(sql)
         d.exec_driver_sql(
             "CREATE TABLE snapshot_meta (key TEXT PRIMARY KEY, value TEXT)")
         meta = {
