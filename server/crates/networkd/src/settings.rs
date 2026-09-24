@@ -51,6 +51,8 @@ pub struct Settings {
     /// permessage-deflate with a compressor kept per socket (smaller
     /// frames, ~256 KB of memory per socket) instead of per message
     pub deflate_takeover: bool,
+    /// where routes networkd does not serve are forwarded (empty: 404)
+    pub fallback: String,
 }
 
 impl Settings {
@@ -97,6 +99,7 @@ impl Settings {
                 "Data (c) FlightPortrait network feeders and credited sources, ODbL 1.0",
             ),
             credits_url: s("NETWORK_API_CREDITS_URL", "https://flightportrait.com/network/credits.html"),
+            fallback: s("NETWORKD_FALLBACK", ""),
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),
         }
     }

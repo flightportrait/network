@@ -35,6 +35,7 @@ pub struct App {
     pub upstream: Upstream,
     pub open_sockets: Mutex<HashMap<String, usize>>,
     pub bounds_cache: Mutex<HashMap<String, (f64, crate::departure::Bounds)>>,
+    pub fallback: Option<crate::proxy::Fallback>,
     published: watch::Sender<u64>,
 }
 
@@ -54,6 +55,7 @@ impl App {
             upstream: Upstream::new(&settings.upstream_url, settings.upstream_timeout_s),
             open_sockets: Mutex::new(HashMap::new()),
             bounds_cache: Mutex::new(HashMap::new()),
+            fallback: crate::proxy::Fallback::new(&settings.fallback),
             snapshot: SnapshotCell::new(),
             published,
             settings,

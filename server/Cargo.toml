@@ -17,7 +17,7 @@ flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 indexmap = "2"
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "gzip"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "gzip", "stream"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 sha1 = "0.11"

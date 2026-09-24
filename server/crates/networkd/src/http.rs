@@ -173,6 +173,9 @@ pub async fn cors(State(app): State<Arc<App>>, req: Request, next: Next) -> Resp
     }
 
     let mut r = next.run(req).await;
+    if r.extensions().get::<crate::proxy::Forwarded>().is_some() {
+        return r; // the fallback set its own
+    }
     let h = r.headers_mut();
     if let Some(origin) = origin.as_deref() {
         if all {

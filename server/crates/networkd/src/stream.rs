@@ -36,7 +36,7 @@ use tokio::sync::mpsc;
 use crate::http::{client_ip, not_found, peer_of};
 use crate::live::parse_bbox;
 use crate::pyjson::{write_float, write_str, Obj};
-use crate::sky::{BBox, Entry, Snapshot, FIELDS, F_HEX, F_SEEN, F_SEEN_POS, NF};
+use crate::sky::{BBox, Entry, Snapshot, FIELDS, F_HEX, F_SEEN, F_SEEN_POS};
 use crate::state::App;
 use crate::ws::{self, Incoming};
 
@@ -248,7 +248,7 @@ impl View {
 fn write_patch(out: &mut String, before: &Entry, now: &Entry) {
     out.push('{');
     out.push_str(now.field(F_HEX).unwrap_or("\"hex\":\"\""));
-    for i in 0..NF {
+    for (i, name) in FIELDS.iter().enumerate() {
         if i == F_HEX {
             continue;
         }
@@ -261,7 +261,7 @@ fn write_patch(out: &mut String, before: &Entry, now: &Entry) {
             }
             None if a.is_some() && !always => {
                 out.push(',');
-                write_str(out, FIELDS[i]);
+                write_str(out, name);
                 out.push_str(":null");
             }
             _ => {}

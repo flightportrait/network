@@ -9,6 +9,7 @@ mod departure;
 mod http;
 mod legs;
 mod live;
+mod proxy;
 mod pyjson;
 mod ratelimit;
 mod settings;
@@ -120,16 +121,36 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v2/point/{lat}/{lon}/{radius}", get(live::point))
         .route("/v1/stream", get(stream::stream_v1))
         .route("/v2/stream", get(stream::stream_v2))
-        .fallback(http::not_found)
+        .fallback(proxy::forward)
         .method_not_allowed_fallback(http::method_not_allowed)
         .with_state(app.clone());
     // CORS wraps the router, so it sees requests before routing does
     Router::new().fallback_service(axum::middleware::from_fn_with_state(app, http::cors).layer(routes))
 }
 
+/// `networkd --health`: exit 0 when this instance answers /healthz.
+/// For container health checks on images without curl.
+fn health(bind: &str) -> ! {
+    use std::io::{Read, Write};
+    let port = bind.rsplit(':').next().unwrap_or("8092");
+    let ok = std::net::TcpStream::connect(("127.0.0.1", port.parse().unwrap_or(8092)))
+        .and_then(|mut s| {
+            s.set_read_timeout(Some(Duration::from_secs(3)))?;
+            s.write_all(b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")?;
+            let mut head = [0u8; 12];
+            s.read_exact(&mut head)?;
+            Ok(head.starts_with(b"HTTP/1.1 200"))
+        })
+        .unwrap_or(false);
+    std::process::exit(if ok { 0 } else { 1 })
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let settings = Settings::from_env();
+    if std::env::args().nth(1).as_deref() == Some("--health") {
+        health(&settings.bind);
+    }
     let bind = settings.bind.clone();
     let app = App::new(settings);
     start_tasks(&app);
