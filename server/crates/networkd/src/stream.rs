@@ -318,7 +318,10 @@ where
                     }
                     Some(FromClient::Gone) | None => return Ok(()),
                 },
-                r = published.changed() => { if r.is_err() { return Ok(()); } }
+                // before the first frame, wait for the client's box (the map
+                // sends it on open) rather than a publish: the first frame is
+                // then only what it looks at, not the whole sky and a delete
+                r = published.changed(), if last_gen >= 0.0 => { if r.is_err() { return Ok(()); } }
                 _ = tokio::time::sleep(wait) => {}
             }
             wait = TICK;
