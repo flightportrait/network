@@ -33,12 +33,19 @@ and opens its status page. We store a hash, not the key.
 
 ## No: the Station
 
-A Raspberry Pi (3B or newer, or a Zero 2 W), an RTL-SDR Blog V3 or V4
-dongle, a 1090 MHz antenna, a power supply and a microSD card; about
-US$100, no soldering. Flash Raspberry Pi OS Lite with the official
-imager, log in, run one line (published with the Station release), and
-answer the setup in your browser: a name, the antenna on a map, which
-networks to feed. The setup shows the station key; paste it on
+A Raspberry Pi (3B or newer, or a Zero 2 W), a USB receiver for 1090
+MHz (one with a built-in filter, like the FlightAware Pro Stick Plus,
+hears furthest; any RTL-SDR dongle works), a 1090 MHz antenna, a power
+supply and a microSD card; about US$100, no soldering. The antenna's
+place matters most: high, by a window or outside, open sky around it.
+
+Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager (the
+Station runs on 64-bit only), naming the Pi `station` and turning on
+SSH and your Wi-Fi in its settings. Log in from a computer on the same
+Wi-Fi (`ssh username@station.local`), run one line (published with the
+Station release), and answer the setup in your browser at
+`station.local:8654`: a name, the antenna on a map, which networks to
+feed. The setup shows the station key; paste it on
 [the feed page](https://flightportrait.com/network/?mode=join&door=no)
 to watch for the station.
 
