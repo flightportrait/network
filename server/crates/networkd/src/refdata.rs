@@ -25,11 +25,11 @@ type Built = Result<String, ApiError>;
 /// Serve `key` from the snapshot: cached if already computed, else
 /// computed by `build` off the async threads; forwarded when there is no
 /// snapshot.
-async fn serve<F>(app: Arc<App>, req: Request, key: String, build: F) -> Response
+async fn serve<F>(app: Arc<App>, req: Request, needs: &[&str], key: String, build: F) -> Response
 where
     F: FnOnce(&Conn) -> rusqlite::Result<Built> + Send + 'static,
 {
-    if !app.refdb.available() {
+    if !app.refdb.has(needs) {
         return crate::proxy::forward(State(app), req).await;
     }
     let ip = client_ip(&app, req.headers(), peer_of(&req));
@@ -173,7 +173,7 @@ fn counts(c: &Conn, sql: &str) -> rusqlite::Result<HashMap<String, i64>> {
 // ---- routes ---------------------------------------------------------------
 
 pub async fn airlines(State(app): State<Arc<App>>, req: Request) -> Response {
-    serve(app, req, "airlines".into(), |c| {
+    serve(app, req, &["ref_airlines", "rank_ref_airlines_icao", "ref_alliance_memberships", "ref_routes", "ref_airline_countries"], "airlines".into(), |c| {
         let memberships = memberships_by_airline(c, None)?;
         let routes = counts(c, "SELECT airline_icao, COUNT(*) FROM ref_routes WHERE airline_icao IS NOT NULL GROUP BY airline_icao")?;
         let countries = counts(c, "SELECT airline_icao, COUNT(*) FROM ref_airline_countries GROUP BY airline_icao")?;
@@ -202,7 +202,7 @@ pub async fn airlines(State(app): State<Arc<App>>, req: Request) -> Response {
 
 pub async fn airline(State(app): State<Arc<App>>, axum::extract::Path(icao): axum::extract::Path<String>, req: Request) -> Response {
     let code = icao.trim().to_uppercase();
-    serve(app, req, format!("airline:{code}"), move |c| {
+    serve(app, req, &["ref_airlines", "ref_alliance_memberships", "ref_routes", "ref_airline_countries"], format!("airline:{code}"), move |c| {
         let row = c
             .prepare_cached("SELECT icao, iata, name, palette FROM ref_airlines WHERE icao = ?1")?
             .query_row([&code], AirlineRow::read)
@@ -290,7 +290,7 @@ fn alliance_summary(c: &Conn, out: &mut String, slug: &str) -> rusqlite::Result<
 }
 
 pub async fn alliances(State(app): State<Arc<App>>, req: Request) -> Response {
-    serve(app, req, "alliances".into(), |c| {
+    serve(app, req, &["ref_alliances", "rank_ref_alliances_name", "ref_alliance_memberships", "ref_leg_stats", "ref_airframes"], "alliances".into(), |c| {
         let slugs: Vec<String> = c
             .prepare_cached("SELECT a.slug FROM ref_alliances a JOIN rank_ref_alliances_name r ON r.key = a.slug ORDER BY r.rank")?
             .query_map([], |r| r.get(0))?

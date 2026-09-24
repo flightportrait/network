@@ -23,6 +23,8 @@ struct Inner {
     generation: u64,
     pool: Vec<Connection>,
     cache: HashMap<String, Bytes>,
+    /// the snapshot's table names, read once per generation
+    tables: Option<std::collections::HashSet<String>>,
 }
 
 pub struct RefDb {
@@ -58,7 +60,14 @@ impl RefDb {
     pub fn new(path: &str) -> Arc<RefDb> {
         Arc::new(RefDb {
             path: path.to_string(),
-            inner: Mutex::new(Inner { mtime: None, next_check: None, generation: 0, pool: vec![], cache: HashMap::new() }),
+            inner: Mutex::new(Inner {
+                mtime: None,
+                next_check: None,
+                generation: 0,
+                pool: vec![],
+                cache: HashMap::new(),
+                tables: None,
+            }),
         })
     }
 
@@ -74,6 +83,7 @@ impl RefDb {
             g.generation += 1;
             g.pool.clear();
             g.cache.clear();
+            g.tables = None;
             if mtime.is_some() {
                 eprintln!("refdata: {} (generation {})", self.path, g.generation);
             }
@@ -84,6 +94,30 @@ impl RefDb {
         let mut g = self.inner.lock().unwrap();
         self.refresh(&mut g);
         g.mtime.is_some()
+    }
+
+    /// The snapshot is there and holds every table in `needed`: a route
+    /// newer than the file on disk forwards until the next export.
+    pub fn has(&self, needed: &[&str]) -> bool {
+        let mut g = self.inner.lock().unwrap();
+        self.refresh(&mut g);
+        if g.mtime.is_none() {
+            return false;
+        }
+        if g.tables.is_none() {
+            let read = Connection::open_with_flags(&self.path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .and_then(|c| {
+                    let mut stmt = c.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")?;
+                    let names = stmt.query_map([], |r| r.get::<_, String>(0))?.collect();
+                    names
+                });
+            match read {
+                Ok(names) => g.tables = Some(names),
+                Err(_) => return false,
+            }
+        }
+        let tables = g.tables.as_ref().unwrap();
+        needed.iter().all(|t| tables.contains(*t))
     }
 
     pub fn conn(&self) -> rusqlite::Result<Conn<'_>> {

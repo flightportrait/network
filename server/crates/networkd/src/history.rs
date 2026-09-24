@@ -121,8 +121,10 @@ fn board_item(out: &mut String, l: &Leg, other: (&str, &str)) {
     o.end();
 }
 
+const AIRPORT_NEEDS: &[&str] = &["ref_airports", "rank_ref_airports_ident", "ref_schedule"];
+
 pub async fn airport(State(app): State<Arc<App>>, Path(code): Path<String>, req: Request) -> Response {
-    if !app.refdb.available() {
+    if !app.refdb.has(AIRPORT_NEEDS) {
         return crate::proxy::forward(State(app), req).await;
     }
     let ip = client_ip(&app, req.headers(), peer_of(&req));
