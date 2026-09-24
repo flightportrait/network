@@ -524,12 +524,15 @@
   .joinpanel code{font:0.86em/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     background:var(--card);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
   .prewrap{position:relative}
+  .joinpanel .prewrap pre{padding-right:88px}
   .prewrap .copy{position:absolute;top:10px;right:10px;padding:4px 11px;font-size:13px;
     background:var(--paper);color:var(--ink);border:1px solid color-mix(in srgb,var(--paper) 35%,transparent)}
   .prewrap .copy:hover{background:var(--paper);color:var(--ink);border-color:var(--paper)}
   .prewrap .copy.done{background:var(--ink);color:var(--paper);border-color:var(--paper)}
-  .joinpanel pre{background:var(--ink);color:color-mix(in srgb,var(--paper) 90%,transparent);white-space:pre;overflow-x:auto;padding-top:44px;
-    border-radius:6px;padding:14px 18px;overflow-x:auto;margin:12px 0;
+  /* Commands wrap: the whole line is visible, and Copy takes it exact. */
+  .joinpanel pre{background:var(--ink);color:color-mix(in srgb,var(--paper) 90%,transparent);
+    white-space:pre-wrap;overflow-wrap:anywhere;
+    border-radius:6px;padding:14px 18px;margin:10px 0 18px;
     font:12.5px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   .joinpanel pre .v{color:#E5B24A}
   .joinpanel ol{padding-left:22px}
@@ -546,6 +549,12 @@
     border-radius:6px;padding:8px 15px;font:14px Palatino,Georgia,serif}
   .copy:hover{background:var(--red)}
   .idcard .hint{color:var(--quiet);font-size:13.5px;margin:10px 0 0}
+  .linkish{background:none;border:none;padding:0;margin-top:12px;cursor:pointer;
+    font:13.5px Palatino,Georgia,serif;color:var(--ink);text-decoration:underline;
+    text-underline-offset:3px}
+  .linkish:hover{color:var(--red)}
+  .keyswap{margin-top:12px}
+  .keyswap[hidden]{display:none}
   .listen{border:1px solid var(--line);border-radius:6px;padding:16px 18px;
     margin-top:10px;background:var(--card)}
   .listen .state{display:flex;gap:10px;align-items:center}
@@ -576,7 +585,7 @@
     background:var(--paper);border:1px solid var(--line);border-radius:6px;
     padding:8px 11px;flex:1 1 260px;min-width:0;color:var(--ink)}
   .keyfield.bad{border-color:var(--red)}
-  .softs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+  .softs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 18px}
   .soft{background:var(--paper);border:1px solid var(--line);border-radius:6px;
     padding:6px 12px;cursor:pointer;font:14px Palatino,Georgia,serif;color:var(--ink)}
   .soft.here{background:var(--ink);color:var(--paper)}
@@ -1449,12 +1458,12 @@
           <span class="uuid" id="uuid"></span>
           <button class="copy" id="copy">Copy</button>
         </div>
-        <p class="hint">It is already in the lines below. Keep it.</p>
-        <div class="idrow" style="margin-top:10px">
-          <input class="keyfield" id="key-yes" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="or paste a key you already have" aria-label="Existing station key">
+        <p class="hint">Already in the lines below. Keep a copy.</p>
+        <button class="linkish" id="have-key" type="button">I already have a key</button>
+        <div class="idrow keyswap" id="keyswap" hidden>
+          <input class="keyfield" id="key-yes" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="paste your key" aria-label="Existing station key">
           <button class="copy" id="use-yes">Use it</button>
         </div>
-        <p class="hint">Have a key? Use it.</p>
       </div>
 
       <h2>Add this to what you run.</h2>
@@ -1487,7 +1496,7 @@
         <pre>adsb,feed.flightportrait.com,30004,beast_reduce_plus_out,uuid=<span class="v key-v">YOUR-KEY</span>;mlat,feed.flightportrait.com,31090,uuid=<span class="v key-v">YOUR-KEY</span></pre>
       </div>
 
-      <p class="quiet" style="margin-top:14px">Want the Station instead? A dongle serves one program. The installer imports your feeds and keys and asks before stopping anything: <code>install.sh --replace</code>. <a href="#" id="to-station">The Station path.</a></p>
+      <p class="quiet" style="margin-top:22px">Rather run the Station? Its installer keeps your feeds and key, and asks before stopping anything: <code>install.sh --replace</code>. <a href="#" id="to-station">Set up the Station</a></p>
     </div>
 
     <div class="listen" id="listen" style="margin-top:34px;display:none">
@@ -6909,11 +6918,19 @@ window.__initJoin = function () {
     if (!v) return;
     minted = v; key = v; fillLines(v);
     try { localStorage.setItem("fp-station-uuid", v); } catch (e) {}
+    el("key-yes").value = ""; keySwap(false);
     check();
   });
   el("key-yes").addEventListener("keydown", function (ev) {
     if (ev.key === "Enter") el("use-yes").click();
   });
+  // The paste field only when asked for: most people keep the new key.
+  function keySwap(open) {
+    el("keyswap").hidden = !open;
+    el("have-key").hidden = open;
+    if (open) el("key-yes").focus();
+  }
+  el("have-key").addEventListener("click", function () { keySwap(true); });
   var copyBtn = el("copy");
   copyBtn.addEventListener("click", function () {
     (navigator.clipboard ? navigator.clipboard.writeText(minted)
