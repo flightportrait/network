@@ -1,0 +1,157 @@
+//! networkd: the FlightPortrait network server.
+//!
+//! One binary: it reads the aggregator (readsb's JSON position port,
+//! with aircraft.json as the fallback) and serves the open data API and
+//! the live stream. Configured by the same NETWORK_API_* environment as
+//! the Python service it replaces; NETWORKD_BIND sets the listen address.
+
+mod departure;
+mod http;
+mod legs;
+mod live;
+mod pyjson;
+mod ratelimit;
+mod settings;
+mod sky;
+mod state;
+mod stream;
+mod traces;
+mod upstream;
+mod ws;
+
+use std::future::Future;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+
+use axum::routing::get;
+use axum::Router;
+use tower::Layer;
+
+use crate::settings::Settings;
+use crate::state::{now_s, App};
+
+/// Run `f` forever: each failure logs and backs off (doubling up to five
+/// minutes), a success resets the interval.
+async fn every<F, Fut>(name: &'static str, interval_s: f64, mut f: F)
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = anyhow::Result<()>>,
+{
+    let mut backoff = interval_s;
+    loop {
+        match f().await {
+            Ok(()) => backoff = interval_s,
+            Err(e) => {
+                eprintln!("{name} poll failed: {e}");
+                backoff = (backoff * 2.0).min(300.0);
+            }
+        }
+        tokio::time::sleep(Duration::from_secs_f64(backoff)).await;
+    }
+}
+
+/// clients.json -> the number of stations connected now. readsb invents
+/// a half-zero UUID for connections that sent none; those are plumbing,
+/// not stations.
+fn station_count(body: &[u8]) -> anyhow::Result<usize> {
+    let v: serde_json::Value = serde_json::from_slice(body)?;
+    let mut ids = std::collections::HashSet::new();
+    for row in v.get("clients").and_then(|c| c.as_array()).into_iter().flatten() {
+        let Some(a) = row.as_array().filter(|a| a.len() >= 9) else { continue };
+        let Some(uuid) = a[0].as_str() else { continue };
+        let n: String = uuid.trim().to_lowercase().replace('-', "");
+        if n.len() != 32 || !n.bytes().all(|b| b.is_ascii_hexdigit()) || n.ends_with(&"0".repeat(16)) {
+            continue;
+        }
+        ids.insert(n[..16].to_string());
+    }
+    Ok(ids.len())
+}
+
+async fn poll_stations_once(app: &App) -> anyhow::Result<()> {
+    match app.upstream.get("/data/clients.json").await {
+        Ok(body) => {
+            let n = station_count(&body)?;
+            let mut p = app.presence.lock().unwrap();
+            p.count = n;
+            p.available = true;
+            p.at = now_s();
+            Ok(())
+        }
+        Err(e) if upstream::status_of(&e) == Some(404) => {
+            // this readsb does not serve clients.json: counts go null
+            app.presence.lock().unwrap().available = false;
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn start_tasks(app: &Arc<App>) {
+    let s = &app.settings;
+    if !s.live_json.is_empty() && !s.point_mode() {
+        tokio::spawn(sky::read_lines(app.clone(), s.live_json.clone()));
+        tokio::spawn(sky::publish(app.clone()));
+    }
+    let snap_every = if s.point_mode() { s.snapshot_poll_s.max(60.0) } else { s.snapshot_poll_s };
+    let a = app.clone();
+    tokio::spawn(async move {
+        every("snapshot", snap_every, || sky::poll_snapshot_once(&a)).await;
+    });
+    if s.point_mode() {
+        app.presence.lock().unwrap().available = false;
+    } else {
+        let a = app.clone();
+        let every_s = s.station_poll_s;
+        tokio::spawn(async move {
+            every("stations", every_s, || poll_stations_once(&a)).await;
+        });
+    }
+}
+
+pub fn router(app: Arc<App>) -> Router {
+    let routes = Router::new()
+        .route("/", get(live::index))
+        .route("/healthz", get(live::healthz))
+        .route("/v1/now", get(live::now))
+        .route("/v1/aircraft", get(live::aircraft))
+        .route("/v1/trace/{hex}", get(live::trace))
+        .route("/v2/point/{lat}/{lon}/{radius}", get(live::point))
+        .route("/v1/stream", get(stream::stream_v1))
+        .route("/v2/stream", get(stream::stream_v2))
+        .fallback(http::not_found)
+        .method_not_allowed_fallback(http::method_not_allowed)
+        .with_state(app.clone());
+    // CORS wraps the router, so it sees requests before routing does
+    Router::new().fallback_service(axum::middleware::from_fn_with_state(app, http::cors).layer(routes))
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let settings = Settings::from_env();
+    let bind = settings.bind.clone();
+    let app = App::new(settings);
+    start_tasks(&app);
+    let listener = tokio::net::TcpListener::bind(&bind).await?;
+    eprintln!("networkd listening on {bind}");
+    axum::serve(listener, router(app).into_make_service_with_connect_info::<SocketAddr>()).await?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn counts_stations_like_the_registry() {
+        let body = br#"{"clients":[
+            ["0123456789abcdef0123456789abcdef","1.2.3.4 port 1",1,2,3,4,5,6,7],
+            ["0123-4567-89AB-CDEF-0123456789abcdef","x",1,2,3,4,5,6,7],
+            ["abcdef0123456789-0000-0000-000000000000","x",1,2,3,4,5,6,7],
+            ["short","x",1,2,3,4,5,6,7],
+            ["fedcba98765432100123456789abcdef","x",1]
+        ]}"#;
+        assert_eq!(station_count(body).unwrap(), 1);
+    }
+}
