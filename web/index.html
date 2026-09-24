@@ -572,6 +572,21 @@
     color:var(--quiet);margin:22px 0 0}
   /* The one question, two doors. A door is a button that looks like a
      card; the chosen one stays marked. */
+  .kitask{margin:18px 0 22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+  .kitask p{margin-bottom:8px}
+  .kitrow{display:flex;gap:8px;max-width:420px}
+  .kitrow input{flex:1;min-width:0;font:15px Palatino,Georgia,serif;color:var(--ink);
+    background:var(--card);border:1px solid var(--line);border-radius:6px;
+    padding:8px 10px;outline:none}
+  .kitrow input:focus{border-color:var(--ink)}
+  .kitrow button{flex:none;background:var(--ink);color:var(--paper);border:none;
+    border-radius:6px;padding:8px 14px;cursor:pointer;font:14px Palatino,Georgia,serif}
+  .kitrow button:disabled{opacity:.4;cursor:default}
+  .kitrow button:not(:disabled):hover{background:var(--red)}
+  .kitask .tick{display:flex;gap:8px;align-items:flex-start;margin-top:8px;
+    color:var(--quiet);font-size:13px;line-height:1.35;cursor:pointer}
+  .kitask .tick input{margin-top:2px}
+  .kitask .hint:empty{display:none}
   .doors{display:flex;gap:12px;margin:18px 0 6px;flex-wrap:wrap}
   .door{flex:1 1 200px;background:var(--card);border:1px solid var(--line);
     border-radius:6px;padding:14px 16px;cursor:pointer;text-align:left;
@@ -1408,9 +1423,8 @@
 <div class="joinscrim"></div>
 <div class="joinpanel" id="joinpanel">
 <button class="cardclose" id="join-close" aria-label="Close">&times;</button>
-    <h1>Feed the network.</h1>
-    <p class="sub">We're a group of aviation fans running antennas and contributing to making ADS-B data public, free, and easily accessible. Everything on this map was heard by one of us.</p>
-    <p class="sub">Adding your antenna takes a Raspberry Pi and a US$30 dongle, and you can share the same feed with other aggregators at the same time.</p>
+    <h1>Add your antenna.</h1>
+    <p class="sub">Every plane on this map was heard by an antenna at someone's window. Yours adds the sky over your home.</p>
 
     <h2 style="margin-top:22px">Do you already have a receiver?</h2>
     <div class="doors" role="tablist">
@@ -1420,6 +1434,20 @@
 
     <!-- ================= No: the Station ================= -->
     <div class="path" id="path-no" role="tabpanel">
+      <!-- For whoever reads the list below and would rather not build it:
+           it asks, it does not promise a kit. On the owned newsletter
+           list, tagged antenna-kit; the consent line is the server's
+           CONSENT_TEXT word for word. -->
+      <form class="kitask" id="kit-form" novalidate>
+        <p>Rather not build it? Leave your email for a ready-made kit.</p>
+        <div class="kitrow">
+          <input id="kit-email" type="email" required autocomplete="email" placeholder="Email" aria-label="Email">
+          <button type="submit" id="kit-send" disabled>Keep me posted</button>
+        </div>
+        <label class="tick"><input id="kit-consent" type="checkbox"> Email me FlightPortrait updates. I can unsubscribe anytime.</label>
+        <p class="hint" id="kit-status" role="status" aria-live="polite"></p>
+      </form>
+
       <h2>What to buy.</h2>
       <p>About US$100.</p>
       <ul>
@@ -5146,6 +5174,39 @@
     }
     return out.concat(trace);
   }
+  // ---- join: a ready-made kit, asked for --------------------------------
+  (function wireKit() {
+    var form = el("kit-form");
+    if (!form) return;
+    var email = el("kit-email"), consent = el("kit-consent"),
+        send = el("kit-send"), status = el("kit-status"), sent = false;
+    function ready() {
+      return !sent && consent.checked && email.value.trim() !== "" && email.checkValidity();
+    }
+    function sync() { send.disabled = !ready(); }
+    form.addEventListener("input", sync);
+    form.addEventListener("change", sync);
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (!ready()) return;
+      send.disabled = true;
+      status.textContent = "Sending.";
+      fetch("https://updates.flightportrait.com/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.value.trim(), consent: true, source: "antenna-kit" })
+      }).then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        sent = true;
+        status.textContent = "Thank you. We'll be in touch.";
+        email.disabled = consent.disabled = true;
+      }).catch(function () {
+        status.textContent = "That did not go through. Try again in a moment.";
+        sync();
+      });
+    });
+  })();
+
   function ReplayControl(map) { this.map = map; }
   ReplayControl.prototype.onAdd = function () {
     var box = document.createElement("div");
