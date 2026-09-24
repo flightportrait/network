@@ -607,6 +607,10 @@
   .softbody{display:none}
   .softbody.show{display:block}
   .joinpanel .quiet{color:var(--quiet);font-size:14.5px}
+  .found{display:flex;gap:12px;align-items:center;background:var(--card);
+    border:1px solid var(--ink);border-radius:6px;padding:14px 18px;margin:16px 0 0}
+  .found[hidden]{display:none}
+  .found a{font-weight:600}
   .joinpanel ul{padding-left:22px}
   .joinpanel ul li{margin-bottom:6px}
   /* Join owns the stage: the airline card, a picked route and the
@@ -1469,6 +1473,12 @@
         <li>On your phone, on the same Wi-Fi, open <code>station.local:8654</code>. If it does not load, use the address with numbers the installer printed. Name the station, pin the antenna on the map, pick the networks to feed.</li>
       </ol>
       <p>That address is then your station's page.</p>
+      <!-- Find my station: a Station waiting for setup reports its home
+           address (/v1/setup/beacon); on the same Wi-Fi it shows up here. -->
+      <div class="found" id="found" hidden>
+        <span class="pulse online"></span>
+        <div id="found-list"></div>
+      </div>
 
       <div class="idcard">
         <span class="caps">Your station key</span>
@@ -7023,6 +7033,34 @@ window.__initJoin = function () {
   var pulse = el("pulse");
   var line = el("listen-line");
   var stats = el("listen-stats");
+  // ---- find my station: a Station waiting for setup on this Wi-Fi
+  // (the image reports itself to /v1/setup/beacon until it is set up)
+  function findStation() {
+    if (!document.body.classList.contains("mode-join") ||
+        !el("path-no").classList.contains("show")) return;
+    fetch(API + "/v1/setup/beacon").then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (d) {
+      if (!d) return;
+      var list = el("found-list");
+      list.textContent = "";
+      d.stations.forEach(function (st) {
+        var p = document.createElement("p");
+        p.style.margin = "0";
+        p.appendChild(document.createTextNode(
+          (st.name === "station" ? "Your station" : st.name) + " is on this Wi-Fi. "));
+        var a = document.createElement("a");
+        a.href = st.url;
+        a.textContent = "Open its setup";
+        p.appendChild(a);
+        list.appendChild(p);
+      });
+      el("found").hidden = !d.stations.length;
+    }).catch(function () {});
+  }
+  setInterval(findStation, 5000);
+  findStation();
+
   function check() {
     if (!key) return;
     var k = key;

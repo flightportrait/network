@@ -138,7 +138,7 @@ OPENAPI_PATHS = {
     "/v1/airports/{code}",
     "/v1/routes",
     "/v1/gaps", "/v1/gaps/{callsign}", "/v1/contributors",
-    "/v1/stations", "/v1/stations/{station_uuid}",
+    "/v1/stations", "/v1/stations/{station_uuid}", "/v1/setup/beacon",
     "/v1/airlines",
     "/v1/airlines/{icao}",
     "/v1/airlines/{icao}/routes",

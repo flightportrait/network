@@ -96,6 +96,7 @@
 
   <h2>The Station setup page</h2>
   <p>If you use our Station software, its setup page runs in your browser on your own network. It requests map tiles from OpenFreemap, address search from Nominatim, ground elevation from Open-Meteo, and a rough starting position from ipwho.is. None of this data is sent to us.</p>
+  <p>A Station flashed from our SD card image, until it is set up, tells us its address on your home network (like 192.168.1.23) and its name, once a minute, so that the join page, opened on a phone on the same Wi-Fi, can link to its setup page. We match the two by your home's public IP address. This is held in memory for ten minutes, under a scrambled form of that IP address, and never written down; it stops once the Station is set up.</p>
 
   <h2>Deleting your data</h2>
   <p>Email hello@flightportrait.com with your station key and we will delete your station's history. Aircraft data already published under ODbL cannot be recalled.</p>

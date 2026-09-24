@@ -27,6 +27,7 @@ from .routes_live import router as live_router
 from .routes_refdata import router as refdata_router
 from .routes_search import router as search_router
 from .routes_stations import router as stations_router
+from .setup_beacon import router as beacon_router
 from .routes_db import RouteBook
 from .settings import Settings
 from .snapshot import Snapshot
@@ -170,6 +171,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     app.include_router(live_router)
     app.include_router(history_router)
     app.include_router(stations_router)
+    app.include_router(beacon_router)
     app.include_router(refdata_router)
     app.include_router(search_router)
     app.include_router(contributions_router)

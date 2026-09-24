@@ -15,6 +15,14 @@ feeder-supplied coordinates.
 The feeder IP holds the TCP connection and is discarded when that
 table is parsed. It is not written to the registry.
 
+A Station flashed from the SD card image, until it is set up, posts
+its private home-network IPv4 address, port and hostname to
+`POST /v1/setup/beacon` once a minute, so the join page on the same
+network can link to its setup page (`GET /v1/setup/beacon`). The two
+are paired by the caller's public IP (an IPv6 address by its /64),
+held in memory for ten minutes under a salted hash of it, and never
+written anywhere.
+
 The roster (`GET /v1/stations`): generated id, optional label,
 coarse coordinates, first and last heard, online or not.
 
