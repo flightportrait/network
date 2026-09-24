@@ -515,6 +515,12 @@ def test_boards_merge(ctx, tmp_path):
         ("OSL", "dep", "WF569", "FRO", 500, "2026-08-30", "t", "now"),
         # arrival fills the matched row's missing arr_min
         ("EWR", "arr", "SK907", "OSL", 800, "2026-08-29", "t", "now"),
+        # a multi-stop flight: its next stop is the leg (2026-09-24,
+        # this overflowed the 4-character dst on Postgres)
+        ("YOW", "dep", "5T119", "YFB,YRT,YZF,YEG", 480, "2026-09-23", "t", "now"),
+        ("YOW", "dep", "5T119", "YFB,YRT,YZF,YEG", 480, "2026-09-24", "t", "now"),
+        # not an airport code at all: skipped, not fatal
+        ("YOW", "dep", "XX1", "Ottawa via Iqaluit", 500, "2026-09-23", "t", "now"),
     ]
     conn.executemany("INSERT INTO boards VALUES (?,?,?,?,?,?,?,?)", rows)
     conn.commit()
@@ -537,6 +543,10 @@ def test_boards_merge(ctx, tmp_path):
         added = session.get(RefSchedule, ("WF569", "OSL", "FRO"))
         assert added.source == "published"
         assert added.dep_min == 500 and added.n_flights == 2
+        stop = session.get(RefSchedule, ("5T119", "YOW", "YFB"))
+        assert stop is not None and stop.n_flights == 2
+        assert all(len(r.dst) <= 4 and len(r.org) <= 4
+                   for r in session.query(RefSchedule).all())
         # graceful skip when no artifact exists
         assert refdata_ingest.ingest_boards(
             session, str(tmp_path / "absent.db")) == 0

@@ -316,6 +316,19 @@ def _airline_of(flight, iata_icao):
     return prefix, iata_icao.get(prefix, "")
 
 
+def _board_stop(counterpart, kind):
+    """The airport at the other end of this leg. A board lists a
+    multi-stop flight's stops in order ("YFB,YRT,YZF,YEG" departing
+    Ottawa): the next stop is the first on a departures board, the
+    previous one the last on an arrivals board. None when what is left
+    is not an airport code."""
+    stops = [t.strip().upper() for t in (counterpart or "").split(",") if t.strip()]
+    if not stops:
+        return None
+    code = stops[0] if kind == "dep" else stops[-1]
+    return code if 3 <= len(code) <= 4 and code.isalnum() else None
+
+
 def ingest_boards(session, path):
     """Merge harvested airport boards (boards.db, the private
     collector's artifact) into the schedule:
@@ -347,6 +360,9 @@ def ingest_boards(session, path):
                 " GROUP BY airport, kind, flight, counterpart, sched_min"
                 " ORDER BY airport, kind, flight, counterpart,"
                 " COUNT(*) DESC"):
+            cp = _board_stop(cp, kind)
+            if cp is None:
+                continue
             if kind == "dep":
                 deps.setdefault((flight, airport, cp), (sched, c))
             else:
@@ -361,10 +377,14 @@ def ingest_boards(session, path):
                 " GROUP BY airport, kind, flight, sched_min"
                 " ORDER BY airport, kind, flight, COUNT(*) DESC"):
             blind.setdefault((flight, airport, kind), sched)
-        days = dict(conn.execute(
-            "SELECT flight || '|' || airport || '|' || counterpart,"
-            " COUNT(DISTINCT day) FROM boards WHERE kind = 'dep'"
-            " GROUP BY 1").fetchall())
+        seen_days = {}
+        for flight, airport, cp, day in conn.execute(
+                "SELECT DISTINCT flight, airport, counterpart, day"
+                " FROM boards WHERE kind = 'dep'"):
+            cp = _board_stop(cp, "dep")
+            if cp is not None:
+                seen_days.setdefault("|".join((flight, airport, cp)), set()).add(day)
+        days = {k: len(v) for k, v in seen_days.items()}
     finally:
         conn.close()
 
