@@ -22,3 +22,9 @@ Known: `/v1/flights` for a callsign whose schedule rows tie on
 `n_flights` (XFL167 on the 2026-09-24 copy): Postgres reads them with a
 parallel scan, so Python itself returns either order from call to call;
 networkd returns the heap order, one of the two.
+
+Snapshot mode (no Postgres, as on a Pi): run networkd without
+`NETWORK_API_DATABASE_URL` over a snapshot `refdata_export` wrote from
+the database the Python service reads, and `routes.py` holds the same
+paths to the same bytes (checked 2026-09-25: routes 133, flights 417 but
+XFL167, airframes 269, gaps 200, fleets and alliances 42).

@@ -510,17 +510,20 @@ pub struct Estimator {
     book: Mutex<Book>,
     routes: Arc<RouteBook>,
     db: Option<Lazy>,
+    /// where the book is kept without Postgres
+    local: Option<Arc<crate::localdb::LocalDb>>,
     route_cache: Mutex<HashMap<String, (f64, Option<Chain>)>>,
     /// the last night's accuracy as JSON, and when it was looked up
     accuracy: tokio::sync::Mutex<(f64, Option<String>)>,
 }
 
 impl Estimator {
-    pub fn new(routes: Arc<RouteBook>, database_url: &str) -> Arc<Estimator> {
+    pub fn new(routes: Arc<RouteBook>, database_url: &str, local: Option<Arc<crate::localdb::LocalDb>>) -> Arc<Estimator> {
         Arc::new(Estimator {
             book: Mutex::new(Book::default()),
             routes,
             db: (!database_url.is_empty()).then(|| Lazy::new(database_url)),
+            local,
             route_cache: Mutex::new(HashMap::new()),
             accuracy: tokio::sync::Mutex::new((0.0, None)),
         })
@@ -664,7 +667,18 @@ impl Estimator {
     // ---- the book's memory across restarts ----------------------------------
 
     pub async fn restore(&self) {
-        let Some(db) = &self.db else { return };
+        let Some(db) = &self.db else {
+            if let Some(local) = &self.local {
+                if let Ok(Some(text)) = local.get_state(STATE_KEY) {
+                    let items: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+                    let n = self.book.lock().unwrap().restore(&items, now_s());
+                    if n > 0 {
+                        eprintln!("estimates: {n} aircraft restored");
+                    }
+                }
+            }
+            return;
+        };
         let read = async {
             let g = db.get().await?;
             g.as_ref().unwrap().query_opt("SELECT value::text FROM live_state WHERE key = $1", &[&STATE_KEY]).await
@@ -682,9 +696,14 @@ impl Estimator {
         }
     }
 
-    pub async fn save(&self) -> Result<(), tokio_postgres::Error> {
-        let Some(db) = &self.db else { return Ok(()) };
+    pub async fn save(&self) -> anyhow::Result<()> {
         let items = self.book.lock().unwrap().dump();
+        let Some(db) = &self.db else {
+            if let Some(local) = &self.local {
+                local.set_state(STATE_KEY, &items)?;
+            }
+            return Ok(());
+        };
         let g = db.get().await?;
         g.as_ref()
             .unwrap()

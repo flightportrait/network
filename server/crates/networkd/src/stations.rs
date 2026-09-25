@@ -135,23 +135,44 @@ pub struct Live {
     pub connected_since: String,
 }
 
-/// The registry: one connection for the pollers' writes, one for the
-/// routes' reads, so a write never queues a page behind it.
+/// Where the registry lives: Postgres (one connection for the pollers'
+/// writes, one for the routes' reads, so a write never queues a page
+/// behind it), or the instance's own state file.
+enum Backend {
+    Pg { writer: Box<Lazy>, reader: Box<Lazy> },
+    Local(Arc<crate::localdb::LocalDb>),
+}
+
 pub struct Registry {
-    writer: Lazy,
-    reader: Lazy,
+    backend: Backend,
 }
 
 impl Registry {
     pub fn new(database_url: &str) -> Arc<Registry> {
-        Arc::new(Registry { writer: Lazy::new(database_url), reader: Lazy::new(database_url) })
+        Arc::new(Registry {
+            backend: Backend::Pg { writer: Box::new(Lazy::new(database_url)), reader: Box::new(Lazy::new(database_url)) },
+        })
+    }
+
+    pub fn local(db: Arc<crate::localdb::LocalDb>) -> Arc<Registry> {
+        Arc::new(Registry { backend: Backend::Local(db) })
     }
 
     /// Apply one clients.json poll: create and update stations, keep
     /// their connection sessions, close the sessions of stations that
     /// left. Returns the presence map, keyed by half id.
     pub async fn upsert_presence(&self, rows: &[Client], now: DateTime<Utc>) -> anyhow::Result<HashMap<String, Live>> {
-        let mut g = self.writer.get().await?;
+        let writer = match &self.backend {
+            Backend::Pg { writer, .. } => writer,
+            Backend::Local(db) => {
+                let keyed: Vec<(String, String, &Client)> = rows
+                    .iter()
+                    .filter_map(|r| normalize_uuid(&r.uuid).map(|n| (sha256_hex(&n), n[..16].to_string(), r)))
+                    .collect();
+                return Ok(db.upsert_presence(&keyed, now, RECONNECT_S)?);
+            }
+        };
+        let mut g = writer.get().await?;
         let tx = g.as_mut().unwrap().transaction().await?;
         let mut presence = HashMap::new();
         let mut seen: Vec<i64> = vec![];
@@ -238,7 +259,11 @@ impl Registry {
     }
 
     pub async fn prune_sessions(&self, retention_days: i64, now: DateTime<Utc>) -> anyhow::Result<u64> {
-        let g = self.writer.get().await?;
+        let writer = match &self.backend {
+            Backend::Pg { writer, .. } => writer,
+            Backend::Local(db) => return Ok(db.prune_sessions(retention_days, now)? as u64),
+        };
+        let g = writer.get().await?;
         let cutoff = now - TimeDelta::days(retention_days);
         Ok(g.as_ref()
             .unwrap()
@@ -263,7 +288,11 @@ impl Registry {
             let lon = round_to(float_of(&e[9])?, COARSE_DECIMALS);
             updates.push((half_id, lat, lon));
         }
-        let mut g = self.writer.get().await?;
+        let writer = match &self.backend {
+            Backend::Pg { writer, .. } => writer,
+            Backend::Local(db) => return Ok(db.apply_receivers(&updates)?),
+        };
+        let mut g = writer.get().await?;
         let tx = g.as_mut().unwrap().transaction().await?;
         for (half_id, lat, lon) in &updates {
             tx.execute("UPDATE stations SET coarse_lat = $2, coarse_lon = $3 WHERE half_id = $1", &[half_id, lat, lon])
@@ -271,6 +300,61 @@ impl Registry {
         }
         tx.commit().await?;
         Ok(())
+    }
+}
+
+impl Registry {
+    /// The public roster, oldest station first.
+    async fn roster_rows(&self) -> anyhow::Result<Vec<crate::localdb::RosterRow>> {
+        match &self.backend {
+            Backend::Local(db) => Ok(db.roster()?),
+            Backend::Pg { reader, .. } => {
+                let g = reader.get().await?;
+                let rows = g
+                    .as_ref()
+                    .unwrap()
+                    .query(
+                        "SELECT public_id, label, coarse_lat, coarse_lon, first_seen, last_seen FROM stations ORDER BY first_seen",
+                        &[],
+                    )
+                    .await?;
+                Ok(rows.iter().map(|r| (r.get(0), r.get(1), r.get(2), r.get(3), r.get(4), r.get(5))).collect())
+            }
+        }
+    }
+
+    /// One station by its UUID's digest, with its sessions in the order
+    /// the table holds them (as the Python service loads them).
+    async fn station(
+        &self,
+        digest: &str,
+    ) -> anyhow::Result<Option<(crate::localdb::StationRow, Vec<crate::localdb::SessionRow>)>> {
+        match &self.backend {
+            Backend::Local(db) => Ok(db.station(digest)?),
+            Backend::Pg { reader, .. } => {
+                let g = reader.get().await?;
+                let c = g.as_ref().unwrap();
+                let Some(s) = c
+                    .query_opt(
+                        "SELECT id, public_id, half_id, first_seen, last_seen, positions_total FROM stations WHERE uuid_sha256 = $1",
+                        &[&digest],
+                    )
+                    .await?
+                else {
+                    return Ok(None);
+                };
+                let sessions = c
+                    .query(
+                        "SELECT started_at, ended_at, peak_msgs_per_s, positions_total FROM station_sessions WHERE station_id = $1",
+                        &[&s.get::<_, i64>(0)],
+                    )
+                    .await?
+                    .iter()
+                    .map(|r| (r.get(0), r.get(1), r.get(2), r.get(3)))
+                    .collect();
+                Ok(Some(((s.get(0), s.get(1), s.get(2), s.get(3), s.get(4), s.get(5)), sessions)))
+            }
+        }
     }
 }
 
@@ -326,42 +410,27 @@ pub async fn roster(State(app): State<Arc<App>>, req: Request) -> Response {
     if let Err(e) = throttle(&app, &ip, "stations", app.settings.stations_rate_limit) {
         return e.into_response();
     }
-    let rows = {
-        let g = match reg.reader.get().await {
-            Ok(g) => g,
-            Err(e) => return unavailable(e).into_response(),
-        };
-        match g
-            .as_ref()
-            .unwrap()
-            .query(
-                "SELECT public_id, label, coarse_lat, coarse_lon, first_seen, last_seen FROM stations ORDER BY first_seen",
-                &[],
-            )
-            .await
-        {
-            Ok(rows) => rows,
-            Err(e) => return unavailable(e).into_response(),
-        }
+    let rows = match reg.roster_rows().await {
+        Ok(r) => r,
+        Err(e) => return unavailable(e).into_response(),
     };
     let mut out = String::with_capacity(64 + rows.len() * 200);
     out.push_str("{\"stations\":[");
-    for (i, r) in rows.iter().enumerate() {
+    for (i, (id, label, lat, lon, first_seen, last_seen)) in rows.iter().enumerate() {
         if i > 0 {
             out.push(',');
         }
-        let last_seen: DateTime<Utc> = r.get(5);
         let mut o = Obj::new(&mut out);
-        o.str("id", r.get(0));
-        match r.get::<_, Option<&str>>(1) {
+        o.str("id", id);
+        match label {
             Some(l) => o.str("label", l),
             None => o.null("label"),
         };
-        opt_f64(&mut o, "coarse_lat", r.get(2));
-        opt_f64(&mut o, "coarse_lon", r.get(3));
-        o.str("first_seen", &isoformat(r.get(4)))
-            .str("last_seen", &isoformat(last_seen))
-            .raw("online", if online(last_seen, app.settings.offline_after_s) { "true" } else { "false" });
+        opt_f64(&mut o, "coarse_lat", *lat);
+        opt_f64(&mut o, "coarse_lon", *lon);
+        o.str("first_seen", &isoformat(*first_seen))
+            .str("last_seen", &isoformat(*last_seen))
+            .raw("online", if online(*last_seen, app.settings.offline_after_s) { "true" } else { "false" });
         o.end();
     }
     out.push_str("]}");
@@ -388,56 +457,24 @@ pub async fn self_view(State(app): State<Arc<App>>, Path(uuid): Path<String>, re
     let unknown = || ApiError::new(404, "not_found", "unknown station").into_response();
     let Some(n) = normalize_uuid(&uuid) else { return unknown() };
     let digest = sha256_hex(&n);
-    let found = {
-        let g = match reg.reader.get().await {
-            Ok(g) => g,
-            Err(e) => return unavailable(e).into_response(),
-        };
-        let c = g.as_ref().unwrap();
-        let station = match c
-            .query_opt(
-                "SELECT id, public_id, half_id, first_seen, last_seen, positions_total FROM stations WHERE uuid_sha256 = $1",
-                &[&digest],
-            )
-            .await
-        {
-            Ok(s) => s,
-            Err(e) => return unavailable(e).into_response(),
-        };
-        match station {
-            None => None,
-            Some(s) => {
-                // the sessions in the order the table holds them, as the
-                // Python service loads them before sorting
-                let sessions = match c
-                    .query(
-                        "SELECT started_at, ended_at, peak_msgs_per_s, positions_total FROM station_sessions \
-                         WHERE station_id = $1",
-                        &[&s.get::<_, i64>(0)],
-                    )
-                    .await
-                {
-                    Ok(r) => r,
-                    Err(e) => return unavailable(e).into_response(),
-                };
-                Some((s, sessions))
-            }
-        }
+    let found = match reg.station(&digest).await {
+        Ok(f) => f,
+        Err(e) => return unavailable(e).into_response(),
     };
-    let Some((s, mut sessions)) = found else { return unknown() };
-    let half_id: String = s.get(2);
+    let Some(((_, public_id, half_id, first_seen, last_seen, positions_total), mut sessions)) = found else {
+        return unknown();
+    };
     let live = app.presence.lock().unwrap().live.get(&half_id).cloned();
     let seen = match &live {
         Some(_) => aircraft_seen(&app, &half_id).await,
         None => None,
     };
-    let last_seen: DateTime<Utc> = s.get(4);
     // newest first; equal starts keep their order (a stable sort)
-    sessions.sort_by_key(|r| std::cmp::Reverse(r.get::<_, DateTime<Utc>>(0)));
+    sessions.sort_by_key(|r| std::cmp::Reverse(r.0));
 
     let mut out = String::with_capacity(1024);
     let mut o = Obj::new(&mut out);
-    o.str("id", s.get(1))
+    o.str("id", &public_id)
         .raw("online", if online(last_seen, app.settings.offline_after_s) { "true" } else { "false" });
     match &live {
         Some(l) => o.str("connected_since", &l.connected_since),
@@ -447,12 +484,12 @@ pub async fn self_view(State(app): State<Arc<App>>, Path(uuid): Path<String>, re
     opt_f64(&mut o, "positions_per_s", live.as_ref().map(|l| l.positions_per_s));
     opt_f64(&mut o, "kbit_s", live.as_ref().map(|l| l.kbit_s));
     opt_f64(&mut o, "rtt_ms", live.as_ref().map(|l| l.rtt_ms));
-    o.int("positions_total", s.get(5));
+    o.int("positions_total", positions_total);
     match seen {
         Some(n) => o.int("aircraft_seen", n),
         None => o.null("aircraft_seen"),
     };
-    o.str("first_seen", &isoformat(s.get(3))).str("last_seen", &isoformat(last_seen));
+    o.str("first_seen", &isoformat(first_seen)).str("last_seen", &isoformat(last_seen));
     let list = o.key("recent_sessions");
     list.push('[');
     for (i, r) in sessions.iter().take(10).enumerate() {
@@ -460,15 +497,15 @@ pub async fn self_view(State(app): State<Arc<App>>, Path(uuid): Path<String>, re
             list.push(',');
         }
         list.push_str("{\"started_at\":");
-        write_str(list, &isoformat(r.get(0)));
+        write_str(list, &isoformat(r.0));
         list.push_str(",\"ended_at\":");
-        match r.get::<_, Option<DateTime<Utc>>>(1) {
+        match r.1 {
             Some(t) => write_str(list, &isoformat(t)),
             None => list.push_str("null"),
         }
         list.push_str(",\"peak_messages_per_s\":");
-        write_float(list, r.get(2));
-        list.push_str(&format!(",\"positions_total\":{}}}", r.get::<_, i64>(3)));
+        write_float(list, r.2);
+        list.push_str(&format!(",\"positions_total\":{}}}", r.3));
     }
     list.push(']');
     o.end();
@@ -560,5 +597,99 @@ mod tests {
             maps.push(m);
         }
         std::fs::write(out, format!("[{}]\n", maps.join(", "))).unwrap();
+    }
+
+    /// The same scenario through the registry kept in a state file
+    /// (STATIONS_LOCAL_DB), rows dumped to STATIONS_LOCAL_ROWS.
+    #[tokio::test]
+    async fn replays_a_scenario_locally() {
+        let (Ok(db), Ok(path), Ok(out), Ok(rows_out)) = (
+            std::env::var("STATIONS_LOCAL_DB"),
+            std::env::var("STATIONS_SCENARIO"),
+            std::env::var("STATIONS_OUT"),
+            std::env::var("STATIONS_LOCAL_ROWS"),
+        ) else {
+            return;
+        };
+        let _ = std::fs::remove_file(&db);
+        let local = Arc::new(crate::localdb::LocalDb::open(&db).unwrap());
+        let reg = Registry::local(local.clone());
+        let polls: Vec<Value> = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        let mut maps = vec![];
+        for p in polls {
+            let now = DateTime::from_timestamp_micros(p["now"].as_i64().unwrap()).unwrap();
+            let rows = parse_clients(p["clients"].to_string().as_bytes()).unwrap();
+            let presence = reg.upsert_presence(&rows, now).await.unwrap();
+            reg.prune_sessions(90, now).await.unwrap();
+            reg.apply_receivers(p["receivers"].to_string().as_bytes()).await.unwrap();
+            let mut keys: Vec<_> = presence.keys().cloned().collect();
+            keys.sort();
+            let mut m = String::from("{");
+            for (i, k) in keys.iter().enumerate() {
+                let l = &presence[k];
+                if i > 0 {
+                    m.push_str(", ");
+                }
+                write_str(&mut m, k);
+                m.push_str(": {\"kbit_s\": ");
+                write_float(&mut m, l.kbit_s);
+                m.push_str(", \"msgs_per_s\": ");
+                write_float(&mut m, l.msgs_per_s);
+                m.push_str(", \"positions_per_s\": ");
+                write_float(&mut m, l.positions_per_s);
+                m.push_str(", \"rtt_ms\": ");
+                write_float(&mut m, l.rtt_ms);
+                m.push_str(", \"connected_since\": ");
+                write_str(&mut m, &l.connected_since);
+                m.push('}');
+            }
+            m.push('}');
+            maps.push(m);
+        }
+        std::fs::write(out, format!("[{}]\n", maps.join(", "))).unwrap();
+        // rows as text, times in isoformat, for a diff with Postgres's
+        let dump = local
+            .with(|c| {
+                let mut out = String::new();
+                let mut stmt = c.prepare(
+                    "SELECT id, public_id, uuid_sha256, half_id, first_seen, last_seen, coarse_lat, coarse_lon, \
+                     msgs_per_s, positions_per_s, kbit_s, rtt_ms, positions_total FROM stations ORDER BY id",
+                )?;
+                let mut rows = stmt.query([])?;
+                while let Some(r) = rows.next()? {
+                    let t = |i: usize| -> rusqlite::Result<String> {
+                        Ok(isoformat(crate::snap::ts(&r.get::<_, String>(i)?).unwrap()))
+                    };
+                    let f = |i: usize| -> rusqlite::Result<String> {
+                        Ok(r.get::<_, Option<f64>>(i)?.map_or("".into(), |v| {
+                            let mut s = String::new();
+                            write_float(&mut s, v);
+                            s
+                        }))
+                    };
+                    out.push_str(&format!(
+                        "S|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n",
+                        r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?,
+                        t(4)?, t(5)?, f(6)?, f(7)?, f(8)?, f(9)?, f(10)?, f(11)?, r.get::<_, i64>(12)?
+                    ));
+                }
+                let mut stmt = c.prepare(
+                    "SELECT id, station_id, started_at, last_seen_at, ended_at, peak_msgs_per_s, positions_total \
+                     FROM station_sessions ORDER BY id",
+                )?;
+                let mut rows = stmt.query([])?;
+                while let Some(r) = rows.next()? {
+                    let t = |v: Option<String>| v.map_or("".into(), |s| isoformat(crate::snap::ts(&s).unwrap()));
+                    let mut peak = String::new();
+                    write_float(&mut peak, r.get(5)?);
+                    out.push_str(&format!(
+                        "X|{}|{}|{}|{}|{}|{}|{}\n",
+                        r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, t(r.get(2)?), t(r.get(3)?), t(r.get(4)?), peak, r.get::<_, i64>(6)?
+                    ));
+                }
+                Ok(out)
+            })
+            .unwrap();
+        std::fs::write(rows_out, dump).unwrap();
     }
 }

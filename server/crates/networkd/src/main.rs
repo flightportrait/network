@@ -20,6 +20,7 @@ mod http;
 mod legs;
 mod nat;
 mod live;
+mod localdb;
 mod pg;
 mod pgsort;
 mod proxy;
@@ -130,13 +131,13 @@ fn start_tasks(app: &Arc<App>) {
     if let Some(est) = &app.estimates {
         tokio::spawn(est.clone().keep());
     }
-    if s.nat && !s.point_mode() && !s.database_url.is_empty() {
+    if s.nat && !s.point_mode() && (!s.database_url.is_empty() || app.local.is_some()) {
         // the North Atlantic track messages, kept from today on
-        tokio::spawn(nat::collect(s.database_url.clone()));
+        tokio::spawn(nat::collect(s.database_url.clone(), app.local.clone()));
     }
     if let Some(w) = &app.squawks {
         // our own sky only: emergency squawks become airframe events
-        tokio::spawn(squawks::flush_loop(w.clone(), s.database_url.clone()));
+        tokio::spawn(squawks::flush_loop(w.clone(), s.database_url.clone(), app.local.clone()));
     }
     if s.point_mode() {
         app.presence.lock().unwrap().available = false;

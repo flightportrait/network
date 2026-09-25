@@ -25,6 +25,13 @@ The network server in Rust, and the harness that measures it.
   are on (`NETWORK_API_SQUAWK_WATCHER=off`,
   `NETWORK_API_STATION_POLLER=off`, `NETWORK_API_ESTIMATES=off`,
   `NETWORK_API_NAT_COLLECT=off`), so each is written once.
+  Without `NETWORK_API_DATABASE_URL` (a self-hosted server, a Pi), the
+  same switches keep the instance's own state in one SQLite file
+  (`NETWORKD_STATE_PATH`, default `data/state.sqlite`): its feeders'
+  registry, the squawks it heard, the estimate book, the NAT messages.
+  The routes on data written during the day then read the snapshot's
+  public copy of it (the community catalog, the answers on file, the
+  airframe record), a day old, plus the instance's own squawks.
   `/openapi.json` and the docs pages are copies in
   `crates/networkd/static`; after an API change, rerun
   `python api/export_openapi.py --networkd server/crates/networkd/static`

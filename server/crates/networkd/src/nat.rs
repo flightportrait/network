@@ -197,14 +197,36 @@ pub async fn store(db: &tokio_postgres::Client, messages: &[Map<String, Value>])
     Ok(new)
 }
 
-/// Fetch the current message every FETCH_S and keep what is new.
-pub async fn collect(database_url: String) {
+/// Keep each message once in the instance's own state file.
+fn store_local(db: &crate::localdb::LocalDb, messages: &[Map<String, Value>]) -> rusqlite::Result<usize> {
+    let mut new = 0;
+    for m in messages {
+        let (Some(a), Some(b)) = (m.get("valid_from").and_then(when), m.get("valid_to").and_then(when)) else { continue };
+        let issuer = m.get("issuer").and_then(|i| i.as_str()).filter(|s| !s.is_empty()).unwrap_or("?");
+        let mut tracks = String::new();
+        write_dumps(&mut tracks, m.get("tracks").unwrap_or(&Value::Null));
+        let tmi = m.get("tmi").and_then(|t| t.as_i64());
+        let raw = m.get("raw").and_then(|r| r.as_str());
+        if db.store_nat(issuer, tmi, a, b, &tracks, raw)? {
+            new += 1;
+        }
+    }
+    Ok(new)
+}
+
+/// Fetch the current message every FETCH_S and keep what is new, in
+/// Postgres or, without it, the instance's own state file.
+pub async fn collect(database_url: String, local: Option<std::sync::Arc<crate::localdb::LocalDb>>) {
     let client = reqwest::Client::builder().timeout(Duration::from_secs(30)).user_agent(USER_AGENT).build().unwrap();
     let db = crate::pg::Lazy::new(&database_url);
     loop {
         let round = async {
             let body = client.get(NAT_URL).header("Accept", "application/json").send().await?.error_for_status()?.bytes().await?;
             let messages = parse_parts(&serde_json::from_slice(&body)?);
+            if database_url.is_empty() {
+                let Some(local) = &local else { return anyhow::Ok(0) };
+                return Ok(store_local(local, &messages)?);
+            }
             let g = db.get().await?;
             let n = store(g.as_ref().unwrap(), &messages).await?;
             anyhow::Ok(n)

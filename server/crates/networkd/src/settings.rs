@@ -69,6 +69,9 @@ pub struct Settings {
     pub nat: bool,
     pub routes_path: String,
     pub gaps_path: String,
+    /// the instance's own state (its writers' tables) when there is no
+    /// Postgres: a self-hosted server
+    pub state_path: String,
     /// keep the stations registry (off where the Python service still does)
     pub stations: bool,
     pub receivers_poll_s: f64,
@@ -137,6 +140,7 @@ impl Settings {
             squawks: matches!(s("NETWORKD_SQUAWKS", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
             nat: matches!(s("NETWORKD_NAT", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
             estimates: matches!(s("NETWORKD_ESTIMATES", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
+            state_path: s("NETWORKD_STATE_PATH", "data/state.sqlite"),
             gaps_path: s("NETWORK_API_GAPS_PATH", "data/gaps.json.gz"),
             routes_path: s("NETWORK_API_ROUTES_PATH", "data/routes.json.gz"),
             stations: matches!(s("NETWORKD_STATIONS", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),

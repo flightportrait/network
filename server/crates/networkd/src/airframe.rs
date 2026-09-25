@@ -108,7 +108,8 @@ type EventRow = (String, DateTime<Utc>, Option<f64>, Option<f64>, Option<String>
 
 /// The airframe record's rows behind one hex, from either store.
 struct HistRows {
-    id: i64,
+    /// None: a record this instance started itself (its own squawks)
+    id: Option<i64>,
     msn: Option<String>,
     built_year: Option<i64>,
     manufacturer: Option<String>,
@@ -181,7 +182,7 @@ async fn history_pg(db: &tokio_postgres::Client, hex: &str) -> Result<Option<His
         .map(|r| (r.get(0), r.get(1)))
         .collect();
     Ok(Some(HistRows {
-        id: frame.get(0),
+        id: Some(frame.get(0)),
         msn: frame.get(1),
         built_year: frame.get::<_, Option<i32>>(2).map(i64::from),
         manufacturer: frame.get(3),
@@ -259,7 +260,7 @@ fn history_snap(c: &crate::refdb::Conn, hex: &str) -> rusqlite::Result<Option<Hi
         }
     }
     Ok(Some(HistRows {
-        id,
+        id: Some(id),
         msn,
         built_year,
         manufacturer,
@@ -270,6 +271,39 @@ fn history_snap(c: &crate::refdb::Conn, hex: &str) -> rusqlite::Result<Option<Hi
         claims: claims.into_iter().map(|c| (c.0, c.1, c.2)).collect(),
         names,
     }))
+}
+
+/// The snapshot's record plus the emergency squawks this instance heard
+/// itself, newest first; a hex the snapshot does not know gets the record
+/// the Postgres writer would have started (a live hex spell).
+fn with_own_squawks(
+    rows: Option<HistRows>,
+    hex: &str,
+    own: &[crate::localdb::OwnSquawk],
+) -> rusqlite::Result<Option<HistRows>> {
+    if own.is_empty() {
+        return Ok(rows);
+    }
+    let days = || own.iter().map(|e| e.0.date_naive());
+    let mut rows = rows.unwrap_or_else(|| HistRows {
+        id: None,
+        msn: None,
+        built_year: None,
+        manufacturer: None,
+        first_observed: days().min(),
+        last_observed: days().max(),
+        spells: vec![("hex".into(), hex.to_string(), days().min(), days().max(), None, "live".into())],
+        events: vec![],
+        claims: vec![],
+        names: Default::default(),
+    });
+    for (at, lat, lon, detail) in own {
+        if !rows.events.iter().any(|e| e.0 == "squawk" && e.1 == *at && e.5 == "live") {
+            rows.events.push(("squawk".into(), *at, *lat, *lon, detail.clone(), "live".into()));
+        }
+    }
+    rows.events.sort_by_key(|e| std::cmp::Reverse(e.1));
+    Ok(Some(rows))
 }
 
 /// The lifetime record behind a hex: registrations, operators and public
@@ -300,7 +334,7 @@ fn history_json(h: HistRows) -> Value {
     };
     let of_kind = |kind: &'static str| h.spells.iter().filter(move |s| s.0 == kind);
     let mut out = Map::new();
-    out.insert("airframe_id".into(), Value::from(h.id));
+    out.insert("airframe_id".into(), h.id.map_or(Value::Null, Value::from));
     out.insert("msn".into(), text(h.msn.clone()));
     out.insert("built_year".into(), h.built_year.map_or(Value::Null, Value::from));
     out.insert("manufacturer".into(), text(h.manufacturer.clone()));
@@ -369,7 +403,11 @@ pub async fn airframe(State(app): State<Arc<App>>, Path(hex): Path<String>, req:
         None => {
             let (a, h) = (app.clone(), hex.clone());
             tokio::task::spawn_blocking(move || -> rusqlite::Result<Option<HistRows>> {
-                history_snap(&a.refdb.conn()?, &h)
+                let rows = history_snap(&a.refdb.conn()?, &h)?;
+                match &a.local {
+                    Some(local) => with_own_squawks(rows, &h, &local.squawks_for(&h)?),
+                    None => Ok(rows),
+                }
             })
             .await
             .map_err(|e| e.to_string())
@@ -766,4 +804,57 @@ pub async fn airline_airframes(State(app): State<Arc<App>>, Path(icao): Path<Str
     let mut out = String::with_capacity(65536);
     write_value(&mut out, &Value::Object(m));
     json(out, CACHE)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A squawk this instance heard, kept in its state file, shows on the
+    /// airframe page: merged into a known record, or starting one.
+    #[test]
+    fn own_squawks_join_the_record() {
+        let dir = std::env::temp_dir().join(format!("networkd-sq-{}", std::process::id()));
+        let path = dir.join("state.sqlite");
+        let local = crate::localdb::LocalDb::open(path.to_str().unwrap()).unwrap();
+        let mut w = crate::squawks::Watcher::default();
+        let v = crate::sky::parse_aircraft(
+            r#"{"hex":"49d283","squawk":"7700","flight":"TVS2221 ","lat":50.1,"lon":14.2,"alt_baro":35000}"#,
+        )
+        .unwrap();
+        for t in [1790000000.0, 1790000030.0] {
+            w.observe(&v, t);
+        }
+        let events = w.drain();
+        assert_eq!(local.write_squawks(&events).unwrap(), 1);
+        assert_eq!(local.write_squawks(&events).unwrap(), 0);
+        let own = local.squawks_for("49d283").unwrap();
+        assert_eq!(own.len(), 1);
+        // a hex the snapshot does not know: a record with a live hex spell
+        let h = history_json(with_own_squawks(None, "49d283", &own).unwrap().unwrap());
+        assert_eq!(h["airframe_id"], Value::Null);
+        assert_eq!(h["hexes"][0]["hex"], "49d283");
+        assert_eq!(h["hexes"][0]["source"], "live");
+        assert_eq!(h["events"][0]["kind"], "squawk");
+        assert_eq!(h["events"][0]["detail"]["code"], "7700");
+        assert_eq!(h["events"][0]["at"], "2026-09-21T14:13:20+00:00");
+        // a known record keeps its own events, newest first
+        let known = HistRows {
+            id: Some(7),
+            msn: None,
+            built_year: None,
+            manufacturer: None,
+            first_observed: None,
+            last_observed: None,
+            spells: vec![],
+            events: vec![("occurrence".into(), DateTime::from_timestamp(1_700_000_000, 0).unwrap(), None, None, None, "cadors".into())],
+            claims: vec![],
+            names: Default::default(),
+        };
+        let h = history_json(with_own_squawks(Some(known), "49d283", &own).unwrap().unwrap());
+        assert_eq!(h["airframe_id"], 7);
+        let kinds: Vec<&str> = h["events"].as_array().unwrap().iter().map(|e| e["kind"].as_str().unwrap()).collect();
+        assert_eq!(kinds, ["squawk", "occurrence"]);
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

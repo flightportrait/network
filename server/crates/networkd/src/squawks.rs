@@ -67,8 +67,13 @@ pub struct Event {
 }
 
 impl Event {
+    /// When it happened, to the microsecond, as a Python datetime holds it.
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        timestamp(self.at)
+    }
+
     /// The event's `detail`, as the Python service's json.dumps writes it.
-    fn detail_json(&self) -> String {
+    pub fn detail_json(&self) -> String {
         let opt = |out: &mut String, v: &Option<String>| match v {
             Some(s) => write_str(out, s),
             None => out.push_str("null"),
@@ -234,7 +239,11 @@ pub async fn write_events(db: &tokio_postgres::Client, events: &[Event]) -> Resu
 
 /// Write recorded episodes every FLUSH_S; a failed write keeps them for
 /// the next round, and a lost connection is reopened.
-pub async fn flush_loop(watcher: Arc<Mutex<Watcher>>, database_url: String) {
+pub async fn flush_loop(
+    watcher: Arc<Mutex<Watcher>>,
+    database_url: String,
+    local: Option<Arc<crate::localdb::LocalDb>>,
+) {
     let mut db: Option<tokio_postgres::Client> = None;
     loop {
         tokio::time::sleep(Duration::from_secs(FLUSH_S)).await;
@@ -244,6 +253,19 @@ pub async fn flush_loop(watcher: Arc<Mutex<Watcher>>, database_url: String) {
             w.drain()
         };
         if events.is_empty() {
+            continue;
+        }
+        if database_url.is_empty() {
+            // no Postgres: the instance's own state file
+            let Some(local) = &local else { continue };
+            match local.write_squawks(&events) {
+                Ok(n) if n > 0 => eprintln!("squawks: recorded {n} event(s)"),
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("squawks: write failed, retrying: {e}");
+                    watcher.lock().unwrap().requeue(events);
+                }
+            }
             continue;
         }
         if db.as_ref().is_none_or(|c| c.is_closed()) {
