@@ -160,6 +160,40 @@ fn frame_hit(f: &Frame, score: i64) -> Hit {
 /// `scan` is the order Postgres's plan reads candidates in; its bounded
 /// sort (pgsort::top_n) then decides among equal registrations.
 fn frames(c: &Conn, cond: &str, scan: &str, params: &[&dyn ToSql], limit: usize) -> rusqlite::Result<Vec<Frame>> {
+    frames_upto(c, cond, scan, params, limit, None)
+}
+
+/// `frames` for a pattern with no literal prefix (`%…`, `_…`), which no
+/// index narrows: walk registrations in rank order until the limit is
+/// met, then decide among only the rows that can tie with the last one.
+fn frames_wild(c: &Conn, cond: &str, params: &[&dyn ToSql], limit: usize) -> rusqlite::Result<Vec<Frame>> {
+    // such a walk can cost most of a second: one at a time, so whatever
+    // arrives, wildcard searches hold at most one core
+    static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _turn = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+    let last: Option<i64> = c
+        .prepare_cached(&format!(
+            "SELECT r.rank FROM rank_ref_airframes_registration r JOIN ref_airframes f ON f.hex = r.key \
+             WHERE {cond} ORDER BY r.rank LIMIT 1 OFFSET {}",
+            limit.saturating_sub(1)
+        ))?
+        .query_row(params, |r| r.get(0))
+        .optional()?;
+    frames_upto(c, cond, "f.rowid", params, limit, last)
+}
+
+fn frames_upto(
+    c: &Conn,
+    cond: &str,
+    scan: &str,
+    params: &[&dyn ToSql],
+    limit: usize,
+    max_rank: Option<i64>,
+) -> rusqlite::Result<Vec<Frame>> {
+    let cond = match max_rank {
+        Some(m) => format!("({cond}) AND r.rank <= {m}"),
+        None => cond.to_string(),
+    };
     let sql = format!(
         "SELECT f.hex, f.registration, f.type_code, f.operator_name, t.name, al.name, r.rank \
          FROM ref_airframes f JOIN rank_ref_airframes_registration r ON r.key = f.hex \
@@ -190,7 +224,15 @@ fn frames(c: &Conn, cond: &str, scan: &str, params: &[&dyn ToSql], limit: usize)
 fn aircraft(c: &Conn, q: &str) -> rusqlite::Result<Vec<Hit>> {
     // Postgres reads these through its prefix indexes (byte order, then
     // storage order); the hex prefix is a table scan
-    let mut rows: Vec<(Frame, i64)> = frames(c, "f.registration LIKE ?1 ESCAPE '\\'", "f.registration, f.rowid", &[&format!("{q}%")], PER_KIND)?
+    let wild = q.starts_with(['%', '_']);
+    let pick = |cond: &str, scan: &str, pattern: &String| {
+        if wild {
+            frames_wild(c, cond, &[pattern], PER_KIND)
+        } else {
+            frames(c, cond, scan, &[pattern], PER_KIND)
+        }
+    };
+    let mut rows: Vec<(Frame, i64)> = pick("f.registration LIKE ?1 ESCAPE '\\'", "f.registration, f.rowid", &format!("{q}%"))?
         .into_iter()
         .map(|f| {
             let s = if f.registration.as_deref() == Some(q) { EXACT } else { PREFIX };
@@ -200,13 +242,7 @@ fn aircraft(c: &Conn, q: &str) -> rusqlite::Result<Vec<Hit>> {
     let bare: String = q.replace('-', "");
     if !q.contains('-') && bare.chars().any(is_digit) && rows.len() < PER_KIND {
         rows.extend(
-            frames(
-                c,
-                "replace(f.registration, '-', '') LIKE ?1 ESCAPE '\\'",
-                "replace(f.registration, '-', ''), f.rowid",
-                &[&format!("{bare}%")],
-                PER_KIND,
-            )?
+            pick("replace(f.registration, '-', '') LIKE ?1 ESCAPE '\\'", "replace(f.registration, '-', ''), f.rowid", &format!("{bare}%"))?
                 .into_iter()
                 .map(|f| (f, PREFIX)),
         );
@@ -341,24 +377,28 @@ fn flights(c: &Conn, app: &App, q: &str) -> rusqlite::Result<Vec<Hit>> {
 
 /// A code, or a city or airport name, to one airport code; cities with
 /// several airports resolve to the busiest.
-fn airport_code(c: &Conn, word: &str) -> rusqlite::Result<Option<String>> {
+fn airport_code(rows: &[AirportRow], word: &str) -> Option<String> {
     // ORDER BY exact first, traffic DESC LIMIT 1, over the scan's order
-    let rows: Vec<(String, i64, i64)> = c
-        .prepare_cached(
-            "SELECT coalesce(nullif(a.iata, ''), a.ident), CASE WHEN a.iata = ?1 OR a.ident = ?1 THEN 0 ELSE 1 END, s.traffic \
-             FROM ref_airports a JOIN search_airports s ON s.ident = a.ident \
-             WHERE (a.iata = ?1 OR a.ident = ?1 OR s.municipality_upper LIKE ?2 ESCAPE '\\' OR s.name_upper LIKE ?2 ESCAPE '\\') \
-             AND a.kind IN ('large_airport', 'medium_airport') ORDER BY a.rowid",
-        )?
-        .query_map((word, format!("{word}%")), |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
-        .collect::<rusqlite::Result<_>>()?;
-    let top = crate::pgsort::top_n(rows, 1, &|x: &(String, i64, i64), y: &(String, i64, i64)| x.1.cmp(&y.1).then(y.2.cmp(&x.2)));
-    Ok(top.into_iter().next().map(|r| r.0))
+    let starts = format!("{word}%");
+    let found: Vec<(usize, i64, i64)> = rows
+        .iter()
+        .enumerate()
+        .filter_map(|(k, a)| {
+            let exact = a.iata.as_deref() == Some(word) || a.ident == word;
+            (exact || opt_like(&a.muni_upper, &starts) || opt_like(&a.name_upper, &starts))
+                .then_some((k, if exact { 0 } else { 1 }, a.traffic))
+        })
+        .collect();
+    let top = crate::pgsort::top_n(found, 1, &|x: &(usize, i64, i64), y: &(usize, i64, i64)| x.1.cmp(&y.1).then(y.2.cmp(&x.2)));
+    top.first().map(|t| {
+        let a = &rows[t.0];
+        a.iata.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| a.ident.clone())
+    })
 }
 
-fn route(c: &Conn, q: &str) -> rusqlite::Result<Vec<Hit>> {
+fn route(c: &Conn, rows: &[AirportRow], q: &str) -> rusqlite::Result<Vec<Hit>> {
     let (a, b) = q.split_once(' ').unwrap();
-    let (Some(org), Some(dst)) = (airport_code(c, a)?, airport_code(c, b)?) else { return Ok(vec![]) };
+    let (Some(org), Some(dst)) = (airport_code(rows, a), airport_code(rows, b)) else { return Ok(vec![]) };
     if org == dst {
         return Ok(vec![]);
     }
@@ -371,6 +411,93 @@ fn route(c: &Conn, q: &str) -> rusqlite::Result<Vec<Hit>> {
 }
 
 // ---- airports and airlines ---------------------------------------------
+
+/// Postgres's LIKE on characters: `%` any run, `_` any one character,
+/// backslash takes the next character literally; case-sensitive.
+fn like(s: &str, pattern: &str) -> bool {
+    #[derive(Clone, Copy, PartialEq)]
+    enum P {
+        Any,
+        One,
+        Lit(char),
+    }
+    let mut pat = vec![];
+    let mut it = pattern.chars();
+    while let Some(ch) = it.next() {
+        pat.push(match ch {
+            '%' => P::Any,
+            '_' => P::One,
+            '\\' => P::Lit(it.next().unwrap_or('\\')),
+            c => P::Lit(c),
+        });
+    }
+    let s: Vec<char> = s.chars().collect();
+    // iterative wildcard match with backtracking to the last %
+    let (mut i, mut j) = (0usize, 0usize);
+    let (mut star, mut mark) = (None::<usize>, 0usize);
+    while i < s.len() {
+        if j < pat.len() && (pat[j] == P::One || pat[j] == P::Lit(s[i])) {
+            i += 1;
+            j += 1;
+        } else if j < pat.len() && pat[j] == P::Any {
+            star = Some(j);
+            mark = i;
+            j += 1;
+        } else if let Some(st) = star {
+            j = st + 1;
+            mark += 1;
+            i = mark;
+        } else {
+            return false;
+        }
+    }
+    while j < pat.len() && pat[j] == P::Any {
+        j += 1;
+    }
+    j == pat.len()
+}
+
+/// The large and medium airports, in storage order, with what the
+/// searches read: built once per snapshot, scanned in memory.
+struct AirportRow {
+    ident: String,
+    iata: Option<String>,
+    name: Option<String>,
+    municipality: Option<String>,
+    iso_country: Option<String>,
+    name_upper: Option<String>,
+    muni_upper: Option<String>,
+    traffic: i64,
+    /// Postgres's order of names (nulls last)
+    name_rank: i64,
+}
+
+fn airport_rows(c: &Conn) -> rusqlite::Result<Vec<AirportRow>> {
+    c.prepare(
+        "SELECT a.ident, a.iata, a.name, a.municipality, a.iso_country, s.name_upper, s.municipality_upper, s.traffic, \
+         coalesce(r.rank, 9223372036854775807) FROM ref_airports a JOIN search_airports s ON s.ident = a.ident \
+         LEFT JOIN rank_ref_airports_name r ON r.key = a.ident \
+         WHERE a.kind IN ('large_airport', 'medium_airport') ORDER BY a.rowid",
+    )?
+    .query_map([], |r| {
+        Ok(AirportRow {
+            ident: r.get(0)?,
+            iata: r.get(1)?,
+            name: r.get(2)?,
+            municipality: r.get(3)?,
+            iso_country: r.get(4)?,
+            name_upper: r.get(5)?,
+            muni_upper: r.get(6)?,
+            traffic: r.get(7)?,
+            name_rank: r.get(8)?,
+        })
+    })?
+    .collect()
+}
+
+fn opt_like(s: &Option<String>, pattern: &str) -> bool {
+    s.as_deref().is_some_and(|s| like(s, pattern))
+}
 
 /// fuzzystrmatch's levenshtein, over characters.
 fn levenshtein(a: &str, b: &str) -> usize {
@@ -395,92 +522,113 @@ fn near(text: &str, q: &str) -> bool {
     text.split(|c: char| c.is_whitespace()).any(|w| w.chars().count() >= 4 && levenshtein(w, q) <= 2)
 }
 
-fn airports(c: &Conn, q: &str) -> rusqlite::Result<Vec<Hit>> {
+fn airports(rows: &[AirportRow], q: &str) -> Vec<Hit> {
     let starts = format!("{q}%");
     let word = format!("% {q}%");
-    let cols = "a.ident, a.iata, a.name, a.municipality, a.iso_country, s.traffic";
-    type Row = (String, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64);
-    let read = |r: &rusqlite::Row| -> rusqlite::Result<Row> {
-        Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?))
-    };
-    let mut rows: Vec<Row> = c
-        .prepare_cached(&format!(
-            "SELECT {cols}, CASE WHEN a.iata = ?1 OR a.ident = ?1 THEN {EXACT} \
-             WHEN s.name_upper LIKE ?2 ESCAPE '\\' OR s.municipality_upper LIKE ?2 ESCAPE '\\' THEN {PREFIX} ELSE {WORD} END AS cls \
-             FROM ref_airports a JOIN search_airports s ON s.ident = a.ident \
-             LEFT JOIN rank_ref_airports_name r ON r.key = a.ident \
-             WHERE (a.iata = ?1 OR a.ident = ?1 OR s.name_upper LIKE ?2 ESCAPE '\\' OR s.municipality_upper LIKE ?2 ESCAPE '\\' \
-                    OR s.name_upper LIKE ?3 ESCAPE '\\') \
-             AND a.kind IN ('large_airport', 'medium_airport') \
-             ORDER BY cls DESC, s.traffic DESC, a.iata IS NULL, a.name IS NULL, r.rank LIMIT 5"
-        ))?
-        .query_map((q, &starts, &word), read)?
-        .collect::<rusqlite::Result<_>>()?;
-    if rows.is_empty() && q.chars().count() >= 5 && is_alpha_word(q) {
-        // a near miss: Chnagi, Heathro (two edits at most)
-        let mut stmt = c.prepare_cached(&format!(
-            "SELECT {cols}, {NEAR}, coalesce(s.name_upper, '') || ' ' || coalesce(s.municipality_upper, '') \
-             FROM ref_airports a JOIN search_airports s ON s.ident = a.ident \
-             WHERE a.kind IN ('large_airport', 'medium_airport') ORDER BY a.rowid"
-        ))?;
-        let mut all = stmt.query([])?;
-        let mut found = vec![];
-        while let Some(r) = all.next()? {
-            let words: String = r.get(7)?;
-            if near(&words, q) {
-                found.push(read(r)?);
-            }
-        }
-        // ORDER BY traffic DESC LIMIT 5, as Postgres picks among ties
-        rows = crate::pgsort::top_n(found, PER_KIND, &|x: &Row, y: &Row| y.5.cmp(&x.5));
+    // (row, class)
+    let hits: Vec<(usize, i64)> = rows
+        .iter()
+        .enumerate()
+        .filter_map(|(k, a)| {
+            let exact = a.iata.as_deref() == Some(q) || a.ident == q;
+            let start = opt_like(&a.name_upper, &starts) || opt_like(&a.muni_upper, &starts);
+            let cls = if exact {
+                EXACT
+            } else if start {
+                PREFIX
+            } else if opt_like(&a.name_upper, &word) {
+                WORD
+            } else {
+                return None;
+            };
+            Some((k, cls))
+        })
+        .collect();
+    // ORDER BY cls DESC, traffic DESC, iata IS NULL, name LIMIT 5, as
+    // Postgres picks among identical names
+    let mut hits = crate::pgsort::top_n(hits, PER_KIND, &|x: &(usize, i64), y: &(usize, i64)| {
+        let (a, b) = (&rows[x.0], &rows[y.0]);
+        y.1.cmp(&x.1)
+            .then(b.traffic.cmp(&a.traffic))
+            .then(a.iata.is_none().cmp(&b.iata.is_none()))
+            .then(a.name_rank.cmp(&b.name_rank))
+    });
+    if hits.is_empty() && q.chars().count() >= 5 && is_alpha_word(q) {
+        // a near miss: Chnagi, Heathro (two edits at most), ORDER BY
+        // traffic DESC LIMIT 5 as Postgres picks among ties
+        let found: Vec<(usize, i64)> = rows
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| {
+                let words = format!("{} {}", a.name_upper.as_deref().unwrap_or(""), a.muni_upper.as_deref().unwrap_or(""));
+                near(&words, q)
+            })
+            .map(|(k, _)| (k, NEAR))
+            .collect();
+        hits = crate::pgsort::top_n(found, PER_KIND, &|x: &(usize, i64), y: &(usize, i64)| rows[y.0].traffic.cmp(&rows[x.0].traffic));
     }
-    Ok(rows
-        .into_iter()
-        .map(|(ident, iata, name, city, country, traffic, cls)| {
-            let iata = iata.filter(|s| !s.is_empty());
-            let code = iata.clone().unwrap_or(ident);
-            let detail = [city, country].into_iter().flatten().filter(|b| !b.is_empty()).collect::<Vec<_>>().join(" · ");
-            let label_name = name.filter(|n| !n.is_empty()).unwrap_or_else(|| code.clone());
+    hits.into_iter()
+        .map(|(k, cls)| {
+            let a = &rows[k];
+            let iata = a.iata.clone().filter(|s| !s.is_empty());
+            let code = iata.clone().unwrap_or_else(|| a.ident.clone());
+            let detail = [a.municipality.clone(), a.iso_country.clone()]
+                .into_iter()
+                .flatten()
+                .filter(|b| !b.is_empty())
+                .collect::<Vec<_>>()
+                .join(" · ");
+            let label_name = a.name.clone().filter(|n| !n.is_empty()).unwrap_or_else(|| code.clone());
             Hit {
                 kind: "airport",
                 label: format!("{label_name} ({code})"),
                 id: code,
                 detail: (!detail.is_empty()).then_some(detail),
-                score: Score::Int(cls).plus(lift(traffic)).plus_int(if iata.is_some() { 2 } else { 0 }),
+                score: Score::Int(cls).plus(lift(a.traffic)).plus_int(if iata.is_some() { 2 } else { 0 }),
             }
         })
-        .collect())
+        .collect()
 }
 
 fn airlines(c: &Conn, q: &str) -> rusqlite::Result<Vec<Hit>> {
     type Row = (String, Option<String>, String, i64);
     let read = |r: &rusqlite::Row| -> rusqlite::Result<Row> { Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)) };
-    let mut rows: Vec<Row> = c
+    // ORDER BY cls DESC, iata IS NULL, name LIMIT 5 over the scan's order
+    let found: Vec<(Row, i64)> = c
         .prepare_cached(&format!(
             "SELECT al.icao, al.iata, al.name, CASE WHEN al.icao = ?1 OR al.iata = ?1 THEN {EXACT} \
-             WHEN s.name_upper LIKE ?2 ESCAPE '\\' THEN {PREFIX} ELSE {WORD} END AS cls \
+             WHEN s.name_upper LIKE ?2 ESCAPE '\\' THEN {PREFIX} ELSE {WORD} END AS cls, r.rank \
              FROM ref_airlines al JOIN search_airlines s ON s.icao = al.icao \
              JOIN rank_ref_airlines_name r ON r.key = al.icao \
              WHERE al.icao = ?1 OR al.iata = ?1 OR s.name_upper LIKE ?2 ESCAPE '\\' OR s.name_upper LIKE ?3 ESCAPE '\\' \
-             ORDER BY cls DESC, al.iata IS NULL, r.rank LIMIT 5"
+             ORDER BY al.rowid"
         ))?
-        .query_map((q, format!("{q}%"), format!("% {q}%")), read)?
+        .query_map((q, format!("{q}%"), format!("% {q}%")), |r| Ok((read(r)?, r.get(4)?)))?
         .collect::<rusqlite::Result<_>>()?;
+    let mut rows: Vec<Row> = crate::pgsort::top_n(found, PER_KIND, &|x: &(Row, i64), y: &(Row, i64)| {
+        y.0 .3.cmp(&x.0 .3).then(x.0 .1.is_none().cmp(&y.0 .1.is_none())).then(x.1.cmp(&y.1))
+    })
+    .into_iter()
+    .map(|(r, _)| r)
+    .collect();
     if rows.is_empty() && q.chars().count() >= 5 && is_alpha_word(q) {
+        // ORDER BY name LIMIT 5 among near misses, as Postgres picks
         let mut stmt = c.prepare_cached(&format!(
-            "SELECT al.icao, al.iata, al.name, {NEAR}, s.name_upper FROM ref_airlines al \
-             JOIN search_airlines s ON s.icao = al.icao JOIN rank_ref_airlines_name r ON r.key = al.icao ORDER BY r.rank"
+            "SELECT al.icao, al.iata, al.name, {NEAR}, s.name_upper, r.rank FROM ref_airlines al \
+             JOIN search_airlines s ON s.icao = al.icao JOIN rank_ref_airlines_name r ON r.key = al.icao ORDER BY al.rowid"
         ))?;
         let mut all = stmt.query([])?;
+        let mut found: Vec<(Row, i64)> = vec![];
         while let Some(r) = all.next()? {
             let name_upper: Option<String> = r.get(4)?;
             if name_upper.as_deref().is_some_and(|n| near(n, q)) {
-                rows.push(read(r)?);
-                if rows.len() == PER_KIND {
-                    break;
-                }
+                found.push((read(r)?, r.get(5)?));
             }
         }
+        rows = crate::pgsort::top_n(found, PER_KIND, &|x: &(Row, i64), y: &(Row, i64)| x.1.cmp(&y.1))
+            .into_iter()
+            .map(|(r, _)| r)
+            .collect();
     }
     Ok(rows
         .into_iter()
@@ -502,9 +650,10 @@ fn airlines(c: &Conn, q: &str) -> rusqlite::Result<Vec<Hit>> {
 
 fn run(c: &Conn, app: &App, q: &str) -> rusqlite::Result<String> {
     let sh = shape(q);
+    let rows = app.refdb.memo("search_airport_rows", c, airport_rows)?;
     let mut results: Vec<Hit> = vec![];
     if sh.pair {
-        results.extend(route(c, q)?);
+        results.extend(route(c, &rows, q)?);
         results.extend(fleet(c, q)?);
     }
     if sh.aircraft {
@@ -514,7 +663,7 @@ fn run(c: &Conn, app: &App, q: &str) -> rusqlite::Result<String> {
         results.extend(flights(c, app, q)?);
     }
     if sh.airport {
-        results.extend(airports(c, q)?);
+        results.extend(airports(&rows, q));
     }
     if sh.airline {
         results.extend(airlines(c, q)?);
@@ -603,6 +752,20 @@ pub async fn search(State(app): State<Arc<App>>, req: Request) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn like_as_postgres() {
+        assert!(like("SINGAPORE", "SIN%"));
+        assert!(!like("SINGAPORE", "sin%"));
+        assert!(like("SINGAPORE CHANGI", "% CHAN%"));
+        assert!(!like("SINGAPORE", "% SING%"));
+        assert!(like("A_B", "A\\_B"));
+        assert!(!like("AXB", "A\\_B"));
+        assert!(like("AXB", "A_B"));
+        assert!(like("", "%"));
+        assert!(like("ZÜRICH", "ZÜ%"));
+        assert!(like("100%", "100\\%"));
+    }
 
     #[test]
     fn edits() {

@@ -25,6 +25,8 @@ struct Inner {
     cache: HashMap<String, Bytes>,
     /// the snapshot's table names, read once per generation
     tables: Option<std::collections::HashSet<String>>,
+    /// structures built from the snapshot, once per generation
+    memo: HashMap<&'static str, Arc<dyn std::any::Any + Send + Sync>>,
 }
 
 pub struct RefDb {
@@ -67,6 +69,7 @@ impl RefDb {
                 pool: vec![],
                 cache: HashMap::new(),
                 tables: None,
+                memo: HashMap::new(),
             }),
         })
     }
@@ -84,6 +87,7 @@ impl RefDb {
             g.pool.clear();
             g.cache.clear();
             g.tables = None;
+            g.memo.clear();
             if mtime.is_some() {
                 eprintln!("refdata: {} (generation {})", self.path, g.generation);
             }
@@ -161,6 +165,29 @@ impl RefDb {
             g.cache.clear();
         }
         g.cache.insert(key, body);
+    }
+}
+
+impl RefDb {
+    /// A structure built from the current snapshot by `build`, once per
+    /// generation (for lookups faster in memory than in SQL).
+    pub fn memo<T: Send + Sync + 'static>(
+        &self,
+        name: &'static str,
+        c: &Conn,
+        build: impl FnOnce(&Conn) -> rusqlite::Result<T>,
+    ) -> rusqlite::Result<Arc<T>> {
+        if let Some(hit) = self.inner.lock().unwrap().memo.get(name).cloned() {
+            if let Ok(t) = hit.downcast::<T>() {
+                return Ok(t);
+            }
+        }
+        let built = Arc::new(build(c)?);
+        let mut g = self.inner.lock().unwrap();
+        if g.generation == c.generation() {
+            g.memo.insert(name, built.clone());
+        }
+        Ok(built)
     }
 }
 

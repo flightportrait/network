@@ -46,8 +46,8 @@ RANKS = (
     ("ref_alliances", "slug", "name", False),
     ("ref_airports", "ident", "ident", False),
     ("ref_airframes", "hex", "registration", True),
-    ("ref_airports", "ident", "name", False),
-    ("ref_airlines", "icao", "name", False),
+    ("ref_airports", "ident", "name", True),
+    ("ref_airlines", "icao", "name", True),
 )
 
 # Tables computed by Postgres itself, for lookups whose answer depends on
@@ -87,6 +87,8 @@ INDEXES = (
     "CREATE INDEX ix_snap_search_airports_city ON search_airports"
     " (municipality_upper)",
     "CREATE INDEX ix_snap_search_airlines_name ON search_airlines (name_upper)",
+    "CREATE INDEX ix_snap_rank_registration ON rank_ref_airframes_registration"
+    " (rank)",
 )
 
 
