@@ -13,6 +13,8 @@ use serde_json::Value;
 
 use crate::http::{client_ip, json, peer_of, query_param, throttle, ApiError};
 use crate::pyjson::{write_str, write_value};
+use rusqlite::OptionalExtension;
+
 use crate::state::App;
 
 pub const CACHE: &str = "public, s-maxage=3600";
@@ -23,15 +25,46 @@ pub fn dark() -> ApiError {
 }
 
 /// The catalog rows in force today for `callsigns`, as route chains
-/// [origin, *via, dest]; the latest valid_from wins.
-pub async fn catalog_routes(app: &App, callsigns: &[String]) -> Result<HashMap<String, Value>, tokio_postgres::Error> {
+/// [origin, *via, dest]; the latest valid_from wins. From Postgres, or
+/// from the snapshot on an instance without it.
+pub async fn catalog_routes(app: &App, callsigns: &[String]) -> Result<HashMap<String, Value>, String> {
     let mut out = HashMap::new();
     if callsigns.is_empty() {
         return Ok(out);
     }
-    let Some(db) = &app.db else { return Ok(out) };
-    let g = db.get().await?;
     let today = chrono::Utc::now().date_naive();
+    let chain = |origin: String, via: Option<String>, dest: String| {
+        let mut chain = vec![Value::String(origin)];
+        if let Some(Value::Array(via)) = via.and_then(|t| serde_json::from_str(&t).ok()) {
+            chain.extend(via);
+        }
+        chain.push(Value::String(dest));
+        Value::Array(chain)
+    };
+    let Some(db) = &app.db else {
+        if !app.refdb.has(&["route_catalog"]) {
+            return Ok(out);
+        }
+        let c = app.refdb.conn().map_err(|e| e.to_string())?;
+        let day = today.format("%Y-%m-%d").to_string();
+        let mut stmt = c
+            .prepare_cached(
+                "SELECT origin, via, dest FROM route_catalog WHERE callsign = ?1 AND valid_from <= ?2 \
+                 AND (valid_to IS NULL OR valid_to > ?2) ORDER BY valid_from DESC, rowid LIMIT 1",
+            )
+            .map_err(|e| e.to_string())?;
+        for cs in callsigns {
+            let row = stmt
+                .query_row(rusqlite::params![cs, day], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                .optional()
+                .map_err(|e| e.to_string())?;
+            if let Some((o, v, d)) = row {
+                out.insert(cs.clone(), chain(o, v, d));
+            }
+        }
+        return Ok(out);
+    };
+    let g = db.get().await.map_err(|e| e.to_string())?;
     let rows = g
         .as_ref()
         .unwrap()
@@ -41,16 +74,18 @@ pub async fn catalog_routes(app: &App, callsigns: &[String]) -> Result<HashMap<S
              ORDER BY callsign, valid_from DESC",
             &[&callsigns, &today],
         )
-        .await?;
+        .await
+        .map_err(|e| e.to_string())?;
     for r in rows {
-        let mut chain = vec![Value::String(r.get(1))];
-        if let Some(Value::Array(via)) = r.get::<_, Option<String>>(2).and_then(|t| serde_json::from_str(&t).ok()) {
-            chain.extend(via);
-        }
-        chain.push(Value::String(r.get(3)));
-        out.insert(r.get(0), Value::Array(chain));
+        out.insert(r.get(0), chain(r.get(1), r.get(2), r.get(3)));
     }
     Ok(out)
+}
+
+/// Whether this instance can answer from the catalog: Postgres, or the
+/// snapshot's copy of it.
+pub fn catalog_here(app: &App) -> bool {
+    app.db.is_some() || app.refdb.has(&["route_catalog"])
 }
 
 /// Python's `str.isalnum` for the characters a callsign may hold.
@@ -60,7 +95,7 @@ fn alnum(s: &str) -> bool {
 
 /// GET /v1/routes?cs=A,B,...
 pub async fn routes_bulk(State(app): State<Arc<App>>, req: Request) -> Response {
-    if app.db.is_none() {
+    if !catalog_here(&app) {
         return crate::proxy::forward(State(app), req).await.into_response();
     }
     // the query's own checks come before the rate limit, as FastAPI's do
@@ -232,7 +267,7 @@ fn leg_row(org: &Option<String>, dst: &Option<String>) -> Value {
 
 /// GET /v1/flights/{callsign}
 pub async fn flight(State(app): State<Arc<App>>, axum::extract::Path(asked): axum::extract::Path<String>, req: Request) -> Response {
-    if app.db.is_none() {
+    if !catalog_here(&app) {
         return crate::proxy::forward(State(app), req).await.into_response();
     }
     let ip = client_ip(&app, req.headers(), peer_of(&req));

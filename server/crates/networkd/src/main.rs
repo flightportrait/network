@@ -29,6 +29,7 @@ mod refdata;
 mod refdb;
 mod routebook;
 mod search;
+mod snap;
 mod squawks;
 mod stations;
 mod ratelimit;

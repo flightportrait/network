@@ -19,6 +19,8 @@ use crate::http::{client_ip, json, peer_of, query_param, throttle, ApiError};
 use crate::pyjson::write_value;
 use crate::range_km::RANGE_KM;
 use crate::routebook::Network;
+use rusqlite::OptionalExtension;
+
 use crate::state::App;
 
 const CACHE: &str = "public, s-maxage=600";
@@ -245,11 +247,149 @@ fn int_param(q: Option<&str>, name: &str, default: i64, min: i64, max: Option<i6
     Ok(v)
 }
 
+// ---- the answers on file, from Postgres or the snapshot ---------------------
+
+const ANSWERS: &[&str] = &["route_catalog", "claims", "endorsements"];
+
+/// Whether this instance holds the answers: Postgres, or the snapshot's
+/// public copy of them.
+fn answers_here(app: &App) -> bool {
+    app.db.is_some() || app.refdb.has(ANSWERS)
+}
+
+/// The callsigns the catalog answers now (an open row).
+async fn open_catalog(app: &App) -> Result<HashSet<String>, String> {
+    let sql = "SELECT callsign FROM route_catalog WHERE valid_to IS NULL";
+    match &app.db {
+        Some(db) => {
+            let g = db.get().await.map_err(|e| e.to_string())?;
+            let rows = g.as_ref().unwrap().query(sql, &[]).await.map_err(|e| e.to_string())?;
+            Ok(rows.iter().map(|r| r.get(0)).collect())
+        }
+        None => {
+            let c = app.refdb.conn().map_err(|e| e.to_string())?;
+            let mut stmt = c.prepare_cached(sql).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map([], |r| r.get(0)).map_err(|e| e.to_string())?;
+            rows.collect::<rusqlite::Result<_>>().map_err(|e| e.to_string())
+        }
+    }
+}
+
+/// (origin, dest, status, verdict) of a claim.
+type Answer = (String, String, String, Option<String>);
+
+/// The day the catalog row in force took effect, and the answers on file
+/// that were not rejected, oldest first.
+async fn answers_on_file(app: &App, callsign: &str) -> Result<(Option<NaiveDate>, Vec<Answer>), String> {
+    let today = Utc::now().date_naive();
+    match &app.db {
+        Some(db) => {
+            let g = db.get().await.map_err(|e| e.to_string())?;
+            let c = g.as_ref().unwrap();
+            let from = c
+                .query_opt(
+                    "SELECT valid_from FROM route_catalog WHERE callsign = $1 AND valid_from <= $2 \
+                     AND (valid_to IS NULL OR valid_to > $2) ORDER BY valid_from DESC LIMIT 1",
+                    &[&callsign, &today],
+                )
+                .await
+                .map_err(|e| e.to_string())?
+                .map(|r| r.get(0));
+            let answers = c
+                .query(
+                    "SELECT origin, dest, status, verdict FROM claims WHERE callsign = $1 AND status <> 'rejected' ORDER BY first_at",
+                    &[&callsign],
+                )
+                .await
+                .map_err(|e| e.to_string())?
+                .iter()
+                .map(|r| (r.get(0), r.get(1), r.get(2), r.get(3)))
+                .collect();
+            Ok((from, answers))
+        }
+        None => {
+            let c = app.refdb.conn().map_err(|e| e.to_string())?;
+            let day = today.format("%Y-%m-%d").to_string();
+            let from: Option<String> = c
+                .query_row(
+                    "SELECT valid_from FROM route_catalog WHERE callsign = ?1 AND valid_from <= ?2 \
+                     AND (valid_to IS NULL OR valid_to > ?2) ORDER BY valid_from DESC, rowid LIMIT 1",
+                    rusqlite::params![callsign, day],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?;
+            // rows as stored, then Postgres's sort by first_at
+            let mut rows: Vec<(String, Answer)> = c
+                .prepare_cached(
+                    "SELECT first_at, origin, dest, status, verdict FROM claims WHERE callsign = ?1 AND status <> 'rejected' ORDER BY rowid",
+                )
+                .map_err(|e| e.to_string())?
+                .query_map([callsign], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))))
+                .map_err(|e| e.to_string())?
+                .collect::<rusqlite::Result<_>>()
+                .map_err(|e| e.to_string())?;
+            crate::pgsort::sort(&mut rows, &|a: &(String, Answer), b: &(String, Answer)| a.0.cmp(&b.0));
+            Ok((crate::snap::date(from), rows.into_iter().map(|r| r.1).collect()))
+        }
+    }
+}
+
+/// (handle, approved answers, latest review day), most answers first, and
+/// the number of approved answers.
+async fn contributor_rows(app: &App) -> Result<(Vec<(String, i64, Option<NaiveDate>)>, i64), String> {
+    const TOP: &str = "SELECT endorsements.handle, count(DISTINCT claims.id), max(claims.reviewed_at) \
+         FROM endorsements JOIN claims ON claims.id = endorsements.claim_id \
+         WHERE claims.status = 'approved' AND endorsements.handle IS NOT NULL \
+         GROUP BY endorsements.handle";
+    const TOTAL: &str = "SELECT count(*) FROM claims WHERE status = 'approved'";
+    match &app.db {
+        Some(db) => {
+            let g = db.get().await.map_err(|e| e.to_string())?;
+            let c = g.as_ref().unwrap();
+            let rows = c
+                .query(&format!("{TOP} ORDER BY count(DISTINCT claims.id) DESC, max(claims.reviewed_at) LIMIT 200"), &[])
+                .await
+                .map_err(|e| e.to_string())?
+                .iter()
+                .map(|r| (r.get(0), r.get(1), r.get::<_, Option<DateTime<Utc>>>(2).map(|t| t.date_naive())))
+                .collect();
+            let total: i64 = c.query_one(TOTAL, &[]).await.map_err(|e| e.to_string())?.get(0);
+            Ok((rows, total))
+        }
+        None => {
+            let c = app.refdb.conn().map_err(|e| e.to_string())?;
+            let rows: Vec<(String, i64, Option<String>)> = c
+                .prepare_cached(TOP)
+                .map_err(|e| e.to_string())?
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<rusqlite::Result<_>>()
+                .map_err(|e| e.to_string())?;
+            // most answers first, then the earliest latest review (NULLs last)
+            let top = crate::pgsort::top_n(rows, 200, &|a: &(String, i64, Option<String>), b: &(String, i64, Option<String>)| {
+                b.1.cmp(&a.1).then_with(|| match (&a.2, &b.2) {
+                    (None, None) => std::cmp::Ordering::Equal,
+                    (None, _) => std::cmp::Ordering::Greater,
+                    (_, None) => std::cmp::Ordering::Less,
+                    (Some(x), Some(y)) => x.cmp(y),
+                })
+            });
+            let total: i64 = c.query_row(TOTAL, [], |r| r.get(0)).map_err(|e| e.to_string())?;
+            let rows = top
+                .into_iter()
+                .map(|(h, n, latest)| (h, n, latest.and_then(|t| crate::snap::ts(&t)).map(|t| t.date_naive())))
+                .collect();
+            Ok((rows, total))
+        }
+    }
+}
+
 /// GET /v1/gaps
 pub async fn gaps(State(app): State<Arc<App>>, req: Request) -> Response {
-    let Some(db) = &app.db else {
+    if !answers_here(&app) {
         return crate::proxy::forward(State(app), req).await.into_response();
-    };
+    }
     let q = req.uri().query();
     let airline = query_param(q, "airline");
     if let Some(a) = &airline {
@@ -280,15 +420,9 @@ pub async fn gaps(State(app): State<Arc<App>>, req: Request) -> Response {
     if !app.gaps.available() {
         return dark().into_response();
     }
-    let answered: HashSet<String> = {
-        let g = match db.get().await {
-            Ok(g) => g,
-            Err(e) => return internal(e),
-        };
-        match g.as_ref().unwrap().query("SELECT callsign FROM route_catalog WHERE valid_to IS NULL", &[]).await {
-            Ok(rows) => rows.iter().map(|r| r.get(0)).collect(),
-            Err(e) => return internal(e),
-        }
+    let answered = match open_catalog(&app).await {
+        Ok(a) => a,
+        Err(e) => return internal(e),
     };
     let book = app.gaps.all();
     let prefix = airline.map(|a| a.to_uppercase()).filter(|a| !a.is_empty());
@@ -329,9 +463,9 @@ pub async fn gaps(State(app): State<Arc<App>>, req: Request) -> Response {
 
 /// GET /v1/gaps/{callsign}
 pub async fn gap(State(app): State<Arc<App>>, Path(callsign): Path<String>, req: Request) -> Response {
-    let Some(db) = &app.db else {
+    if !answers_here(&app) {
         return crate::proxy::forward(State(app), req).await.into_response();
-    };
+    }
     let ip = client_ip(&app, req.headers(), peer_of(&req));
     if let Err(e) = throttle(&app, &ip, "gaps", app.settings.gaps_rate_limit) {
         return e.into_response();
@@ -360,26 +494,13 @@ pub async fn gap(State(app): State<Arc<App>>, Path(callsign): Path<String>, req:
         Ok(mut c) => c.remove(&callsign),
         Err(e) => return internal(e),
     };
-    let g = match db.get().await {
-        Ok(g) => g,
+    let (from, answers) = match answers_on_file(&app, &callsign).await {
+        Ok(r) => r,
         Err(e) => return internal(e),
     };
-    let c = g.as_ref().unwrap();
     let catalog = match catalog {
         None => Value::Null,
         Some(route) => {
-            let today = Utc::now().date_naive();
-            let from = c
-                .query_opt(
-                    "SELECT valid_from FROM route_catalog WHERE callsign = $1 AND valid_from <= $2 \
-                     AND (valid_to IS NULL OR valid_to > $2) ORDER BY valid_from DESC LIMIT 1",
-                    &[&callsign, &today],
-                )
-                .await;
-            let from: Option<NaiveDate> = match from {
-                Ok(r) => r.map(|r| r.get(0)),
-                Err(e) => return internal(e),
-            };
             let mut m = Map::new();
             m.insert("route".into(), route);
             m.insert("valid_from".into(), from.map_or(Value::Null, |d| Value::String(d.format("%Y-%m-%d").to_string())));
@@ -387,27 +508,17 @@ pub async fn gap(State(app): State<Arc<App>>, Path(callsign): Path<String>, req:
         }
     };
     row.insert("catalog".into(), catalog);
-    let answers = match c
-        .query(
-            "SELECT origin, dest, status, verdict FROM claims WHERE callsign = $1 AND status <> 'rejected' ORDER BY first_at",
-            &[&callsign],
-        )
-        .await
-    {
-        Ok(rows) => rows,
-        Err(e) => return internal(e),
-    };
     row.insert(
         "answers".into(),
         Value::Array(
             answers
-                .iter()
-                .map(|r| {
+                .into_iter()
+                .map(|(origin, dest, status, verdict)| {
                     let mut m = Map::new();
-                    m.insert("origin".into(), Value::String(r.get(0)));
-                    m.insert("dest".into(), Value::String(r.get(1)));
-                    m.insert("status".into(), Value::String(r.get(2)));
-                    m.insert("verdict".into(), r.get::<_, Option<String>>(3).map_or(Value::Null, Value::String));
+                    m.insert("origin".into(), Value::String(origin));
+                    m.insert("dest".into(), Value::String(dest));
+                    m.insert("status".into(), Value::String(status));
+                    m.insert("verdict".into(), verdict.map_or(Value::Null, Value::String));
                     Value::Object(m)
                 })
                 .collect(),
@@ -420,34 +531,15 @@ pub async fn gap(State(app): State<Arc<App>>, Path(callsign): Path<String>, req:
 
 /// GET /v1/contributors
 pub async fn contributors(State(app): State<Arc<App>>, req: Request) -> Response {
-    let Some(db) = &app.db else {
+    if !answers_here(&app) {
         return crate::proxy::forward(State(app), req).await.into_response();
-    };
+    }
     let ip = client_ip(&app, req.headers(), peer_of(&req));
     if let Err(e) = throttle(&app, &ip, "gaps", app.settings.gaps_rate_limit) {
         return e.into_response();
     }
-    let g = match db.get().await {
-        Ok(g) => g,
-        Err(e) => return internal(e),
-    };
-    let c = g.as_ref().unwrap();
-    let rows = match c
-        .query(
-            "SELECT endorsements.handle, count(DISTINCT claims.id), max(claims.reviewed_at) \
-             FROM endorsements JOIN claims ON claims.id = endorsements.claim_id \
-             WHERE claims.status = 'approved' AND endorsements.handle IS NOT NULL \
-             GROUP BY endorsements.handle \
-             ORDER BY count(DISTINCT claims.id) DESC, max(claims.reviewed_at) LIMIT 200",
-            &[],
-        )
-        .await
-    {
+    let (rows, total) = match contributor_rows(&app).await {
         Ok(r) => r,
-        Err(e) => return internal(e),
-    };
-    let total: i64 = match c.query_one("SELECT count(*) FROM claims WHERE status = 'approved'", &[]).await {
-        Ok(r) => r.get(0),
         Err(e) => return internal(e),
     };
     let mut m = Map::new();
@@ -455,15 +547,14 @@ pub async fn contributors(State(app): State<Arc<App>>, req: Request) -> Response
     m.insert(
         "contributors".into(),
         Value::Array(
-            rows.iter()
-                .map(|r| {
+            rows.into_iter()
+                .map(|(handle, n, latest)| {
                     let mut o = Map::new();
-                    o.insert("handle".into(), Value::String(r.get(0)));
-                    o.insert("answers".into(), Value::from(r.get::<_, i64>(1)));
-                    let latest: Option<DateTime<Utc>> = r.get(2);
+                    o.insert("handle".into(), Value::String(handle));
+                    o.insert("answers".into(), Value::from(n));
                     o.insert(
                         "latest".into(),
-                        latest.map_or(Value::Null, |t| Value::String(t.date_naive().format("%Y-%m-%d").to_string())),
+                        latest.map_or(Value::Null, |t| Value::String(t.format("%Y-%m-%d").to_string())),
                     );
                     Value::Object(o)
                 })

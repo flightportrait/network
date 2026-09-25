@@ -537,31 +537,10 @@ impl Estimator {
         if let Some(v) = self.routes.get(callsign) {
             return chain_of(&v);
         }
-        let catalog: Result<Option<Chain>, ()> = async {
-            let Some(db) = &self.db else { return Ok(None) };
-            let g = db.get().await.map_err(|_| ())?;
-            let today = chrono::Utc::now().date_naive();
-            let row = g
-                .as_ref()
-                .unwrap()
-                .query_opt(
-                    "SELECT origin, via::text, dest FROM route_catalog WHERE callsign = $1 AND valid_from <= $2 \
-                     AND (valid_to IS NULL OR valid_to > $2) ORDER BY valid_from DESC LIMIT 1",
-                    &[&callsign, &today],
-                )
-                .await
-                .map_err(|_| ())?;
-            Ok(row.map(|r| {
-                let via: Option<String> = r.get(1);
-                let via: Vec<Option<String>> =
-                    via.and_then(|t| serde_json::from_str::<Value>(&t).ok()).and_then(|v| chain_of(&v)).unwrap_or_default();
-                let mut chain = vec![r.get::<_, Option<String>>(0)];
-                chain.extend(via);
-                chain.push(r.get::<_, Option<String>>(2));
-                chain
-            }))
-        }
-        .await;
+        let catalog: Result<Option<Chain>, ()> = crate::catalog::catalog_routes(app, &[callsign.to_string()])
+            .await
+            .map(|mut m| m.remove(callsign).and_then(|v| chain_of(&v)))
+            .map_err(|_| ());
         match catalog {
             Err(()) => None,
             Ok(Some(chain)) => Some(chain),
@@ -634,28 +613,42 @@ impl Estimator {
 
     /// The last night's measured accuracy of the method in use; a found
     /// score is kept ten minutes, the lack of one a minute.
-    async fn accuracy(&self) -> Option<String> {
+    async fn accuracy(&self, app: &App) -> Option<String> {
         let mut g = self.accuracy.lock().await;
         let now = now_s();
         if now - g.0 > if g.1.is_some() { 600.0 } else { 60.0 } {
             g.0 = now;
-            if let Some(v) = self.read_accuracy().await {
+            if let Some(v) = self.read_accuracy(app).await {
                 g.1 = Some(v);
             }
         }
         g.1.clone()
     }
 
-    async fn read_accuracy(&self) -> Option<String> {
-        let c = self.db.as_ref()?.get().await.ok()?;
-        let row = c
-            .as_ref()
-            .unwrap()
-            .query_opt("SELECT day, detail::text FROM estimate_scores ORDER BY day DESC LIMIT 1", &[])
-            .await
-            .ok()??;
-        let day: chrono::NaiveDate = row.get(0);
-        let detail: Value = serde_json::from_str(&row.get::<_, String>(1)).ok()?;
+    async fn read_accuracy(&self, app: &App) -> Option<String> {
+        let (day, detail): (chrono::NaiveDate, String) = match &self.db {
+            Some(db) => {
+                let c = db.get().await.ok()?;
+                let row = c
+                    .as_ref()
+                    .unwrap()
+                    .query_opt("SELECT day, detail::text FROM estimate_scores ORDER BY day DESC LIMIT 1", &[])
+                    .await
+                    .ok()??;
+                (row.get(0), row.get(1))
+            }
+            None => {
+                if !app.refdb.has(&["estimate_scores"]) {
+                    return None;
+                }
+                let c = app.refdb.conn().ok()?;
+                let (day, detail): (Option<String>, String) = c
+                    .query_row("SELECT day, detail FROM estimate_scores ORDER BY day DESC LIMIT 1", [], |r| Ok((r.get(0)?, r.get(1)?)))
+                    .ok()?;
+                (crate::snap::date(day)?, detail)
+            }
+        };
+        let detail: Value = serde_json::from_str(&detail).ok()?;
         let m = detail.get("methods").and_then(|m| m.get("converge")).cloned().unwrap_or(Value::Null);
         let get = |k: &str| m.get(k).cloned();
         let mut s = String::new();
@@ -727,7 +720,7 @@ pub async fn estimated(State(app): State<Arc<App>>, req: Request) -> Response {
     }
     let now = now_s();
     let listed = est.estimates(&app, now).await;
-    let accuracy = est.accuracy().await;
+    let accuracy = est.accuracy(&app).await;
     let mut out = String::with_capacity(160 + listed.iter().map(|s| s.len() + 1).sum::<usize>());
     let mut o = Obj::new(&mut out);
     o.f64("generated_at", now).str("method", "converge-to-destination");

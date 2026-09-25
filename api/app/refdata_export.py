@@ -4,8 +4,12 @@ The tables here change only when the nightly writes them (registry,
 airlines, airports, types, routes, schedule, leg stats, the airframe
 history, the estimate scores). A server that only reads them — networkd,
 or a self-hosted instance with no Postgres — opens this file instead of
-the database. Tables written through the day (stations, contributions,
-live estimates, NAT messages) are not part of it.
+the database. Of the tables written through the day, only public cuts
+go in (PUBLIC): the community catalog, the answers on file and the
+handles behind approved ones, the airframe record's public events. The
+stations registry, live estimates, NAT messages, review notes, evidence
+references and endorsement notes stay out: the file is meant to be
+downloadable by self-hosted instances.
 
 The file is built beside the target and renamed over it only when every
 table's row count matches the source, so a reader always sees a whole
@@ -20,7 +24,8 @@ import sqlite3
 import sys
 import time
 
-from sqlalchemy import create_engine, func, insert, select
+from sqlalchemy import JSON, Column, Date, DateTime, Integer, MetaData, \
+    String, Table, create_engine, func, insert, literal, select
 
 from .db import Base
 from . import models, refdata_models  # noqa: F401 — register the tables
@@ -34,6 +39,39 @@ TABLES = (
     "estimate_scores",
 )
 BATCH = 5000
+
+# Public cuts of tables written through the day: (snapshot table, source
+# table, the columns kept, the rows kept). Same names as the source, so a
+# reader asks the file what it asks the database.
+PUBLIC_META = MetaData()
+PUBLIC = (
+    (Table("route_catalog", PUBLIC_META,
+           Column("id", Integer, primary_key=True),
+           Column("callsign", String(12), index=True),
+           Column("origin", String(4), nullable=False),
+           Column("dest", String(4), nullable=False),
+           Column("via", JSON), Column("valid_from", Date, nullable=False),
+           Column("valid_to", Date), Column("source", String(12))),
+     "route_catalog", None),
+    (Table("claims", PUBLIC_META,
+           Column("id", Integer, primary_key=True),
+           Column("callsign", String(12), index=True),
+           Column("origin", String(4), nullable=False),
+           Column("dest", String(4), nullable=False),
+           Column("status", String(12), nullable=False),
+           Column("verdict", String(14)),
+           Column("first_at", DateTime(timezone=True), nullable=False),
+           Column("reviewed_at", DateTime(timezone=True))),
+     "claims", None),
+    (Table("endorsements", PUBLIC_META,
+           Column("id", Integer, primary_key=True),
+           Column("claim_id", Integer, nullable=False, index=True),
+           Column("handle", String(40))),
+     "endorsements", lambda t: t.c.handle.is_not(None)),
+)
+# Rows and columns of the exported record tables that are not public.
+ROW_FILTERS = {"airframe_events": lambda t: t.c.visibility == "public"}
+BLANKED = {"airframe_events": ("evidence_ref",)}
 
 # Text orders a reader must reproduce exactly. Postgres sorts text by the
 # database's collation (en_US), which SQLite does not have; the export
@@ -111,16 +149,31 @@ def export(source_url: str, out_path: str, log=print) -> dict:
     with src.connect() as s, dst.connect() as d:
         d.exec_driver_sql("PRAGMA journal_mode=OFF")
         d.exec_driver_sql("PRAGMA synchronous=OFF")
-        for table in tables:
+        PUBLIC_META.create_all(d, tables=[p[0] for p in PUBLIC])
+        d.commit()
+        jobs = [(t, t, ROW_FILTERS.get(t.name)) for t in tables]
+        jobs += [(snap, Base.metadata.tables[source], keep)
+                 for snap, source, keep in PUBLIC]
+        for table, source, keep in jobs:
             t0 = time.time()
             n = 0
+            blank = BLANKED.get(table.name, ())
+            cols = [literal(None).label(c.name) if c.name in blank
+                    else source.c[c.name] for c in table.c]
+            query = select(*cols)
+            count = select(func.count()).select_from(source)
+            if keep is not None:
+                query, count = query.where(keep(source)), \
+                    count.where(keep(source))
+            # no ORDER BY: rows come in the order the table stores them,
+            # the order a reader's ties must follow
             rows = s.execution_options(stream_results=True, yield_per=BATCH) \
-                .execute(select(table))
+                .execute(query)
             for chunk in rows.partitions(BATCH):
                 d.execute(insert(table), [dict(r._mapping) for r in chunk])
                 n += len(chunk)
             d.commit()
-            want = s.execute(select(func.count()).select_from(table)).scalar()
+            want = s.execute(count).scalar()
             got = d.execute(select(func.count()).select_from(table)).scalar()
             if not (want == got == n):
                 raise RuntimeError("%s: source %d rows, copied %d, file %d"

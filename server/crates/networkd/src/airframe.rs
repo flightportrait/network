@@ -101,10 +101,29 @@ fn facts(app: &App, hex: &str) -> rusqlite::Result<Facts> {
     Ok(Facts { frame, log })
 }
 
-/// The lifetime record behind a hex: registrations, operators and public
-/// events, oldest spell first, newest event first. None when the record
-/// holds no airframe for this hex.
-async fn history(db: &tokio_postgres::Client, hex: &str) -> Result<Option<Value>, tokio_postgres::Error> {
+/// kind, value, first date, last date, n_obs, source
+type SpellRow = (String, String, Option<NaiveDate>, Option<NaiveDate>, Option<i64>, String);
+/// kind, at, lat, lon, detail (JSON text), source
+type EventRow = (String, DateTime<Utc>, Option<f64>, Option<f64>, Option<String>, String);
+
+/// The airframe record's rows behind one hex, from either store.
+struct HistRows {
+    id: i64,
+    msn: Option<String>,
+    built_year: Option<i64>,
+    manufacturer: Option<String>,
+    first_observed: Option<NaiveDate>,
+    last_observed: Option<NaiveDate>,
+    /// kind, value, first, last, n_obs, source; oldest first
+    spells: Vec<SpellRow>,
+    /// kind, at, lat, lon, detail (JSON text), source; newest first
+    events: Vec<EventRow>,
+    /// field, value, source; oldest statement first
+    claims: Vec<(String, String, String)>,
+    names: std::collections::HashMap<String, String>,
+}
+
+async fn history_pg(db: &tokio_postgres::Client, hex: &str) -> Result<Option<HistRows>, tokio_postgres::Error> {
     let Some(row) = db
         .query_opt(
             "SELECT airframe_id FROM airframe_spells WHERE kind = $1 AND value = $2 ORDER BY first_date DESC LIMIT 1",
@@ -130,102 +149,201 @@ async fn history(db: &tokio_postgres::Client, hex: &str) -> Result<Option<Value>
              WHERE airframe_id = $1 ORDER BY first_date",
             &[&id],
         )
-        .await?;
+        .await?
+        .iter()
+        .map(|s| (s.get(0), s.get(1), s.get(2), s.get(3), s.get::<_, Option<i32>>(4).map(i64::from), s.get(5)))
+        .collect::<Vec<SpellRow>>();
     let events = db
         .query(
             "SELECT kind, at, lat, lon, detail::text, source FROM airframe_events \
              WHERE airframe_id = $1 AND visibility = $2 ORDER BY at DESC",
             &[&id, &"public"],
         )
-        .await?;
+        .await?
+        .iter()
+        .map(|e| (e.get(0), e.get(1), e.get(2), e.get(3), e.get(4), e.get(5)))
+        .collect();
     let fields: Vec<String> = REGISTRY_FIELDS.iter().map(|f| f.to_string()).collect();
     let claims = db
         .query(
             "SELECT field, value, source FROM airframe_claims WHERE airframe_id = $1 AND field = ANY($2) ORDER BY last_seen",
             &[&id, &fields],
         )
-        .await?;
-    let registry = if claims.is_empty() {
-        Value::Null
-    } else {
-        let mut m = Map::new();
-        m.insert("source".into(), Value::Null);
-        for c in &claims {
-            m.insert(c.get::<_, String>(0), Value::String(c.get(1)));
-            m.insert("source".into(), Value::String(c.get(2)));
-        }
-        Value::Object(m)
-    };
-    let icaos: Vec<String> = spells
+        .await?
         .iter()
-        .filter(|s| s.get::<_, String>(0) == "operator")
-        .map(|s| s.get::<_, String>(1))
+        .map(|c| (c.get(0), c.get(1), c.get(2)))
         .collect();
-    let names: std::collections::HashMap<String, String> = db
+    let icaos: Vec<String> = spells.iter().filter(|s| s.0 == "operator").map(|s| s.1.clone()).collect();
+    let names = db
         .query("SELECT icao, name FROM ref_airlines WHERE icao = ANY($1)", &[&icaos])
         .await?
         .iter()
         .map(|r| (r.get(0), r.get(1)))
         .collect();
-    let spell = |s: &tokio_postgres::Row, key: &str, extra: Option<Value>| {
+    Ok(Some(HistRows {
+        id: frame.get(0),
+        msn: frame.get(1),
+        built_year: frame.get::<_, Option<i32>>(2).map(i64::from),
+        manufacturer: frame.get(3),
+        first_observed: frame.get(4),
+        last_observed: frame.get(5),
+        spells,
+        events,
+        claims,
+        names,
+    }))
+}
+
+/// The same rows from the snapshot: read in storage order, then sorted
+/// as Postgres sorts them (ties as its scans leave them).
+fn history_snap(c: &crate::refdb::Conn, hex: &str) -> rusqlite::Result<Option<HistRows>> {
+    use crate::snap::{date, ts};
+    use std::cmp::Ordering;
+    // ORDER BY first_date DESC LIMIT 1: NULLs first
+    let mut hits: Vec<(i64, Option<NaiveDate>)> = c
+        .prepare_cached("SELECT airframe_id, first_date FROM airframe_spells WHERE kind = 'hex' AND value = ?1 ORDER BY rowid")?
+        .query_map([hex], |r| Ok((r.get(0)?, date(r.get(1)?))))?
+        .collect::<rusqlite::Result<_>>()?;
+    let desc_nulls_first = |a: &Option<NaiveDate>, b: &Option<NaiveDate>| match (a, b) {
+        (None, None) => Ordering::Equal,
+        (None, _) => Ordering::Less,
+        (_, None) => Ordering::Greater,
+        (Some(x), Some(y)) => y.cmp(x),
+    };
+    hits = crate::pgsort::top_n(hits, 1, &|a: &(i64, Option<NaiveDate>), b: &(i64, Option<NaiveDate>)| desc_nulls_first(&a.1, &b.1));
+    let Some(&(id, _)) = hits.first() else { return Ok(None) };
+    let frame = c
+        .prepare_cached("SELECT msn, built_year, manufacturer, first_observed, last_observed FROM airframes WHERE id = ?1")?
+        .query_row([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, date(r.get(3)?), date(r.get(4)?))))
+        .optional()?;
+    let Some((msn, built_year, manufacturer, first_observed, last_observed)) = frame else { return Ok(None) };
+    let mut spells: Vec<SpellRow> = c
+        .prepare_cached(
+            "SELECT kind, value, first_date, last_date, n_obs, source FROM airframe_spells WHERE airframe_id = ?1 ORDER BY rowid",
+        )?
+        .query_map([id], |r| Ok((r.get(0)?, r.get(1)?, date(r.get(2)?), date(r.get(3)?), r.get(4)?, r.get(5)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    // ORDER BY first_date: NULLs last
+    crate::pgsort::sort(&mut spells, &|a: &SpellRow, b: &SpellRow| match (&a.2, &b.2) {
+        (None, None) => Ordering::Equal,
+        (None, _) => Ordering::Greater,
+        (_, None) => Ordering::Less,
+        (Some(x), Some(y)) => x.cmp(y),
+    });
+    let mut events: Vec<EventRow> = c
+        .prepare_cached(
+            "SELECT kind, at, lat, lon, detail, source FROM airframe_events WHERE airframe_id = ?1 AND visibility = 'public' ORDER BY rowid",
+        )?
+        .query_map([id], |r| {
+            let at: String = r.get(1)?;
+            Ok((r.get(0)?, ts(&at).unwrap_or_default(), r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    crate::pgsort::sort(&mut events, &|a: &EventRow, b: &EventRow| b.1.cmp(&a.1));
+    let list = REGISTRY_FIELDS.iter().map(|f| format!("'{f}'")).collect::<Vec<_>>().join(",");
+    let mut claims: Vec<(String, String, String, String)> = c
+        .prepare_cached(&format!(
+            "SELECT field, value, source, last_seen FROM airframe_claims WHERE airframe_id = ?1 AND field IN ({list}) ORDER BY rowid"
+        ))?
+        .query_map([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    crate::pgsort::sort(&mut claims, &|a: &(String, String, String, String), b: &(String, String, String, String)| a.3.cmp(&b.3));
+    let mut names = std::collections::HashMap::new();
+    for s in spells.iter().filter(|s| s.0 == "operator") {
+        if let Some(n) = c
+            .prepare_cached("SELECT name FROM ref_airlines WHERE icao = ?1")?
+            .query_row([&s.1], |r| r.get::<_, String>(0))
+            .optional()?
+        {
+            names.insert(s.1.clone(), n);
+        }
+    }
+    Ok(Some(HistRows {
+        id,
+        msn,
+        built_year,
+        manufacturer,
+        first_observed,
+        last_observed,
+        spells,
+        events,
+        claims: claims.into_iter().map(|c| (c.0, c.1, c.2)).collect(),
+        names,
+    }))
+}
+
+/// The lifetime record behind a hex: registrations, operators and public
+/// events, oldest spell first, newest event first.
+fn history_json(h: HistRows) -> Value {
+    let registry = if h.claims.is_empty() {
+        Value::Null
+    } else {
         let mut m = Map::new();
-        m.insert(key.into(), Value::String(s.get(1)));
+        m.insert("source".into(), Value::Null);
+        for (field, value, source) in &h.claims {
+            m.insert(field.clone(), Value::String(value.clone()));
+            m.insert("source".into(), Value::String(source.clone()));
+        }
+        Value::Object(m)
+    };
+    let spell = |s: &SpellRow, key: &str, extra: Option<Value>| {
+        let mut m = Map::new();
+        m.insert(key.into(), Value::String(s.1.clone()));
         if let Some(name) = extra {
             m.insert("name".into(), name);
         }
-        m.insert("from".into(), day(s.get(2)));
-        m.insert("to".into(), day(s.get(3)));
-        m.insert("legs".into(), s.get::<_, Option<i32>>(4).map_or(Value::Null, Value::from));
-        m.insert("source".into(), Value::String(s.get(5)));
+        m.insert("from".into(), day(s.2));
+        m.insert("to".into(), day(s.3));
+        m.insert("legs".into(), s.4.map_or(Value::Null, Value::from));
+        m.insert("source".into(), Value::String(s.5.clone()));
         Value::Object(m)
     };
-    let of_kind = |kind: &'static str| spells.iter().filter(move |s| s.get::<_, String>(0) == kind);
+    let of_kind = |kind: &'static str| h.spells.iter().filter(move |s| s.0 == kind);
     let mut out = Map::new();
-    out.insert("airframe_id".into(), Value::from(frame.get::<_, i64>(0)));
-    out.insert("msn".into(), text(frame.get(1)));
-    out.insert("built_year".into(), frame.get::<_, Option<i32>>(2).map_or(Value::Null, Value::from));
-    out.insert("manufacturer".into(), text(frame.get(3)));
+    out.insert("airframe_id".into(), Value::from(h.id));
+    out.insert("msn".into(), text(h.msn.clone()));
+    out.insert("built_year".into(), h.built_year.map_or(Value::Null, Value::from));
+    out.insert("manufacturer".into(), text(h.manufacturer.clone()));
     out.insert("registry".into(), registry);
-    out.insert("first_observed".into(), day(frame.get(4)));
-    out.insert("last_observed".into(), day(frame.get(5)));
+    out.insert("first_observed".into(), day(h.first_observed));
+    out.insert("last_observed".into(), day(h.last_observed));
     out.insert("hexes".into(), Value::Array(of_kind("hex").map(|s| spell(s, "hex", None)).collect()));
     out.insert("registrations".into(), Value::Array(of_kind("registration").map(|s| spell(s, "reg", None)).collect()));
     out.insert(
         "operators".into(),
-        Value::Array(
-            of_kind("operator")
-                .map(|s| spell(s, "icao", Some(text(names.get(&s.get::<_, String>(1)).cloned()))))
-                .collect(),
-        ),
+        Value::Array(of_kind("operator").map(|s| spell(s, "icao", Some(text(h.names.get(&s.1).cloned())))).collect()),
     );
     let float = |v: Option<f64>| v.and_then(serde_json::Number::from_f64).map_or(Value::Null, Value::Number);
     out.insert(
         "events".into(),
         Value::Array(
-            events
+            h.events
                 .iter()
                 .map(|e| {
                     let mut m = Map::new();
-                    m.insert("kind".into(), Value::String(e.get(0)));
-                    m.insert("at".into(), Value::String(isoformat(e.get::<_, DateTime<Utc>>(1))));
-                    m.insert("lat".into(), float(e.get(2)));
-                    m.insert("lon".into(), float(e.get(3)));
-                    let detail: Option<String> = e.get(4);
-                    m.insert("detail".into(), detail.and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null));
-                    m.insert("source".into(), Value::String(e.get(5)));
+                    m.insert("kind".into(), Value::String(e.0.clone()));
+                    m.insert("at".into(), Value::String(isoformat(e.1)));
+                    m.insert("lat".into(), float(e.2));
+                    m.insert("lon".into(), float(e.3));
+                    m.insert("detail".into(), e.4.as_deref().and_then(|t| serde_json::from_str(t).ok()).unwrap_or(Value::Null));
+                    m.insert("source".into(), Value::String(e.5.clone()));
                     Value::Object(m)
                 })
                 .collect(),
         ),
     );
-    Ok(Some(Value::Object(out)))
+    Value::Object(out)
 }
+
+/// The airframe record's tables, in the snapshot for an instance with
+/// no Postgres.
+const RECORD: &[&str] = &["airframes", "airframe_spells", "airframe_events", "airframe_claims"];
 
 /// GET /v1/airframes/{hex}
 pub async fn airframe(State(app): State<Arc<App>>, Path(hex): Path<String>, req: Request) -> Response {
-    let Some(db) = &app.db else {
+    if app.db.is_none() && !app.refdb.has(RECORD) {
         return crate::proxy::forward(State(app), req).await.into_response();
-    };
+    }
     let ip = client_ip(&app, req.headers(), peer_of(&req));
     if let Err(e) = throttle(&app, &ip, "airframe", app.settings.airframe_rate_limit) {
         return e.into_response();
@@ -237,20 +355,32 @@ pub async fn airframe(State(app): State<Arc<App>>, Path(hex): Path<String>, req:
     let internal = || ApiError::new(500, "internal_error", "internal error").into_response();
     let (a, h) = (app.clone(), hex.clone());
     let Ok(Ok(f)) = tokio::task::spawn_blocking(move || facts(&a, &h)).await else { return internal() };
-    let hist = {
-        let g = match db.get().await {
-            Ok(g) => g,
-            Err(e) => {
-                eprintln!("airframes: database: {e}");
-                return internal();
-            }
-        };
-        match history(g.as_ref().unwrap(), &hex).await {
-            Ok(h) => h,
-            Err(e) => {
-                eprintln!("airframes: database: {e}");
-                return internal();
-            }
+    let rows = match &app.db {
+        Some(db) => {
+            let g = match db.get().await {
+                Ok(g) => g,
+                Err(e) => {
+                    eprintln!("airframes: database: {e}");
+                    return internal();
+                }
+            };
+            history_pg(g.as_ref().unwrap(), &hex).await.map_err(|e| e.to_string())
+        }
+        None => {
+            let (a, h) = (app.clone(), hex.clone());
+            tokio::task::spawn_blocking(move || -> rusqlite::Result<Option<HistRows>> {
+                history_snap(&a.refdb.conn()?, &h)
+            })
+            .await
+            .map_err(|e| e.to_string())
+            .and_then(|r| r.map_err(|e| e.to_string()))
+        }
+    };
+    let hist = match rows {
+        Ok(r) => r.map(history_json),
+        Err(e) => {
+            eprintln!("airframes: {e}");
+            return internal();
         }
     };
     let legs_up = app.legs.available();
@@ -369,12 +499,122 @@ fn latest<'a>(items: &'a [Spell], kind: &str) -> Option<&'a Spell> {
     best
 }
 
+/// An airline's current aircraft in the record: the newest observation,
+/// the airframes with an operator spell for it since the cutoff (in the
+/// order the table holds them), their spells, rows and notable events.
+/// None when the record holds nothing at all.
+struct FleetRows {
+    newest: NaiveDate,
+    ids: Vec<i64>,
+    spells: std::collections::HashMap<i64, Vec<Spell>>,
+    frames: std::collections::HashMap<i64, FrameRow>,
+    notable: std::collections::HashMap<i64, i64>,
+}
+
+fn first_seen_ids(rows: impl Iterator<Item = i64>) -> Vec<i64> {
+    let mut ids: Vec<i64> = vec![];
+    let mut seen = std::collections::HashSet::new();
+    for id in rows {
+        if seen.insert(id) {
+            ids.push(id);
+        }
+    }
+    ids
+}
+
+async fn fleet_pg(c: &tokio_postgres::Client, icao: &str) -> Result<Option<FleetRows>, tokio_postgres::Error> {
+    let newest: Option<NaiveDate> = c.query_one("SELECT max(last_observed) FROM airframes", &[]).await?.get(0);
+    let Some(newest) = newest else { return Ok(None) };
+    let cutoff = newest - chrono::TimeDelta::days(CURRENT_DAYS);
+    // rows as the tables hold them (ctid): the order Postgres's scans
+    // return equal keys in, which the ties below follow
+    let cand = c
+        .query(
+            "SELECT airframe_id FROM airframe_spells WHERE kind = 'operator' AND value = $1 AND last_date >= $2 ORDER BY ctid",
+            &[&icao, &cutoff],
+        )
+        .await?;
+    let ids = first_seen_ids(cand.iter().map(|r| r.get::<_, i64>(0)));
+    let mut spells: std::collections::HashMap<i64, Vec<Spell>> = std::collections::HashMap::new();
+    for r in c
+        .query(
+            "SELECT airframe_id, kind, value, first_date, last_date FROM airframe_spells WHERE airframe_id = ANY($1) ORDER BY ctid",
+            &[&ids],
+        )
+        .await?
+    {
+        spells.entry(r.get(0)).or_default().push(Spell { kind: r.get(1), value: r.get(2), first: r.get(3), last: r.get(4) });
+    }
+    let mut frames = std::collections::HashMap::new();
+    for r in c.query("SELECT id, type_code, built_year, msn, first_observed FROM airframes WHERE id = ANY($1)", &[&ids]).await? {
+        frames.insert(r.get(0), (r.get(1), r.get(2), r.get(3), r.get(4)));
+    }
+    let mut notable = std::collections::HashMap::new();
+    for r in c
+        .query(
+            "SELECT airframe_id, count(*) FROM airframe_events WHERE airframe_id = ANY($1) AND visibility = 'public' \
+             AND kind IN ('squawk', 'occurrence') GROUP BY airframe_id",
+            &[&ids],
+        )
+        .await?
+    {
+        notable.insert(r.get(0), r.get(1));
+    }
+    Ok(Some(FleetRows { newest, ids, spells, frames, notable }))
+}
+
+fn fleet_snap(c: &crate::refdb::Conn, icao: &str) -> rusqlite::Result<Option<FleetRows>> {
+    use crate::snap::date;
+    let newest: Option<String> = c.query_row("SELECT max(last_observed) FROM airframes", [], |r| r.get(0))?;
+    let Some(newest) = date(newest) else { return Ok(None) };
+    let cutoff = (newest - chrono::TimeDelta::days(CURRENT_DAYS)).format("%Y-%m-%d").to_string();
+    let cand: Vec<i64> = c
+        .prepare_cached(
+            "SELECT airframe_id FROM airframe_spells WHERE kind = 'operator' AND value = ?1 AND last_date >= ?2 ORDER BY rowid",
+        )?
+        .query_map(rusqlite::params![icao, cutoff], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    let ids = first_seen_ids(cand.into_iter());
+    let list = crate::snap::ids(&ids);
+    let mut spells: std::collections::HashMap<i64, Vec<Spell>> = std::collections::HashMap::new();
+    let mut stmt = c.prepare_cached(
+        "SELECT airframe_id, kind, value, first_date, last_date FROM airframe_spells \
+         WHERE airframe_id IN (SELECT value FROM json_each(?1)) ORDER BY rowid",
+    )?;
+    let mut rows = stmt.query([&list])?;
+    while let Some(r) = rows.next()? {
+        spells
+            .entry(r.get(0)?)
+            .or_default()
+            .push(Spell { kind: r.get(1)?, value: r.get(2)?, first: date(r.get(3)?), last: date(r.get(4)?) });
+    }
+    let mut frames = std::collections::HashMap::new();
+    let mut stmt = c.prepare_cached(
+        "SELECT id, type_code, built_year, msn, first_observed FROM airframes WHERE id IN (SELECT value FROM json_each(?1))",
+    )?;
+    let mut rows = stmt.query([&list])?;
+    while let Some(r) = rows.next()? {
+        let year: Option<i64> = r.get(2)?;
+        frames.insert(r.get(0)?, (r.get(1)?, year.map(|y| y as i32), r.get(3)?, date(r.get(4)?)));
+    }
+    let mut notable = std::collections::HashMap::new();
+    let mut stmt = c.prepare_cached(
+        "SELECT airframe_id, count(*) FROM airframe_events WHERE airframe_id IN (SELECT value FROM json_each(?1)) \
+         AND visibility = 'public' AND kind IN ('squawk', 'occurrence') GROUP BY airframe_id",
+    )?;
+    let mut rows = stmt.query([&list])?;
+    while let Some(r) = rows.next()? {
+        notable.insert(r.get(0)?, r.get(1)?);
+    }
+    Ok(Some(FleetRows { newest, ids, spells, frames, notable }))
+}
+
 /// GET /v1/airlines/{icao}/airframes: the aircraft an airline flies now,
 /// from the airframe record (written during the day), by registration.
 pub async fn airline_airframes(State(app): State<Arc<App>>, Path(icao): Path<String>, req: Request) -> Response {
-    let Some(db) = &app.db else {
+    if app.db.is_none() && !app.refdb.has(RECORD) {
         return crate::proxy::forward(State(app), req).await.into_response();
-    };
+    }
     if !app.refdb.has(&["ref_airlines", "ref_airframes"]) {
         return crate::proxy::forward(State(app), req).await.into_response();
     }
@@ -399,81 +639,26 @@ pub async fn airline_airframes(State(app): State<Arc<App>>, Path(icao): Path<Str
         Ok(Err(e)) => return internal(&e),
         Err(e) => return internal(&e),
     };
-    let g = match db.get().await {
-        Ok(g) => g,
+    let fetched = match &app.db {
+        Some(db) => match db.get().await {
+            Ok(g) => fleet_pg(g.as_ref().unwrap(), &icao).await.map_err(|e| e.to_string()),
+            Err(e) => Err(e.to_string()),
+        },
+        None => {
+            let (a, i) = (app.clone(), icao.clone());
+            tokio::task::spawn_blocking(move || -> rusqlite::Result<Option<FleetRows>> { fleet_snap(&a.refdb.conn()?, &i) })
+                .await
+                .map_err(|e| e.to_string())
+                .and_then(|r| r.map_err(|e| e.to_string()))
+        }
+    };
+    let fleet = match fetched {
+        Ok(f) => f,
         Err(e) => return internal(&e),
     };
-    let c = g.as_ref().unwrap();
-    let newest: Option<NaiveDate> = match c.query_one("SELECT max(last_observed) FROM airframes", &[]).await {
-        Ok(r) => r.get(0),
-        Err(e) => return internal(&e),
-    };
-    let Some(newest) = newest else {
+    let Some(FleetRows { newest, ids, spells, frames, notable }) = fleet.filter(|f| !f.ids.is_empty()) else {
         return ApiError::new(404, "not_observed", "no airframes").into_response();
     };
-    let cutoff = newest - chrono::TimeDelta::days(CURRENT_DAYS);
-    // rows as the tables hold them (ctid): the order Postgres's scans
-    // return equal keys in, which the ties below follow
-    let cand = match c
-        .query(
-            "SELECT airframe_id FROM airframe_spells WHERE kind = 'operator' AND value = $1 AND last_date >= $2 ORDER BY ctid",
-            &[&icao, &cutoff],
-        )
-        .await
-    {
-        Ok(r) => r,
-        Err(e) => return internal(&e),
-    };
-    let mut ids: Vec<i64> = vec![];
-    for r in &cand {
-        let id: i64 = r.get(0);
-        if !ids.contains(&id) {
-            ids.push(id);
-        }
-    }
-    if ids.is_empty() {
-        return ApiError::new(404, "not_observed", "no airframes").into_response();
-    }
-    let mut spells: std::collections::HashMap<i64, Vec<Spell>> = std::collections::HashMap::new();
-    let rows = match c
-        .query(
-            "SELECT airframe_id, kind, value, first_date, last_date FROM airframe_spells WHERE airframe_id = ANY($1) ORDER BY ctid",
-            &[&ids],
-        )
-        .await
-    {
-        Ok(r) => r,
-        Err(e) => return internal(&e),
-    };
-    for r in rows {
-        spells.entry(r.get(0)).or_default().push(Spell { kind: r.get(1), value: r.get(2), first: r.get(3), last: r.get(4) });
-    }
-    let mut frames: std::collections::HashMap<i64, FrameRow> = std::collections::HashMap::new();
-    match c.query("SELECT id, type_code, built_year, msn, first_observed FROM airframes WHERE id = ANY($1)", &[&ids]).await {
-        Ok(rows) => {
-            for r in rows {
-                frames.insert(r.get(0), (r.get(1), r.get(2), r.get(3), r.get(4)));
-            }
-        }
-        Err(e) => return internal(&e),
-    }
-    let mut notable: std::collections::HashMap<i64, i64> = std::collections::HashMap::new();
-    match c
-        .query(
-            "SELECT airframe_id, count(*) FROM airframe_events WHERE airframe_id = ANY($1) AND visibility = 'public' \
-             AND kind IN ('squawk', 'occurrence') GROUP BY airframe_id",
-            &[&ids],
-        )
-        .await
-    {
-        Ok(rows) => {
-            for r in rows {
-                notable.insert(r.get(0), r.get(1));
-            }
-        }
-        Err(e) => return internal(&e),
-    }
-    drop(g);
     struct Item {
         hex: Option<String>,
         reg: Option<String>,
