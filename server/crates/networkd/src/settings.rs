@@ -58,6 +58,9 @@ pub struct Settings {
     pub refdata_rate_limit: usize,
     pub airport_rate_limit: usize,
     pub search_rate_limit: usize,
+    pub database_url: String,
+    /// record emergency squawks (off where the Python service still does)
+    pub squawks: bool,
     pub schedule_min_flights: i64,
     pub boards_path: String,
 }
@@ -111,6 +114,8 @@ impl Settings {
             refdata_rate_limit: int("NETWORK_API_REFDATA_RATE_LIMIT", 300) as usize,
             airport_rate_limit: int("NETWORK_API_AIRPORT_RATE_LIMIT", 120) as usize,
             search_rate_limit: int("NETWORK_API_SEARCH_RATE_LIMIT", 600) as usize,
+            database_url: s("NETWORK_API_DATABASE_URL", ""),
+            squawks: matches!(s("NETWORKD_SQUAWKS", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
             schedule_min_flights: int("NETWORK_API_SCHEDULE_MIN_FLIGHTS", 5),
             boards_path: s("NETWORK_API_BOARDS_PATH", "data/boards.db"),
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),

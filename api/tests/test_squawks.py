@@ -67,3 +67,14 @@ def test_written_events_attach_to_the_record(ctx):
     body = client.get("/v1/airframes/49d283").json()
     assert body["reg"] is None
     assert [e["kind"] for e in body["history"]["events"]] == ["squawk"]
+
+
+def test_watcher_can_be_turned_off(monkeypatch):
+    # where another process records squawks from the same sky
+    from app.settings import Settings
+    monkeypatch.setenv("NETWORK_API_SQUAWK_WATCHER", "off")
+    assert Settings().squawk_watcher is False
+    monkeypatch.setenv("NETWORK_API_SQUAWK_WATCHER", "on")
+    assert Settings().squawk_watcher is True
+    monkeypatch.delenv("NETWORK_API_SQUAWK_WATCHER")
+    assert Settings().squawk_watcher is True

@@ -49,7 +49,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
             if settings.live_json and app.state.live is not None:
                 from .livesky import start as _start_live
                 tasks += _start_live(app, app.state.live, settings.live_json)
-            if settings.source_mode != "point":
+            if settings.source_mode != "point" and settings.squawk_watcher:
                 # our own sky only: emergency squawks become airframe events
                 import asyncio
                 from .squawks import SquawkWatcher, flush_loop

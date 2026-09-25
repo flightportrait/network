@@ -11,12 +11,14 @@ mod history;
 mod http;
 mod legs;
 mod live;
+mod pg;
 mod pgsort;
 mod proxy;
 mod pyjson;
 mod refdata;
 mod refdb;
 mod search;
+mod squawks;
 mod ratelimit;
 mod settings;
 mod sky;
@@ -106,6 +108,10 @@ fn start_tasks(app: &Arc<App>) {
     tokio::spawn(async move {
         every("snapshot", snap_every, || sky::poll_snapshot_once(&a)).await;
     });
+    if let Some(w) = &app.squawks {
+        // our own sky only: emergency squawks become airframe events
+        tokio::spawn(squawks::flush_loop(w.clone(), s.database_url.clone()));
+    }
     if s.point_mode() {
         app.presence.lock().unwrap().available = false;
     } else {

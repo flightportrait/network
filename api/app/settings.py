@@ -154,6 +154,12 @@ class Settings:
     # charters while a weekly service still qualifies.
     schedule_min_flights: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_SCHEDULE_MIN_FLIGHTS", 5))
+    # The emergency-squawk watcher (squawks.py). Off where another
+    # process records squawks from the same sky, so each episode is
+    # recorded once.
+    squawk_watcher: bool = field(default_factory=lambda: _env(
+        "NETWORK_API_SQUAWK_WATCHER", "on").strip().lower()
+        not in ("off", "0", "false", "no"))
     max_aircraft: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_MAX_AIRCRAFT", 10000))
     session_retention_days: int = field(default_factory=lambda: _env_int(

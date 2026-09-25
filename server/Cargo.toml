@@ -31,6 +31,7 @@ rand = "0.8"
 rand_chacha = "0.3"
 serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
 tokio = { version = "1", features = ["full"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
 tower = "0.5"
 
 [profile.release]

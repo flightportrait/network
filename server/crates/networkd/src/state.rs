@@ -37,6 +37,8 @@ pub struct App {
     pub bounds_cache: Mutex<HashMap<String, (f64, crate::departure::Bounds)>>,
     pub fallback: Option<crate::proxy::Fallback>,
     pub refdb: Arc<crate::refdb::RefDb>,
+    /// the emergency-squawk watcher, when this instance records squawks
+    pub squawks: Option<Arc<Mutex<crate::squawks::Watcher>>>,
     published: watch::Sender<u64>,
 }
 
@@ -58,6 +60,8 @@ impl App {
             bounds_cache: Mutex::new(HashMap::new()),
             fallback: crate::proxy::Fallback::new(&settings.fallback),
             refdb: crate::refdb::RefDb::new(&settings.refdata_path),
+            squawks: (settings.squawks && !settings.point_mode() && !settings.database_url.is_empty())
+                .then(|| Arc::new(Mutex::new(crate::squawks::Watcher::default()))),
             snapshot: SnapshotCell::new(),
             published,
             settings,

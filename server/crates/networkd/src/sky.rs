@@ -493,6 +493,9 @@ pub async fn read_lines(app: Arc<App>, endpoint: String) {
                     let Ok(text) = std::str::from_utf8(&line) else { continue };
                     let Some(vals) = parse_aircraft(text.trim_end()) else { continue };
                     let now = now_s();
+                    if let Some(w) = &app.squawks {
+                        w.lock().unwrap().observe(&vals, now);
+                    }
                     app.live.lock().unwrap().ingest(vals, now);
                 }
                 app.live.lock().unwrap().connected = false;
@@ -583,7 +586,15 @@ pub async fn poll_snapshot_once(app: &App) -> anyhow::Result<()> {
         snapshot_from_poll(&body, s.max_aircraft, true)?
     } else {
         let body = app.upstream.get("/data/aircraft.json").await?;
-        snapshot_from_poll(&body, s.max_aircraft, false)?
+        let snap = snapshot_from_poll(&body, s.max_aircraft, false)?;
+        if let Some(w) = &app.squawks {
+            let now = now_s();
+            let mut w = w.lock().unwrap();
+            for e in &snap.entries {
+                w.observe(&e.vals, now);
+            }
+        }
+        snap
     };
     let snap = Arc::new(snap);
     app.set_snapshot(snap.clone());
