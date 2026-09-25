@@ -866,3 +866,336 @@ pub async fn aircraft_type(State(app): State<Arc<App>>, axum::extract::Path(desi
     })
     .await
 }
+
+// ---- one alliance ----------------------------------------------------------
+
+/// `_alliance_memberships`: an alliance's rows by status, relationship,
+/// airline.
+struct MemberRow {
+    airline_icao: String,
+    relationship: String,
+    status: String,
+    json_rest: String,
+}
+
+fn alliance_members(c: &Conn, slug: &str) -> rusqlite::Result<Vec<MemberRow>> {
+    let mut stmt = c.prepare_cached(
+        "SELECT airline_icao, relationship, status, sponsor_icao, effective_from, effective_to, source_url, \
+         source_checked_at, note FROM ref_alliance_memberships WHERE alliance_slug = ?1 \
+         ORDER BY status, relationship, airline_icao",
+    )?;
+    let mut rows = stmt.query([slug])?;
+    let mut out = vec![];
+    while let Some(r) = rows.next()? {
+        let (icao, rel, status): (String, String, String) = (r.get(0)?, r.get(1)?, r.get(2)?);
+        // the membership's own fields after "airline", as the route lists them
+        let mut s = String::new();
+        s.push_str(",\"status\":");
+        write_str(&mut s, &status);
+        s.push_str(",\"relationship\":");
+        write_str(&mut s, &rel);
+        for (k, i) in [("sponsor_icao", 3), ("effective_from", 4), ("effective_to", 5), ("source_url", 6), ("source_checked_at", 7), ("note", 8)] {
+            s.push_str(&format!(",\"{k}\":"));
+            opt_str(&mut s, &r.get(i)?);
+        }
+        out.push(MemberRow { airline_icao: icao, relationship: rel, status, json_rest: s });
+    }
+    Ok(out)
+}
+
+fn coverage_codes(members: &[MemberRow]) -> Vec<String> {
+    let mut codes: Vec<String> = members
+        .iter()
+        .filter(|m| m.status == "active" && (m.relationship == "member" || m.relationship == "group-brand"))
+        .map(|m| m.airline_icao.clone())
+        .collect();
+    codes.sort();
+    codes.dedup();
+    codes
+}
+
+fn alliance_slug(c: &Conn, slug: &str) -> rusqlite::Result<Option<String>> {
+    c.prepare_cached("SELECT slug FROM ref_alliances WHERE slug = ?1")?
+        .query_row([slug.trim().to_lowercase()], |r| r.get(0))
+        .optional()
+}
+
+fn counts_in(c: &Conn, table: &str, codes: &[String]) -> rusqlite::Result<HashMap<String, i64>> {
+    if codes.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let list = vec!["?"; codes.len()].join(",");
+    let mut s = c.prepare(&format!("SELECT airline_icao, COUNT(*) FROM {table} WHERE airline_icao IN ({list}) GROUP BY airline_icao"))?;
+    let rows = s.query_map(params_from_iter(codes), |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+    rows.collect()
+}
+
+pub async fn alliance(State(app): State<Arc<App>>, axum::extract::Path(slug): axum::extract::Path<String>, req: Request) -> Response {
+    let key = format!("alliance:{}", slug.trim().to_lowercase());
+    serve(
+        app,
+        req,
+        &["ref_alliances", "ref_alliance_memberships", "ref_airlines", "ref_routes", "ref_airline_countries", "ref_leg_stats", "ref_airframes"],
+        key,
+        move |c| {
+            let Some(slug) = alliance_slug(c, &slug)? else {
+                return Ok(Err(ApiError::new(404, "not_found", "unknown alliance")));
+            };
+            let members = alliance_members(c, &slug)?;
+            let mut codes: Vec<String> = members.iter().map(|m| m.airline_icao.clone()).collect();
+            codes.sort();
+            codes.dedup();
+            let routes = counts_in(c, "ref_routes", &codes)?;
+            let countries = counts_in(c, "ref_airline_countries", &codes)?;
+            let mut out = String::with_capacity(4096);
+            out.push_str("{\"alliance\":");
+            alliance_summary(c, &mut out, &slug)?;
+            out.push_str(",\"memberships\":[");
+            for (i, m) in members.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                out.push_str("{\"airline\":");
+                let row = c
+                    .prepare_cached("SELECT icao, iata, name, palette FROM ref_airlines WHERE icao = ?1")?
+                    .query_row([&m.airline_icao], AirlineRow::read)
+                    .optional()?;
+                match row {
+                    Some(a) => write_airline(&mut out, &a, None, None),
+                    None => {
+                        let mut o = Obj::new(&mut out);
+                        o.str("icao", &m.airline_icao).null("iata").str("name", &m.airline_icao).raw("palette", "[]").raw("alliances", "[]");
+                        o.end();
+                    }
+                }
+                out.push_str(&m.json_rest);
+                out.push_str(&format!(
+                    ",\"n_routes\":{},\"n_countries\":{}}}",
+                    routes.get(&m.airline_icao).unwrap_or(&0),
+                    countries.get(&m.airline_icao).unwrap_or(&0)
+                ));
+            }
+            out.push_str("],\"countries\":[");
+            let active = coverage_codes(&members);
+            let mut rollup: Vec<(Option<String>, i64)> = vec![];
+            if !active.is_empty() {
+                let list = vec!["?"; active.len()].join(",");
+                let mut s = c.prepare(&format!(
+                    "SELECT iso_country, SUM(n_routes) FROM ref_airline_countries WHERE airline_icao IN ({list}) GROUP BY iso_country"
+                ))?;
+                let rows = s.query_map(params_from_iter(&active), |r| Ok((r.get(0)?, r.get::<_, Option<i64>>(1)?.unwrap_or(0))))?;
+                rollup = rows.collect::<rusqlite::Result<_>>()?;
+            }
+            rollup.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+            for (i, (country, n)) in rollup.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                out.push_str("{\"iso_country\":");
+                opt_str(&mut out, country);
+                out.push_str(&format!(",\"n_routes\":{n}}}"));
+            }
+            out.push_str("]}");
+            Ok(Ok(out))
+        },
+    )
+    .await
+}
+
+pub async fn alliance_routes(State(app): State<Arc<App>>, axum::extract::Path(slug): axum::extract::Path<String>, req: Request) -> Response {
+    let key = format!("alliance_routes:{}", slug.trim().to_lowercase());
+    serve(
+        app,
+        req,
+        &["ref_alliances", "ref_alliance_memberships", "ref_leg_stats", "ref_routes", "ref_types", "ref_airports"],
+        key,
+        move |c| {
+            let Some(slug) = alliance_slug(c, &slug)? else {
+                return Ok(Err(ApiError::new(404, "not_found", "unknown alliance")));
+            };
+            let codes = coverage_codes(&alliance_members(c, &slug)?);
+            let list = vec!["?"; codes.len()].join(",");
+            // Postgres walks the airline index for an alliance's few
+            // airlines: rows by airline, then as stored
+            struct Agg {
+                org: String,
+                dst: String,
+                n: i64,
+                per_week: f64,
+                avg_num: i64,
+                avg_den: i64,
+                types: Vec<(String, i64)>,
+            }
+            let mut leg_map: indexmap::IndexMap<(String, String), Agg> = indexmap::IndexMap::new();
+            let mut airport_codes: HashSet<String> = HashSet::new();
+            let mut type_counts: HashSet<String> = HashSet::new();
+            if !codes.is_empty() {
+                let mut s = c.prepare(&format!(
+                    "SELECT o, d, n_flights, per_week, avg_min, types FROM ref_leg_stats WHERE airline_icao IN ({list}) \
+                     ORDER BY airline_icao, rowid"
+                ))?;
+                let mut rows = s.query(params_from_iter(&codes))?;
+                while let Some(r) = rows.next()? {
+                    let (o, d): (String, String) = (r.get(0)?, r.get(1)?);
+                    let n: i64 = r.get(2)?;
+                    let agg = leg_map.entry((o.clone(), d.clone())).or_insert_with(|| Agg {
+                        org: o.clone(),
+                        dst: d.clone(),
+                        n: 0,
+                        per_week: 0.0,
+                        avg_num: 0,
+                        avg_den: 0,
+                        types: vec![],
+                    });
+                    agg.n += n;
+                    agg.per_week += r.get::<_, f64>(3)?;
+                    if let Some(avg) = r.get::<_, Option<i64>>(4)? {
+                        agg.avg_num += avg * n;
+                        agg.avg_den += n;
+                    }
+                    let types: Option<String> = r.get(5)?;
+                    if let Some(serde_json::Value::Array(pairs)) = types.and_then(|t| serde_json::from_str(&t).ok()) {
+                        for p in pairs {
+                            let (Some(t), Some(k)) = (p.get(0).and_then(|t| t.as_str()), p.get(1).and_then(|k| k.as_i64())) else {
+                                continue;
+                            };
+                            match agg.types.iter_mut().find(|x| x.0 == t) {
+                                Some(x) => x.1 += k,
+                                None => agg.types.push((t.to_string(), k)),
+                            }
+                            type_counts.insert(t.to_string());
+                        }
+                    }
+                    airport_codes.insert(o);
+                    airport_codes.insert(d);
+                }
+            }
+            // (org, dst, n, per_week JSON, avg_min JSON, aircraft JSON)
+            let mut legs: Vec<(String, String, i64, String)> = vec![];
+            let source = if !leg_map.is_empty() { "flightlog" } else { "chains" };
+            if !leg_map.is_empty() {
+                let mut names: HashMap<String, String> = HashMap::new();
+                for t in &type_counts {
+                    if let Some(n) = c
+                        .prepare_cached("SELECT name FROM ref_types WHERE designator = ?1")?
+                        .query_row([t], |r| r.get::<_, String>(0))
+                        .optional()?
+                    {
+                        names.insert(t.clone(), n);
+                    }
+                }
+                for agg in leg_map.values() {
+                    let mut aircraft = agg.types.clone();
+                    aircraft.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+                    let mut rest = String::new();
+                    rest.push_str(",\"per_week\":");
+                    crate::pyjson::write_float(&mut rest, crate::pyjson::round_to(agg.per_week, 2));
+                    rest.push_str(",\"avg_min\":");
+                    if agg.avg_den != 0 {
+                        let v = (agg.avg_num as f64 / agg.avg_den as f64).round_ties_even() as i64;
+                        rest.push_str(&v.to_string());
+                    } else {
+                        rest.push_str("null");
+                    }
+                    rest.push_str(",\"aircraft\":[");
+                    for (i, (t, n)) in aircraft.iter().take(6).enumerate() {
+                        if i > 0 {
+                            rest.push(',');
+                        }
+                        rest.push_str("{\"type\":");
+                        write_str(&mut rest, t);
+                        rest.push_str(",\"name\":");
+                        opt_str(&mut rest, &names.get(t).cloned());
+                        rest.push_str(&format!(",\"n\":{n}}}"));
+                    }
+                    rest.push(']');
+                    legs.push((agg.org.clone(), agg.dst.clone(), agg.n, rest));
+                }
+            } else {
+                let mut counts: indexmap::IndexMap<(String, String), i64> = indexmap::IndexMap::new();
+                if !codes.is_empty() {
+                    let mut s = c.prepare(&format!("SELECT chain FROM ref_routes WHERE airline_icao IN ({list}) ORDER BY rowid"))?;
+                    let mut rows = s.query(params_from_iter(&codes))?;
+                    while let Some(r) = rows.next()? {
+                        let chain: String = r.get(0)?;
+                        let chain: Vec<serde_json::Value> = serde_json::from_str(&chain).unwrap_or_default();
+                        for w in chain.windows(2) {
+                            let (Some(a), Some(b)) = (w[0].as_str(), w[1].as_str()) else { continue };
+                            if a.is_empty() || b.is_empty() || a == b {
+                                continue;
+                            }
+                            let key = if a < b { (a.to_string(), b.to_string()) } else { (b.to_string(), a.to_string()) };
+                            airport_codes.insert(key.0.clone());
+                            airport_codes.insert(key.1.clone());
+                            *counts.entry(key).or_insert(0) += 1;
+                        }
+                    }
+                }
+                for ((a, b), n) in counts {
+                    legs.push((a, b, n, ",\"per_week\":null,\"aircraft\":null".to_string()));
+                }
+            }
+            // the airports the legs touch, first airport winning a shared code
+            let mut airports: indexmap::IndexMap<String, String> = indexmap::IndexMap::new();
+            let wanted: Vec<String> = airport_codes.into_iter().filter(|c| !c.is_empty()).collect();
+            if !wanted.is_empty() {
+                let list = vec!["?"; wanted.len()].join(",");
+                let mut s = c.prepare(&format!(
+                    "SELECT iata, ident, lat, lon, name, iso_country, tz FROM ref_airports \
+                     WHERE (iata IN ({list}) OR ident IN ({list})) AND lat IS NOT NULL ORDER BY rowid"
+                ))?;
+                let both: Vec<&String> = wanted.iter().chain(wanted.iter()).collect();
+                let mut rows = s.query(params_from_iter(both))?;
+                while let Some(r) = rows.next()? {
+                    let (iata, ident): (Option<String>, Option<String>) = (r.get(0)?, r.get(1)?);
+                    for code in [iata, ident].into_iter().flatten() {
+                        if wanted.contains(&code) && !airports.contains_key(&code) {
+                            let mut o = String::new();
+                            let mut ob = Obj::new(&mut o);
+                            ob.f64("lat", r.get(2)?);
+                            match r.get::<_, Option<f64>>(3)? {
+                                Some(v) => ob.f64("lon", v),
+                                None => ob.null("lon"),
+                            };
+                            opt_str(ob.key("name"), &r.get(4)?);
+                            opt_str(ob.key("iso_country"), &r.get(5)?);
+                            opt_str(ob.key("tz"), &r.get(6)?);
+                            ob.end();
+                            airports.insert(code, o);
+                        }
+                    }
+                }
+            }
+            legs.retain(|l| airports.contains_key(&l.0) && airports.contains_key(&l.1));
+            legs.sort_by_key(|l| -l.2);
+            let mut out = String::with_capacity(16384);
+            out.push_str("{\"slug\":");
+            write_str(&mut out, &slug);
+            out.push_str(&format!(",\"source\":\"{source}\",\"airports\":{{"));
+            for (i, (code, v)) in airports.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                write_str(&mut out, code);
+                out.push(':');
+                out.push_str(v);
+            }
+            out.push_str("},\"legs\":[");
+            for (i, (a, b, n, rest)) in legs.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                out.push_str("{\"org\":");
+                write_str(&mut out, a);
+                out.push_str(",\"dst\":");
+                write_str(&mut out, b);
+                out.push_str(&format!(",\"n\":{n}"));
+                out.push_str(rest);
+                out.push('}');
+            }
+            out.push_str("]}");
+            Ok(Ok(out))
+        },
+    )
+    .await
+}

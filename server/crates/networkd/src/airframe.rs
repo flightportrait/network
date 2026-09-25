@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use axum::extract::{Path, Request, State};
+use rusqlite::OptionalExtension;
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde_json::{Map, Value};
@@ -333,6 +334,251 @@ pub async fn airframe(State(app): State<Arc<App>>, Path(hex): Path<String>, req:
     if let Some(j) = airline_json {
         m.insert("airline".into(), serde_json::from_str(&j).unwrap_or(Value::Null));
     }
+    write_value(&mut out, &Value::Object(m));
+    json(out, CACHE)
+}
+
+// ---- /v1/airlines/{icao}/airframes -----------------------------------------------
+
+/// An operator spell counts as current when it was seen within this many
+/// days of the record's newest observation.
+const CURRENT_DAYS: i64 = 60;
+
+/// airframes row: type_code, built_year, msn, first_observed
+type FrameRow = (Option<String>, Option<i32>, Option<String>, Option<NaiveDate>);
+/// ref_airframes row: registration, type_code, year
+type RegistryRow = (Option<String>, Option<String>, Option<i64>);
+
+struct Spell {
+    kind: String,
+    value: String,
+    first: Option<NaiveDate>,
+    last: Option<NaiveDate>,
+}
+
+/// The spell of `kind` that started last (then ended last); the first of
+/// equals, as Python's max keeps it.
+fn latest<'a>(items: &'a [Spell], kind: &str) -> Option<&'a Spell> {
+    let key = |s: &Spell| (s.first.unwrap_or(NaiveDate::MIN), s.last.unwrap_or(NaiveDate::MIN));
+    let mut best: Option<&Spell> = None;
+    for s in items.iter().filter(|s| s.kind == kind) {
+        if best.is_none_or(|b| key(s) > key(b)) {
+            best = Some(s);
+        }
+    }
+    best
+}
+
+/// GET /v1/airlines/{icao}/airframes: the aircraft an airline flies now,
+/// from the airframe record (written during the day), by registration.
+pub async fn airline_airframes(State(app): State<Arc<App>>, Path(icao): Path<String>, req: Request) -> Response {
+    let Some(db) = &app.db else {
+        return crate::proxy::forward(State(app), req).await.into_response();
+    };
+    if !app.refdb.has(&["ref_airlines", "ref_airframes"]) {
+        return crate::proxy::forward(State(app), req).await.into_response();
+    }
+    let ip = client_ip(&app, req.headers(), peer_of(&req));
+    if let Err(e) = throttle(&app, &ip, "refdata", app.settings.refdata_rate_limit) {
+        return e.into_response();
+    }
+    let internal = |e: &dyn std::fmt::Display| {
+        eprintln!("airline airframes: {e}");
+        ApiError::new(500, "internal_error", "internal error").into_response()
+    };
+    let code = icao.trim().to_uppercase();
+    let a = app.clone();
+    let c2 = code.clone();
+    let known = tokio::task::spawn_blocking(move || -> rusqlite::Result<Option<String>> {
+        a.refdb.conn()?.prepare_cached("SELECT icao FROM ref_airlines WHERE icao = ?1")?.query_row([&c2], |r| r.get(0)).optional()
+    })
+    .await;
+    let icao = match known {
+        Ok(Ok(Some(i))) => i,
+        Ok(Ok(None)) => return ApiError::new(404, "not_found", "unknown airline").into_response(),
+        Ok(Err(e)) => return internal(&e),
+        Err(e) => return internal(&e),
+    };
+    let g = match db.get().await {
+        Ok(g) => g,
+        Err(e) => return internal(&e),
+    };
+    let c = g.as_ref().unwrap();
+    let newest: Option<NaiveDate> = match c.query_one("SELECT max(last_observed) FROM airframes", &[]).await {
+        Ok(r) => r.get(0),
+        Err(e) => return internal(&e),
+    };
+    let Some(newest) = newest else {
+        return ApiError::new(404, "not_observed", "no airframes").into_response();
+    };
+    let cutoff = newest - chrono::TimeDelta::days(CURRENT_DAYS);
+    // rows as the tables hold them (ctid): the order Postgres's scans
+    // return equal keys in, which the ties below follow
+    let cand = match c
+        .query(
+            "SELECT airframe_id FROM airframe_spells WHERE kind = 'operator' AND value = $1 AND last_date >= $2 ORDER BY ctid",
+            &[&icao, &cutoff],
+        )
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => return internal(&e),
+    };
+    let mut ids: Vec<i64> = vec![];
+    for r in &cand {
+        let id: i64 = r.get(0);
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    if ids.is_empty() {
+        return ApiError::new(404, "not_observed", "no airframes").into_response();
+    }
+    let mut spells: std::collections::HashMap<i64, Vec<Spell>> = std::collections::HashMap::new();
+    let rows = match c
+        .query(
+            "SELECT airframe_id, kind, value, first_date, last_date FROM airframe_spells WHERE airframe_id = ANY($1) ORDER BY ctid",
+            &[&ids],
+        )
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => return internal(&e),
+    };
+    for r in rows {
+        spells.entry(r.get(0)).or_default().push(Spell { kind: r.get(1), value: r.get(2), first: r.get(3), last: r.get(4) });
+    }
+    let mut frames: std::collections::HashMap<i64, FrameRow> = std::collections::HashMap::new();
+    match c.query("SELECT id, type_code, built_year, msn, first_observed FROM airframes WHERE id = ANY($1)", &[&ids]).await {
+        Ok(rows) => {
+            for r in rows {
+                frames.insert(r.get(0), (r.get(1), r.get(2), r.get(3), r.get(4)));
+            }
+        }
+        Err(e) => return internal(&e),
+    }
+    let mut notable: std::collections::HashMap<i64, i64> = std::collections::HashMap::new();
+    match c
+        .query(
+            "SELECT airframe_id, count(*) FROM airframe_events WHERE airframe_id = ANY($1) AND visibility = 'public' \
+             AND kind IN ('squawk', 'occurrence') GROUP BY airframe_id",
+            &[&ids],
+        )
+        .await
+    {
+        Ok(rows) => {
+            for r in rows {
+                notable.insert(r.get(0), r.get(1));
+            }
+        }
+        Err(e) => return internal(&e),
+    }
+    drop(g);
+    struct Item {
+        hex: Option<String>,
+        reg: Option<String>,
+        ty: Option<String>,
+        built_year: Option<i64>,
+        msn: Option<String>,
+        since: Option<NaiveDate>,
+        since_first_seen: bool,
+        last_seen: Option<NaiveDate>,
+        airlines: usize,
+        notable: i64,
+    }
+    let empty = vec![];
+    let mut items = vec![];
+    for id in &ids {
+        let mine = spells.get(id).unwrap_or(&empty);
+        let Some(current) = latest(mine, "operator").filter(|s| s.value == icao) else {
+            continue; // moved on to another airline
+        };
+        let (hx, reg) = (latest(mine, "hex"), latest(mine, "registration"));
+        let frame = frames.get(id);
+        let first_observed = frame.and_then(|f| f.3);
+        let operators: std::collections::HashSet<&str> =
+            mine.iter().filter(|s| s.kind == "operator").map(|s| s.value.as_str()).collect();
+        items.push(Item {
+            hex: hx.map(|s| s.value.clone()),
+            reg: reg.map(|s| s.value.clone()),
+            ty: frame.and_then(|f| f.0.clone()),
+            built_year: frame.and_then(|f| f.1).map(i64::from),
+            msn: frame.and_then(|f| f.2.clone()),
+            since: current.first,
+            since_first_seen: first_observed.is_some() && current.first.is_some() && current.first == first_observed,
+            last_seen: current.last,
+            airlines: operators.len(),
+            notable: notable.get(id).copied().unwrap_or(0),
+        });
+    }
+    // registration, type and build year from the registry where the
+    // record's own spells are silent
+    let hexes: Vec<String> = items.iter().filter_map(|i| i.hex.clone()).collect();
+    let a = app.clone();
+    let reg_rows = tokio::task::spawn_blocking(move || -> rusqlite::Result<std::collections::HashMap<String, RegistryRow>> {
+        let c = a.refdb.conn()?;
+        let mut stmt = c.prepare_cached("SELECT registration, type_code, year FROM ref_airframes WHERE hex = ?1")?;
+        let mut out = std::collections::HashMap::new();
+        for h in hexes {
+            let mut rows = stmt.query([&h])?;
+            if let Some(r) = rows.next()? {
+                out.insert(h, (r.get(0)?, r.get(1)?, r.get(2)?));
+            }
+        }
+        Ok(out)
+    })
+    .await;
+    let reg_rows = match reg_rows {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => return internal(&e),
+        Err(e) => return internal(&e),
+    };
+    let mut kept = vec![];
+    for mut it in items {
+        let (r, t, y) = it.hex.as_ref().and_then(|h| reg_rows.get(h)).cloned().unwrap_or((None, None, None));
+        if it.reg.as_deref().is_none_or(str::is_empty) {
+            it.reg = r;
+        }
+        if it.ty.as_deref().is_none_or(str::is_empty) {
+            it.ty = t;
+        }
+        if it.built_year.is_none() {
+            it.built_year = y;
+        }
+        // no registration anywhere: a mis-decoded or anonymous address
+        if it.reg.as_deref().is_none_or(str::is_empty) {
+            continue;
+        }
+        kept.push(it);
+    }
+    kept.sort_by(|a, b| a.reg.cmp(&b.reg));
+    let list: Vec<Value> = kept
+        .into_iter()
+        .map(|it| {
+            let mut m = Map::new();
+            m.insert("hex".into(), text(it.hex.clone()));
+            m.insert("reg".into(), text(it.reg));
+            m.insert("type".into(), text(it.ty));
+            m.insert("built_year".into(), it.built_year.map_or(Value::Null, Value::from));
+            m.insert("msn".into(), text(it.msn));
+            m.insert("since".into(), day(it.since));
+            m.insert("since_first_seen".into(), Value::Bool(it.since_first_seen));
+            m.insert("last_seen".into(), day(it.last_seen));
+            m.insert("airlines".into(), Value::from(it.airlines));
+            m.insert("notable".into(), Value::from(it.notable));
+            m.insert(
+                "country".into(),
+                it.hex.as_deref().and_then(crate::address_blocks::state_of).map_or(Value::Null, |s| s.into()),
+            );
+            Value::Object(m)
+        })
+        .collect();
+    let mut m = Map::new();
+    m.insert("icao".into(), Value::String(icao));
+    m.insert("as_of".into(), day(Some(newest)));
+    m.insert("current_days".into(), Value::from(CURRENT_DAYS));
+    m.insert("airframes".into(), Value::Array(list));
+    let mut out = String::with_capacity(65536);
     write_value(&mut out, &Value::Object(m));
     json(out, CACHE)
 }
