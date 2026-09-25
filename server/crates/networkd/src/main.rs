@@ -19,6 +19,7 @@ mod refdata;
 mod refdb;
 mod search;
 mod squawks;
+mod stations;
 mod ratelimit;
 mod settings;
 mod sky;
@@ -81,6 +82,10 @@ fn station_count(body: &[u8]) -> anyhow::Result<usize> {
 async fn poll_stations_once(app: &App) -> anyhow::Result<()> {
     match app.upstream.get("/data/clients.json").await {
         Ok(body) => {
+            if let Some(reg) = &app.stations {
+                app.presence.lock().unwrap().available = true;
+                return stations::poll_clients(app, reg, &body).await;
+            }
             let n = station_count(&body)?;
             let mut p = app.presence.lock().unwrap();
             p.count = n;
@@ -120,6 +125,12 @@ fn start_tasks(app: &Arc<App>) {
         tokio::spawn(async move {
             every("stations", every_s, || poll_stations_once(&a)).await;
         });
+        if let Some(reg) = app.stations.clone() {
+            let a = app.clone();
+            tokio::spawn(async move {
+                every("receivers", a.settings.receivers_poll_s, || stations::poll_receivers_once(&a, &reg)).await;
+            });
+        }
     }
 }
 
@@ -143,6 +154,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/types/{designator}", get(refdata::aircraft_type))
         .route("/v1/search", get(search::search))
         .route("/v1/airports/{code}", get(history::airport))
+        .route("/v1/stations", get(stations::roster))
+        .route("/v1/stations/{uuid}", get(stations::self_view))
         .route("/v1/stream", get(stream::stream_v1))
         .route("/v2/stream", get(stream::stream_v2))
         .fallback(proxy::forward)

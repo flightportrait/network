@@ -61,6 +61,13 @@ pub struct Settings {
     pub database_url: String,
     /// record emergency squawks (off where the Python service still does)
     pub squawks: bool,
+    /// keep the stations registry (off where the Python service still does)
+    pub stations: bool,
+    pub receivers_poll_s: f64,
+    pub offline_after_s: i64,
+    pub session_retention_days: i64,
+    pub stations_rate_limit: usize,
+    pub station_detail_rate_limit: usize,
     pub schedule_min_flights: i64,
     pub boards_path: String,
 }
@@ -116,6 +123,12 @@ impl Settings {
             search_rate_limit: int("NETWORK_API_SEARCH_RATE_LIMIT", 600) as usize,
             database_url: s("NETWORK_API_DATABASE_URL", ""),
             squawks: matches!(s("NETWORKD_SQUAWKS", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
+            stations: matches!(s("NETWORKD_STATIONS", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
+            receivers_poll_s: float("NETWORK_API_RECEIVERS_POLL_S", 300.0),
+            offline_after_s: int("NETWORK_API_OFFLINE_AFTER_S", 60),
+            session_retention_days: int("NETWORK_API_SESSION_RETENTION_DAYS", 90),
+            stations_rate_limit: int("NETWORK_API_STATIONS_RATE_LIMIT", 120) as usize,
+            station_detail_rate_limit: int("NETWORK_API_STATION_DETAIL_RATE_LIMIT", 60) as usize,
             schedule_min_flights: int("NETWORK_API_SCHEDULE_MIN_FLIGHTS", 5),
             boards_path: s("NETWORK_API_BOARDS_PATH", "data/boards.db"),
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),

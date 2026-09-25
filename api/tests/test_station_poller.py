@@ -144,3 +144,28 @@ def test_point_source_mode(ctx):
     call = [c for c in readsb.calls
             if isinstance(c, tuple) and c[0] == "point_source"][0]
     assert call[2] == 48.8 and call[3] == 2.3
+
+
+def test_poller_can_be_turned_off(monkeypatch):
+    # where another process keeps the same registry
+    import asyncio
+    from types import SimpleNamespace
+    from app.poller import start_pollers
+    from app.settings import Settings
+    monkeypatch.setenv("NETWORK_API_STATION_POLLER", "off")
+    settings = Settings()
+    assert settings.station_poller is False
+
+    async def run():
+        app = SimpleNamespace(state=SimpleNamespace(
+            settings=settings, presence_available=True))
+        tasks = start_pollers(app)
+        for t in tasks:
+            t.cancel()
+        return app, tasks
+
+    app, tasks = asyncio.run(run())
+    assert len(tasks) == 1
+    assert app.state.presence_available is False
+    monkeypatch.delenv("NETWORK_API_STATION_POLLER")
+    assert Settings().station_poller is True

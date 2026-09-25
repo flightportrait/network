@@ -14,6 +14,13 @@ The network server in Rust, and the harness that measures it.
   sends only what the client lacks. Same frames, same freshness, about a
   third of the bytes.
   `NETWORKD_BIND` sets the listen address (default `0.0.0.0:8092`).
+  With `NETWORK_API_DATABASE_URL` set, it can also keep the shared record
+  the Python service keeps: `NETWORKD_SQUAWKS=on` records emergency
+  squawks as airframe events, `NETWORKD_STATIONS=on` keeps the stations
+  registry (clients.json and receivers.json polls) and serves
+  `/v1/stations`. Turn the Python side off where these are on
+  (`NETWORK_API_SQUAWK_WATCHER=off`, `NETWORK_API_STATION_POLLER=off`),
+  so each is written once.
 - `crates/netbench`: `sky` is a synthetic readsb (moving aircraft on the
   JSON port and in `aircraft.json`); `viewers` is a crowd of map clients
   on the live stream, reporting frame age, egress, and the server's CPU

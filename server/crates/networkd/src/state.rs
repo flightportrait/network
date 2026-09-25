@@ -22,6 +22,8 @@ pub struct Presence {
     pub count: usize,
     pub available: bool,
     pub at: f64,
+    /// connected stations by half id, when this instance keeps the registry
+    pub live: HashMap<String, crate::stations::Live>,
 }
 
 pub struct App {
@@ -39,6 +41,8 @@ pub struct App {
     pub refdb: Arc<crate::refdb::RefDb>,
     /// the emergency-squawk watcher, when this instance records squawks
     pub squawks: Option<Arc<Mutex<crate::squawks::Watcher>>>,
+    /// the stations registry, when this instance keeps it
+    pub stations: Option<Arc<crate::stations::Registry>>,
     published: watch::Sender<u64>,
 }
 
@@ -52,7 +56,7 @@ impl App {
                 settings.trace_max_points,
                 settings.trace_max_aircraft,
             )),
-            presence: Mutex::new(Presence { count: 0, available: true, at: 0.0 }),
+            presence: Mutex::new(Presence { available: true, ..Default::default() }),
             legs: LegBook::new(&settings.legs_path),
             limiter: RateLimiter::new(),
             upstream: Upstream::new(&settings.upstream_url, settings.upstream_timeout_s),
@@ -62,6 +66,8 @@ impl App {
             refdb: crate::refdb::RefDb::new(&settings.refdata_path),
             squawks: (settings.squawks && !settings.point_mode() && !settings.database_url.is_empty())
                 .then(|| Arc::new(Mutex::new(crate::squawks::Watcher::default()))),
+            stations: (settings.stations && !settings.point_mode() && !settings.database_url.is_empty())
+                .then(|| crate::stations::Registry::new(&settings.database_url)),
             snapshot: SnapshotCell::new(),
             published,
             settings,

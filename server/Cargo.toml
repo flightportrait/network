@@ -24,12 +24,13 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls", "g
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 sha1 = "0.11"
+sha2 = "0.11"
 base64 = "0.23"
 clap = { version = "4", features = ["derive"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 rand = "0.8"
 rand_chacha = "0.3"
-serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
+serde_json = { version = "1", features = ["preserve_order", "raw_value", "float_roundtrip"] }
 tokio = { version = "1", features = ["full"] }
 tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
 tower = "0.5"

@@ -160,6 +160,12 @@ class Settings:
     squawk_watcher: bool = field(default_factory=lambda: _env(
         "NETWORK_API_SQUAWK_WATCHER", "on").strip().lower()
         not in ("off", "0", "false", "no"))
+    # The stations registry pollers (clients.json, receivers.json). Off
+    # where another process keeps the same registry, so each poll is
+    # written once and the presence map lives where the routes are.
+    station_poller: bool = field(default_factory=lambda: _env(
+        "NETWORK_API_STATION_POLLER", "on").strip().lower()
+        not in ("off", "0", "false", "no"))
     max_aircraft: int = field(default_factory=lambda: _env_int(
         "NETWORK_API_MAX_AIRCRAFT", 10000))
     session_retention_days: int = field(default_factory=lambda: _env_int(

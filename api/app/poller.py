@@ -110,10 +110,15 @@ def start_pollers(app) -> list:
                 _loop(app, poll_snapshot_once, settings.snapshot_poll_s,
                       "snapshot")),
         ]
+    snapshot = asyncio.create_task(
+        _loop(app, poll_snapshot_once, settings.snapshot_poll_s, "snapshot"))
+    if not settings.station_poller:
+        # another process keeps the registry: no presence here, so the
+        # station count is unknown rather than zero
+        app.state.presence_available = False
+        return [snapshot]
     return [
-        asyncio.create_task(
-            _loop(app, poll_snapshot_once, settings.snapshot_poll_s,
-                  "snapshot")),
+        snapshot,
         asyncio.create_task(
             _loop(app, poll_stations_once, settings.station_poll_s,
                   "stations")),
