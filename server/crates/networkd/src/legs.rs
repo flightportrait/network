@@ -6,7 +6,10 @@
 //! changes; a missing file means the archive is dark. Airport totals are
 //! a scan of that airport's legs (LHR: ~150k of them), so each is
 //! computed once per file and kept; a background pass warms every
-//! airport after a new file loads, so no visitor waits on the scan.
+//! airport after a new file loads, so no visitor waits on the scan. That
+//! pass reads the table once in storage order: walking the index airport
+//! by airport re-read the file dozens of times over, from disk wherever
+//! the file outgrows the page cache the container may keep.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -76,6 +79,112 @@ fn airport_json(c: &Connection, code: &str) -> rusqlite::Result<Option<Arc<str>>
     buf.push(']');
     o.end();
     Ok(Some(out.into()))
+}
+
+/// Every airport's `airport_json`, from one pass over the table in
+/// storage order instead of one index walk per airport: the index walks
+/// fetch rows all over the file, and where the file does not fit in
+/// the page cache each fetch is a disk read. Same answers (the test
+/// below holds them to airport_json), busiest routes tied on flights
+/// in reverse code order, as SQLite leaves them (its GROUP BY hands
+/// the routes over in code order, its ORDER BY ... LIMIT puts the later
+/// of two ties first).
+/// `keep_going` is asked now and then; false abandons the pass.
+fn all_airports(c: &Connection, keep_going: &dyn Fn() -> bool) -> rusqlite::Result<Option<HashMap<String, Option<Arc<str>>>>> {
+    use std::collections::HashSet;
+    #[derive(Default)]
+    struct Agg {
+        n: i64,
+        dsts: HashSet<u32>,
+        tails: HashSet<u32>,
+        days: HashSet<u32>,
+        /// dst -> (flights, days)
+        routes: HashMap<u32, (i64, HashSet<u32>)>,
+    }
+    // strings to small ids: codes and dates for the sets, hexes too
+    let mut names: HashMap<String, u32> = HashMap::new();
+    let mut by_id: Vec<String> = vec![];
+    let mut intern = |s: String| -> u32 {
+        if let Some(&i) = names.get(&s) {
+            return i;
+        }
+        let i = by_id.len() as u32;
+        by_id.push(s.clone());
+        names.insert(s, i);
+        i
+    };
+    let mut aggs: HashMap<u32, Agg> = HashMap::new();
+    let mut stmt = c.prepare("SELECT org, dst, hex, date FROM legs")?;
+    let mut rows = stmt.query([])?;
+    let mut seen = 0u64;
+    while let Some(r) = rows.next()? {
+        seen += 1;
+        if seen.is_multiple_of(1_000_000) && !keep_going() {
+            return Ok(None);
+        }
+        let Some(org) = r.get::<_, Option<String>>(0)? else { continue };
+        let dst: Option<String> = r.get(1)?;
+        if dst.as_deref() == Some(org.as_str()) {
+            continue; // circuits are not departures
+        }
+        let hex: Option<String> = r.get(2)?;
+        let date: Option<String> = r.get(3)?;
+        let org = intern(org);
+        let dst = dst.map(&mut intern);
+        let hex = hex.map(&mut intern);
+        let date = date.map(&mut intern);
+        let a = aggs.entry(org).or_default();
+        a.n += 1;
+        if let Some(d) = dst {
+            a.dsts.insert(d);
+            let route = a.routes.entry(d).or_default();
+            route.0 += 1;
+            if let Some(day) = date {
+                route.1.insert(day);
+            }
+        }
+        if let Some(h) = hex {
+            a.tails.insert(h);
+        }
+        if let Some(day) = date {
+            a.days.insert(day);
+        }
+    }
+    let mut out = HashMap::new();
+    for (org, a) in aggs {
+        let mut routes: Vec<(&str, i64, usize)> =
+            a.routes.iter().map(|(d, (n, days))| (by_id[*d as usize].as_str(), *n, days.len())).collect();
+        routes.sort_by(|x, y| y.1.cmp(&x.1).then_with(|| y.0.cmp(x.0)));
+        let mut s = String::with_capacity(1024);
+        let mut o = Obj::new(&mut s);
+        o.int("departures", a.n)
+            .int("destinations", a.dsts.len() as i64)
+            .int("tails", a.tails.len() as i64)
+            .int("days_observed", a.days.len() as i64);
+        let buf = o.key("routes");
+        buf.push('[');
+        for (i, (dst, n, days)) in routes.iter().take(15).enumerate() {
+            if i > 0 {
+                buf.push(',');
+            }
+            let mut item = Obj::new(buf);
+            write_str(item.key("dst"), dst);
+            item.int("flights", *n).int("days", *days as i64);
+            item.end();
+        }
+        buf.push(']');
+        o.end();
+        out.insert(by_id[org as usize].clone(), Some(s.into()));
+    }
+    // airports every leg of which is a circuit: no departures observed
+    let codes: Vec<String> = c
+        .prepare("SELECT DISTINCT org FROM legs WHERE org IS NOT NULL")?
+        .query_map([], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    for code in codes {
+        out.entry(code).or_insert(None);
+    }
+    Ok(Some(out))
 }
 
 impl LegBook {
@@ -193,22 +302,18 @@ impl LegBook {
         let started = Instant::now();
         let done = (|| -> rusqlite::Result<usize> {
             let c = open(&self.path)?;
-            let codes: Vec<String> = c
-                .prepare("SELECT DISTINCT org FROM legs WHERE org IS NOT NULL")?
-                .query_map([], |r| r.get(0))?
-                .collect::<rusqlite::Result<_>>()?;
+            let current = || self.inner.lock().unwrap().loaded_mtime == mtime;
+            // a newer file arrived: its own pass takes over
+            let Some(all) = all_airports(&c, &current)? else { return Ok(0) };
+            let mut g = self.inner.lock().unwrap();
+            if g.loaded_mtime != mtime {
+                return Ok(0);
+            }
             let mut n = 0;
-            for code in codes {
-                if self.inner.lock().unwrap().loaded_mtime != mtime {
-                    break; // a newer file arrived; its own pass takes over
-                }
-                if self.inner.lock().unwrap().airports.contains_key(&code) {
-                    continue;
-                }
-                let v = airport_json(&c, &code)?;
-                let mut g = self.inner.lock().unwrap();
-                if g.loaded_mtime == mtime {
-                    g.airports.insert(code, v);
+            for (code, v) in all {
+                // an airport a visitor already asked for keeps its answer
+                if let std::collections::hash_map::Entry::Vacant(e) = g.airports.entry(code) {
+                    e.insert(v);
                     n += 1;
                 }
             }
@@ -297,6 +402,36 @@ impl Inner {
             conn: None,
             airports: HashMap::new(),
             warming: false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every airport over LEGS_BENCH, one index walk each as requests
+    /// compute them and in the warm pass's one sweep: the same answers.
+    #[test]
+    fn one_pass_answers_like_the_walks() {
+        let Ok(path) = std::env::var("LEGS_BENCH") else { return };
+        let c = open(&path).unwrap();
+        let codes: Vec<String> = c
+            .prepare("SELECT DISTINCT org FROM legs WHERE org IS NOT NULL")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        let t = Instant::now();
+        let walks: Vec<_> = codes.iter().map(|code| airport_json(&c, code).unwrap()).collect();
+        let t_walks = t.elapsed();
+        let t = Instant::now();
+        let all = all_airports(&c, &|| true).unwrap().unwrap();
+        eprintln!("{} airports: walks {t_walks:?}, one pass {:?}", codes.len(), t.elapsed());
+        assert_eq!(all.len(), codes.len());
+        for (code, want) in codes.iter().zip(&walks) {
+            assert_eq!(&all[code], want, "{code}");
         }
     }
 }
