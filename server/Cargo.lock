@@ -1065,6 +1065,7 @@ dependencies = [
  "rand_chacha",
  "reqwest",
  "rusqlite",
+ "ryu",
  "serde",
  "serde_json",
  "sha1",

@@ -43,6 +43,7 @@ RANKS = (
     ("ref_airlines", "icao", "icao"),
     ("ref_alliances", "slug", "name"),
     ("ref_airports", "ident", "ident"),
+    ("ref_airframes", "hex", "registration"),
 )
 
 # Indexes for the reader's lookups that the Postgres schema does not

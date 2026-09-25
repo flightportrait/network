@@ -11,6 +11,7 @@ mod history;
 mod http;
 mod legs;
 mod live;
+mod pgsort;
 mod proxy;
 mod pyjson;
 mod refdata;
@@ -126,6 +127,13 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/airlines", get(refdata::airlines))
         .route("/v1/airlines/{icao}", get(refdata::airline))
         .route("/v1/alliances", get(refdata::alliances))
+        .route("/v1/airlines/{icao}/routes", get(refdata::airline_routes))
+        .route("/v1/airlines/{icao}/leg/{org}/{dst}", get(refdata::airline_leg))
+        .route("/v1/airlines/{icao}/schedule/{org}/{dst}", get(refdata::airline_schedule))
+        .route("/v1/airlines/{icao}/countries", get(refdata::airline_countries))
+        .route("/v1/airlines/{icao}/fleet", get(refdata::airline_fleet))
+        .route("/v1/airlines/{icao}/fleet/{designator}", get(refdata::airline_fleet_type))
+        .route("/v1/types/{designator}", get(refdata::aircraft_type))
         .route("/v1/airports/{code}", get(history::airport))
         .route("/v1/stream", get(stream::stream_v1))
         .route("/v2/stream", get(stream::stream_v2))

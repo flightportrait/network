@@ -105,15 +105,26 @@ pub fn write_float(out: &mut String, f: f64) {
         out.push_str(if f.is_sign_negative() { "-0.0" } else { "0.0" });
         return;
     }
-    // shortest round-trip digits, scientific: "-1.2345e-7"
-    let sci = format!("{f:e}");
-    let (mant, exp) = sci.split_once('e').unwrap();
-    let exp: i32 = exp.parse().unwrap();
-    let (neg, mant) = match mant.strip_prefix('-') {
-        Some(m) => (true, m),
-        None => (false, mant),
+    // shortest round-trip digits from ryu, which, like CPython's dtoa,
+    // breaks an exact tie between two shortest candidates to the even
+    // digit (-70.785797119140625 -> ...062, where std's formatter says
+    // ...063). ryu writes "100.0", "0.00001", "1e16", "1.25e-7".
+    let mut buf = ryu::Buffer::new();
+    let text = buf.format_finite(f);
+    let (neg, text) = match text.strip_prefix('-') {
+        Some(t) => (true, t),
+        None => (false, text),
     };
-    let digits: String = mant.chars().filter(|c| *c != '.').collect();
+    let (mant, e) = match text.split_once('e') {
+        Some((m, e)) => (m, e.parse::<i32>().unwrap()),
+        None => (text, 0),
+    };
+    let (int_part, frac) = mant.split_once('.').unwrap_or((mant, ""));
+    let all: String = [int_part, frac].concat();
+    let lead = all.bytes().take_while(|b| *b == b'0').count();
+    let trimmed = all[lead..].trim_end_matches('0');
+    let digits = if trimmed.is_empty() { "0".to_string() } else { trimmed.to_string() };
+    let exp: i32 = int_part.len() as i32 - 1 - lead as i32 + e;
     if neg {
         out.push('-');
     }
@@ -297,6 +308,11 @@ mod tests {
             (1790257773.510103, "1790257773.510103"), (103.8198, "103.8198"),
             (-0.0, "-0.0"), (0.0, "0.0"), (1e22, "1e+22"), (5e-324, "5e-324"),
             (451.3, "451.3"), (2.0e-4, "0.0002"),
+            // exact ties between two shortest strings go to the even digit
+            (-70.78579711914062, "-70.78579711914062"), // exactly -70.785797119140625
+            (0.3, "0.3"), (1.0 / 3.0, "0.3333333333333333"), (2.5, "2.5"),
+            (1234567.0, "1234567.0"), (1e15, "1000000000000000.0"),
+            (123e-20, "1.23e-18"), (-1.5e300, "-1.5e+300"),
         ];
         for (x, want) in cases {
             assert_eq!(f(x), want, "{x:e}");
@@ -330,3 +346,4 @@ mod tests {
         assert_eq!(s, "1.3 25 \"SIA1  \" null -1500.0 [1,2.5] true ");
     }
 }
+

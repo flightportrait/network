@@ -307,3 +307,541 @@ pub async fn alliances(State(app): State<Arc<App>>, req: Request) -> Response {
     })
     .await
 }
+
+// ---- airline sub-pages, types ---------------------------------------------
+
+fn airline_or_404(c: &Conn, icao: &str) -> rusqlite::Result<Result<AirlineRow, ApiError>> {
+    let row = c
+        .prepare_cached("SELECT icao, iata, name, palette FROM ref_airlines WHERE icao = ?1")?
+        .query_row([icao.trim().to_uppercase()], AirlineRow::read)
+        .optional()?;
+    Ok(row.ok_or_else(|| ApiError::new(404, "not_found", "unknown airline")))
+}
+
+/// {designator: name} for the given type codes.
+fn type_names<'a>(c: &Conn, codes: impl Iterator<Item = &'a str>) -> rusqlite::Result<HashMap<String, Option<String>>> {
+    let codes: Vec<&str> = {
+        let mut v: Vec<&str> = codes.collect();
+        v.sort_unstable();
+        v.dedup();
+        v
+    };
+    let mut out = HashMap::new();
+    for chunk in codes.chunks(500) {
+        let list = vec!["?"; chunk.len()].join(",");
+        let mut s = c.prepare(&format!("SELECT designator, name FROM ref_types WHERE designator IN ({list})"))?;
+        let mut rows = s.query(params_from_iter(chunk))?;
+        while let Some(r) = rows.next()? {
+            out.insert(r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?);
+        }
+    }
+    Ok(out)
+}
+
+fn json_value(raw: &Option<String>) -> Option<serde_json::Value> {
+    raw.as_deref().and_then(|r| serde_json::from_str(r).ok())
+}
+
+fn write_json(out: &mut String, v: &serde_json::Value) {
+    crate::pyjson::Val::from_json(v).write(out)
+}
+
+fn opt_i(out: &mut String, v: Option<i64>) {
+    match v {
+        Some(i) => out.push_str(&i.to_string()),
+        None => out.push_str("null"),
+    }
+}
+
+fn opt_hhmm(out: &mut String, v: Option<i64>) {
+    match v {
+        Some(m) => write_str(out, &crate::boards::hhmm(m)),
+        None => out.push_str("null"),
+    }
+}
+
+/// `_resolve_airports`: {code: {lat, lon, name, iso_country, tz}} in the
+/// order the table yields them, the first airport winning a shared code.
+fn resolve_airports(c: &Conn, codes: &HashSet<String>) -> rusqlite::Result<(Vec<String>, HashMap<String, String>)> {
+    let mut order = vec![];
+    let mut found: HashMap<String, String> = HashMap::new();
+    let list: Vec<&String> = codes.iter().filter(|c| !c.is_empty()).collect();
+    if list.is_empty() {
+        return Ok((order, found));
+    }
+    let marks = vec!["?"; list.len()].join(",");
+    let mut s = c.prepare(&format!(
+        "SELECT iata, ident, lat, lon, name, iso_country, tz FROM ref_airports \
+         WHERE (iata IN ({marks}) OR ident IN ({marks})) AND lat IS NOT NULL ORDER BY rowid"
+    ))?;
+    let params: Vec<&String> = list.iter().chain(list.iter()).copied().collect();
+    let mut rows = s.query(params_from_iter(params))?;
+    while let Some(r) = rows.next()? {
+        let (iata, ident): (Option<String>, String) = (r.get(0)?, r.get(1)?);
+        for code in [iata, Some(ident)].into_iter().flatten() {
+            if codes.contains(&code) && !found.contains_key(&code) {
+                let mut s = String::new();
+                let mut o = Obj::new(&mut s);
+                let lat: Option<f64> = r.get(2)?;
+                let lon: Option<f64> = r.get(3)?;
+                match lat {
+                    Some(x) => o.f64("lat", x),
+                    None => o.null("lat"),
+                };
+                match lon {
+                    Some(x) => o.f64("lon", x),
+                    None => o.null("lon"),
+                };
+                opt_str(o.key("name"), &r.get(4)?);
+                opt_str(o.key("iso_country"), &r.get(5)?);
+                opt_str(o.key("tz"), &r.get(6)?);
+                o.end();
+                order.push(code.clone());
+                found.insert(code, s);
+            }
+        }
+    }
+    Ok((order, found))
+}
+
+pub async fn airline_routes(State(app): State<Arc<App>>, axum::extract::Path(icao): axum::extract::Path<String>, req: Request) -> Response {
+    let code = icao.trim().to_uppercase();
+    serve(app, req, &["ref_airlines", "ref_leg_stats", "ref_routes", "ref_types", "ref_airports"], format!("airline_routes:{code}"), move |c| {
+        let a = match airline_or_404(c, &code)? {
+            Ok(a) => a,
+            Err(e) => return Ok(Err(e)),
+        };
+        // legs as (org, dst, n, json)
+        let mut legs: Vec<(String, String, i64, String)> = vec![];
+        let mut codes = HashSet::new();
+        type Stat = (String, String, i64, i64, f64, Option<i64>, Option<String>);
+        let stats: Vec<Stat> = c
+            .prepare_cached(
+                "SELECT o, d, n_flights, n_days, per_week, avg_min, types FROM ref_leg_stats \
+                 WHERE airline_icao = ?1 ORDER BY rowid",
+            )?
+            .query_map([&a.icao], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        let source = if stats.is_empty() { "chains" } else { "flightlog" };
+        if !stats.is_empty() {
+            let parsed: Vec<Vec<serde_json::Value>> = stats
+                .iter()
+                .map(|s| json_value(&s.6).and_then(|v| v.as_array().cloned()).unwrap_or_default())
+                .collect();
+            let names = type_names(c, parsed.iter().flatten().filter_map(|p| p.get(0).and_then(|t| t.as_str())))?;
+            for (s, types) in stats.iter().zip(&parsed) {
+                codes.insert(s.0.clone());
+                codes.insert(s.1.clone());
+                let mut j = String::new();
+                let mut o = Obj::new(&mut j);
+                o.str("org", &s.0).str("dst", &s.1).int("n", s.2).int("days", s.3).f64("per_week", s.4);
+                opt_i(o.key("avg_min"), s.5);
+                let buf = o.key("aircraft");
+                buf.push('[');
+                for (k, p) in types.iter().enumerate() {
+                    if k > 0 {
+                        buf.push(',');
+                    }
+                    let t = p.get(0).cloned().unwrap_or(serde_json::Value::Null);
+                    let mut po = Obj::new(buf);
+                    write_json(po.key("type"), &t);
+                    let name = t.as_str().and_then(|t| names.get(t).cloned().flatten());
+                    opt_str(po.key("name"), &name);
+                    write_json(po.key("n"), &p.get(1).cloned().unwrap_or(serde_json::Value::Null));
+                    po.end();
+                }
+                buf.push(']');
+                o.end();
+                legs.push((s.0.clone(), s.1.clone(), s.2, j));
+            }
+        } else {
+            let mut agg: Vec<((String, String), i64)> = vec![];
+            let mut at: HashMap<(String, String), usize> = HashMap::new();
+            let chains: Vec<Option<String>> = c
+                .prepare_cached("SELECT chain FROM ref_routes WHERE airline_icao = ?1 ORDER BY rowid")?
+                .query_map([&a.icao], |r| r.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            for chain in chains {
+                let chain: Vec<Option<String>> = json_value(&chain)
+                    .and_then(|v| v.as_array().cloned())
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|x| x.as_str().map(str::to_string))
+                    .collect();
+                for w in chain.windows(2) {
+                    let (Some(x), Some(y)) = (&w[0], &w[1]) else { continue };
+                    if x.is_empty() || y.is_empty() || x == y {
+                        continue;
+                    }
+                    let key = if x < y { (x.clone(), y.clone()) } else { (y.clone(), x.clone()) };
+                    match at.get(&key) {
+                        Some(&k) => agg[k].1 += 1,
+                        None => {
+                            at.insert(key.clone(), agg.len());
+                            agg.push((key, 1));
+                        }
+                    }
+                }
+            }
+            for ((x, y), n) in agg {
+                codes.insert(x.clone());
+                codes.insert(y.clone());
+                let mut j = String::new();
+                let mut o = Obj::new(&mut j);
+                o.str("org", &x).str("dst", &y).int("n", n).null("per_week").null("aircraft");
+                o.end();
+                legs.push((x, y, n, j));
+            }
+        }
+        let (order, airports) = resolve_airports(c, &codes)?;
+        legs.retain(|l| airports.contains_key(&l.0) && airports.contains_key(&l.1));
+        legs.sort_by_key(|l| -l.2);
+        let mut out = String::with_capacity(64 * 1024);
+        let mut o = Obj::new(&mut out);
+        o.str("icao", &a.icao).str("source", source);
+        let buf = o.key("airports");
+        buf.push('{');
+        for (k, code) in order.iter().enumerate() {
+            if k > 0 {
+                buf.push(',');
+            }
+            write_str(buf, code);
+            buf.push(':');
+            buf.push_str(&airports[code]);
+        }
+        buf.push('}');
+        let buf = o.key("legs");
+        buf.push('[');
+        for (k, l) in legs.iter().enumerate() {
+            if k > 0 {
+                buf.push(',');
+            }
+            buf.push_str(&l.3);
+        }
+        buf.push(']');
+        o.end();
+        Ok(Ok(out))
+    })
+    .await
+}
+
+pub async fn airline_leg(
+    State(app): State<Arc<App>>,
+    axum::extract::Path((icao, org, dst)): axum::extract::Path<(String, String, String)>,
+    req: Request,
+) -> Response {
+    let code = icao.trim().to_uppercase();
+    let (mut o1, mut d1) = (org.trim().to_uppercase(), dst.trim().to_uppercase());
+    if o1 > d1 {
+        std::mem::swap(&mut o1, &mut d1);
+    }
+    serve(app, req, &["ref_airlines", "ref_leg_stats", "ref_airframes"], format!("airline_leg:{code}:{o1}:{d1}"), move |c| {
+        let a = match airline_or_404(c, &code)? {
+            Ok(a) => a,
+            Err(e) => return Ok(Err(e)),
+        };
+        let st: Option<(i64, i64, Option<String>)> = c
+            .prepare_cached("SELECT n_flights, n_days, airframes FROM ref_leg_stats WHERE airline_icao = ?1 AND o = ?2 AND d = ?3")?
+            .query_row((&a.icao, &o1, &d1), |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .optional()?;
+        let Some((flights, days, frames)) = st else {
+            return Ok(Err(ApiError::new(404, "not_observed", "unknown leg")));
+        };
+        let mut out = String::with_capacity(4096);
+        let mut o = Obj::new(&mut out);
+        o.str("icao", &a.icao).str("org", &o1).str("dst", &d1).int("flights", flights).int("days", days);
+        let buf = o.key("airframes");
+        buf.push('[');
+        let entries = json_value(&frames).and_then(|v| v.as_array().cloned()).unwrap_or_default();
+        let mut stmt = c.prepare_cached("SELECT registration, type_code FROM ref_airframes WHERE hex = ?1")?;
+        for (k, e) in entries.iter().enumerate() {
+            if k > 0 {
+                buf.push(',');
+            }
+            let hex = e.get(0).cloned().unwrap_or(serde_json::Value::Null);
+            let af: Option<(Option<String>, Option<String>)> = match hex.as_str() {
+                Some(h) => stmt.query_row([h], |r| Ok((r.get(0)?, r.get(1)?))).optional()?,
+                None => None,
+            };
+            let mut fo = Obj::new(buf);
+            write_json(fo.key("hex"), &hex);
+            opt_str(fo.key("reg"), &af.as_ref().and_then(|a| a.0.clone()));
+            opt_str(fo.key("type"), &af.as_ref().and_then(|a| a.1.clone()));
+            match e.as_array().filter(|a| a.len() > 1) {
+                Some(a) => write_json(fo.key("flights"), &a[1]),
+                None => {
+                    fo.null("flights");
+                }
+            }
+            fo.end();
+        }
+        buf.push(']');
+        o.end();
+        Ok(Ok(out))
+    })
+    .await
+}
+
+pub async fn airline_schedule(
+    State(app): State<Arc<App>>,
+    axum::extract::Path((icao, org, dst)): axum::extract::Path<(String, String, String)>,
+    req: Request,
+) -> Response {
+    let code = icao.trim().to_uppercase();
+    let (o1, d1) = (org.trim().to_uppercase(), dst.trim().to_uppercase());
+    let min = app.settings.schedule_min_flights;
+    serve(app, req, &["ref_airlines", "ref_schedule", "ref_types"], format!("airline_schedule:{code}:{o1}:{d1}"), move |c| {
+        let a = match airline_or_404(c, &code)? {
+            Ok(a) => a,
+            Err(e) => return Ok(Err(e)),
+        };
+        type Row = (String, Option<String>, String, String, String, Option<i64>, Option<i64>, Option<String>, i64);
+        let rows: Vec<Row> = c
+            .prepare_cached(
+                "SELECT callsign, flight, source, org, dst, dep_min, arr_min, type_code, n_flights FROM ref_schedule \
+                 WHERE airline_icao = ?1 AND n_flights >= ?2 AND ((org = ?3 AND dst = ?4) OR (org = ?4 AND dst = ?3)) \
+                 ORDER BY rowid",
+            )?
+            .query_map((&a.icao, min, &o1, &d1), |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?))
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        // ORDER BY org, dep_min (NULLs last), as Postgres sorts the rows
+        // its scan yields: ties land where they land there
+        let mut rows = rows;
+        crate::pgsort::sort(&mut rows, &|x: &Row, y: &Row| {
+            x.3.cmp(&y.3).then_with(|| match (x.5, y.5) {
+                (Some(p), Some(q)) => p.cmp(&q),
+                (None, None) => std::cmp::Ordering::Equal,
+                (None, _) => std::cmp::Ordering::Greater,
+                (_, None) => std::cmp::Ordering::Less,
+            })
+        });
+        let names = type_names(c, rows.iter().filter_map(|r| r.7.as_deref()).filter(|t| !t.is_empty()))?;
+        let mut out = String::with_capacity(8192);
+        let mut o = Obj::new(&mut out);
+        o.str("icao", &a.icao).str("org", &o1).str("dst", &d1);
+        let buf = o.key("departures");
+        buf.push('[');
+        for (k, r) in rows.iter().enumerate() {
+            if k > 0 {
+                buf.push(',');
+            }
+            // IATA form of the number when the airline has one (EK1)
+            let num: String = if r.0.chars().count() > 3 {
+                r.0.chars().skip(3).collect::<String>().trim_start_matches('0').to_string()
+            } else {
+                String::new()
+            };
+            let flight = match r.1.as_deref() {
+                Some(f) if !f.is_empty() => f.to_string(),
+                _ => match a.iata.as_deref() {
+                    Some(i) if !i.is_empty() && !num.is_empty() => format!("{i}{num}"),
+                    _ => r.0.clone(),
+                },
+            };
+            let mut ro = Obj::new(buf);
+            ro.str("callsign", &r.0).str("flight", &flight).str("source", &r.2).str("org", &r.3).str("dst", &r.4);
+            opt_hhmm(ro.key("dep"), r.5);
+            opt_i(ro.key("dep_min"), r.5);
+            opt_hhmm(ro.key("arr"), r.6);
+            opt_i(ro.key("arr_min"), r.6);
+            opt_str(ro.key("type"), &r.7);
+            let tn = r.7.as_ref().and_then(|t| names.get(t).cloned().flatten());
+            opt_str(ro.key("type_name"), &tn);
+            ro.int("n_flights", r.8);
+            ro.end();
+        }
+        buf.push(']');
+        o.end();
+        Ok(Ok(out))
+    })
+    .await
+}
+
+pub async fn airline_countries(State(app): State<Arc<App>>, axum::extract::Path(icao): axum::extract::Path<String>, req: Request) -> Response {
+    let code = icao.trim().to_uppercase();
+    serve(app, req, &["ref_airlines", "ref_airline_countries"], format!("airline_countries:{code}"), move |c| {
+        let a = match airline_or_404(c, &code)? {
+            Ok(a) => a,
+            Err(e) => return Ok(Err(e)),
+        };
+        let mut out = String::with_capacity(2048);
+        let mut o = Obj::new(&mut out);
+        o.str("icao", &a.icao);
+        let buf = o.key("countries");
+        buf.push('[');
+        let mut rows: Vec<(Option<String>, Option<i64>)> = c
+            .prepare_cached("SELECT iso_country, n_routes FROM ref_airline_countries WHERE airline_icao = ?1 ORDER BY rowid")?
+            .query_map([&a.icao], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        // ORDER BY n_routes DESC (Postgres: NULLs first), ties as it sorts them
+        crate::pgsort::sort(&mut rows, &|x: &(Option<String>, Option<i64>), y: &(Option<String>, Option<i64>)| match (x.1, y.1) {
+            (Some(p), Some(q)) => q.cmp(&p),
+            (None, None) => std::cmp::Ordering::Equal,
+            (None, _) => std::cmp::Ordering::Less,
+            (_, None) => std::cmp::Ordering::Greater,
+        });
+        for (k, (iso, n)) in rows.iter().enumerate() {
+            if k > 0 {
+                buf.push(',');
+            }
+            let mut co = Obj::new(buf);
+            opt_str(co.key("iso_country"), iso);
+            opt_i(co.key("n_routes"), *n);
+            co.end();
+        }
+        buf.push(']');
+        o.end();
+        Ok(Ok(out))
+    })
+    .await
+}
+
+pub async fn airline_fleet(State(app): State<Arc<App>>, axum::extract::Path(icao): axum::extract::Path<String>, req: Request) -> Response {
+    let code = icao.trim().to_uppercase();
+    serve(app, req, &["ref_airlines", "ref_airframes", "ref_types"], format!("airline_fleet:{code}"), move |c| {
+        let a = match airline_or_404(c, &code)? {
+            Ok(a) => a,
+            Err(e) => return Ok(Err(e)),
+        };
+        let rows: Vec<(Option<String>, i64)> = c
+            .prepare_cached(
+                "SELECT type_code, COUNT(*) FROM ref_airframes WHERE operator_icao = ?1 OR operator_norm = ?2 \
+                 GROUP BY type_code ORDER BY 2 DESC, type_code IS NULL, type_code",
+            )?
+            .query_map((&a.icao, a.name.to_uppercase()), |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        let names = type_names(c, rows.iter().filter_map(|r| r.0.as_deref()).filter(|t| !t.is_empty()))?;
+        let known = |t: &Option<String>| t.as_deref().is_some_and(|t| !t.is_empty());
+        let mut out = String::with_capacity(4096);
+        let mut o = Obj::new(&mut out);
+        o.str("icao", &a.icao).int("n_airframes", rows.iter().map(|r| r.1).sum());
+        let buf = o.key("fleet");
+        buf.push('[');
+        for (k, (t, n)) in rows.iter().filter(|r| known(&r.0)).enumerate() {
+            if k > 0 {
+                buf.push(',');
+            }
+            let mut fo = Obj::new(buf);
+            opt_str(fo.key("type"), t);
+            let tn = t.as_ref().and_then(|t| names.get(t).cloned().flatten());
+            opt_str(fo.key("type_name"), &tn);
+            fo.int("count", *n);
+            fo.end();
+        }
+        buf.push(']');
+        o.int("unknown_type", rows.iter().filter(|r| !known(&r.0)).map(|r| r.1).sum());
+        o.end();
+        Ok(Ok(out))
+    })
+    .await
+}
+
+pub async fn airline_fleet_type(
+    State(app): State<Arc<App>>,
+    axum::extract::Path((icao, designator)): axum::extract::Path<(String, String)>,
+    req: Request,
+) -> Response {
+    let code = icao.trim().to_uppercase();
+    let designator = designator.trim().to_uppercase();
+    let legs = app.legs.clone();
+    let stamp = crate::boards::mtime(&app.settings.legs_path).map(|t| format!("{t:?}")).unwrap_or_default();
+    serve(
+        app,
+        req,
+        &["ref_airlines", "ref_airframes", "ref_types", "rank_ref_airframes_registration"],
+        format!("airline_fleet_type:{code}:{designator}:{stamp}"),
+        move |c| {
+            let a = match airline_or_404(c, &code)? {
+                Ok(a) => a,
+                Err(e) => return Ok(Err(e)),
+            };
+            let frames: Vec<(String, Option<String>)> = c
+                .prepare_cached(
+                    "SELECT f.hex, f.registration FROM ref_airframes f \
+                     JOIN rank_ref_airframes_registration r ON r.key = f.hex \
+                     WHERE (f.operator_icao = ?1 OR f.operator_norm = ?2) AND f.type_code = ?3 \
+                     ORDER BY r.rank LIMIT 300",
+                )?
+                .query_map((&a.icao, a.name.to_uppercase(), &designator), |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            if frames.is_empty() {
+                return Ok(Err(ApiError::new(404, "not_observed", "no airframes")));
+            }
+            let name: Option<String> = c
+                .prepare_cached("SELECT name FROM ref_types WHERE designator = ?1")?
+                .query_row([&designator], |r| r.get(0))
+                .optional()?
+                .flatten();
+            let summaries = legs
+                .with_conn(|lc| {
+                    frames.iter().map(|(h, _)| crate::legs::airframe_summary(lc, h)).collect::<rusqlite::Result<Vec<_>>>()
+                })
+                .unwrap_or_default();
+            let window = if legs.available() { legs.window_days() } else { None };
+            let mut out = String::with_capacity(frames.len() * 200 + 256);
+            let mut o = Obj::new(&mut out);
+            o.str("icao", &a.icao).str("type", &designator);
+            opt_str(o.key("type_name"), &name);
+            opt_i(o.key("window_days"), window);
+            let buf = o.key("airframes");
+            buf.push('[');
+            for (k, (hex, reg)) in frames.iter().enumerate() {
+                if k > 0 {
+                    buf.push(',');
+                }
+                let s = summaries.get(k).and_then(|s| s.as_ref());
+                let mut fo = Obj::new(buf);
+                fo.str("hex", hex);
+                opt_str(fo.key("reg"), reg);
+                fo.int("legs", s.map(|s| s.legs).unwrap_or(0));
+                opt_str(fo.key("last_date"), &s.and_then(|s| s.last_date.clone()));
+                opt_str(fo.key("last_org"), &s.and_then(|s| s.last_org.clone()));
+                opt_str(fo.key("last_dst"), &s.and_then(|s| s.last_dst.clone()));
+                opt_str(fo.key("where"), &s.and_then(|s| s.where_.clone()));
+                match s.and_then(|s| s.top_route.as_ref()) {
+                    Some((org, dst, n)) => {
+                        let b = fo.key("top_route");
+                        b.push('[');
+                        opt_str(b, org);
+                        b.push(',');
+                        opt_str(b, dst);
+                        b.push(',');
+                        b.push_str(&n.to_string());
+                        b.push(']');
+                    }
+                    None => {
+                        fo.null("top_route");
+                    }
+                }
+                fo.end();
+            }
+            buf.push(']');
+            o.end();
+            Ok(Ok(out))
+        },
+    )
+    .await
+}
+
+pub async fn aircraft_type(State(app): State<Arc<App>>, axum::extract::Path(designator): axum::extract::Path<String>, req: Request) -> Response {
+    let code = designator.trim().to_uppercase();
+    serve(app, req, &["ref_types"], format!("type:{code}"), move |c| {
+        let row: Option<(String, Option<String>, Option<String>)> = c
+            .prepare_cached("SELECT designator, name, category FROM ref_types WHERE designator = ?1")?
+            .query_row([&code], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .optional()?;
+        let Some((d, name, category)) = row else {
+            return Ok(Err(ApiError::new(404, "not_found", "unknown type")));
+        };
+        let mut out = String::new();
+        let mut o = Obj::new(&mut out);
+        o.str("designator", &d);
+        opt_str(o.key("name"), &name);
+        opt_str(o.key("category"), &category);
+        o.end();
+        Ok(Ok(out))
+    })
+    .await
+}

@@ -176,6 +176,17 @@ impl LegBook {
         computed
     }
 
+    /// Run `f` on the loaded file's connection (queries are short index
+    /// lookups; the lock keeps one connection for all of them). None
+    /// while the archive is dark.
+    pub fn with_conn<T>(self: &Arc<Self>, f: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Option<T> {
+        if !self.available() {
+            return None;
+        }
+        let g = self.inner.lock().unwrap();
+        f(g.conn.as_ref()?).ok()
+    }
+
     /// Compute every airport's totals for the file loaded at `mtime`, on
     /// a connection of its own, so requests find them ready.
     fn warm(&self, mtime: Option<SystemTime>) {
@@ -209,6 +220,54 @@ impl LegBook {
         }
         self.inner.lock().unwrap().warming = false;
     }
+}
+
+/// `airframe_summary`: an airframe's legs in the window, its last leg,
+/// where it likely sits, and the route it flies most. Written as the
+/// fields the fleet page takes: legs, last_date, last_org, last_dst,
+/// where, top_route.
+pub struct AirframeSummary {
+    pub legs: i64,
+    pub last_date: Option<String>,
+    pub last_org: Option<String>,
+    pub last_dst: Option<String>,
+    pub where_: Option<String>,
+    pub top_route: Option<(Option<String>, Option<String>, i64)>,
+}
+
+pub fn airframe_summary(c: &Connection, hex: &str) -> rusqlite::Result<Option<AirframeSummary>> {
+    let hex = hex.trim().to_lowercase();
+    let n: i64 = c.prepare_cached("SELECT COUNT(*) FROM legs WHERE hex = ?")?.query_row([&hex], |r| r.get(0))?;
+    if n == 0 {
+        return Ok(None);
+    }
+    let last: (Option<String>, Option<String>, Option<String>, Option<rusqlite::types::Value>) = c
+        .prepare_cached("SELECT date, org, dst, arr_ts FROM legs WHERE hex = ? ORDER BY date DESC, dep_ts DESC LIMIT 1")?
+        .query_row([&hex], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
+    let top = c
+        .prepare_cached(
+            "SELECT org, dst, COUNT(*) FROM legs WHERE hex = ? AND org IS NOT NULL AND dst IS NOT NULL \
+             AND org <> dst GROUP BY org, dst ORDER BY 3 DESC LIMIT 1",
+        )?
+        .query_row([&hex], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .ok();
+    // Python's `last[2] if last[4] else None`: an arrival that is set and
+    // not zero or empty
+    let arrived = match &last.3 {
+        None | Some(rusqlite::types::Value::Null) => false,
+        Some(rusqlite::types::Value::Integer(i)) => *i != 0,
+        Some(rusqlite::types::Value::Real(f)) => *f != 0.0,
+        Some(rusqlite::types::Value::Text(t)) => !t.is_empty(),
+        Some(rusqlite::types::Value::Blob(b)) => !b.is_empty(),
+    };
+    Ok(Some(AirframeSummary {
+        legs: n,
+        where_: if arrived { last.2.clone() } else { None },
+        last_date: last.0,
+        last_org: last.1,
+        last_dst: last.2,
+        top_route: top,
+    }))
 }
 
 impl Inner {
