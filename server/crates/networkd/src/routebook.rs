@@ -15,10 +15,30 @@ use serde_json::Value;
 
 const RELOAD_S: u64 = 300;
 
+/// {airline prefix: {airport: routes touching it}}: the network each
+/// airline is observed to fly.
+pub type Network = HashMap<String, HashMap<String, i64>>;
+
 #[derive(Default)]
 struct Loaded {
     mtime: Option<SystemTime>,
     routes: Arc<HashMap<String, Value>>,
+    by_airline: Arc<Network>,
+}
+
+fn by_airline(routes: &HashMap<String, Value>) -> Network {
+    let mut index: Network = HashMap::new();
+    for (callsign, chain) in routes {
+        let prefix: String = callsign.chars().take(3).collect();
+        if !prefix.chars().all(char::is_alphabetic) || prefix.is_empty() || callsign.chars().count() < 4 {
+            continue;
+        }
+        let bucket = index.entry(prefix).or_default();
+        for code in chain.as_array().into_iter().flatten().filter_map(|c| c.as_str()) {
+            *bucket.entry(code.to_string()).or_default() += 1;
+        }
+    }
+    index
 }
 
 pub struct RouteBook {
@@ -53,7 +73,8 @@ impl RouteBook {
         match RouteBook::read(&self.path) {
             Ok(routes) => {
                 eprintln!("routes: {} callsigns from {}", routes.len(), self.path);
-                *self.loaded.write().unwrap() = Loaded { mtime: Some(mtime), routes: Arc::new(routes) };
+                let by_airline = Arc::new(by_airline(&routes));
+                *self.loaded.write().unwrap() = Loaded { mtime: Some(mtime), routes: Arc::new(routes), by_airline };
             }
             Err(e) => eprintln!("routes: {} unreadable, keeping the last: {e}", self.path),
         }
@@ -73,5 +94,12 @@ impl RouteBook {
 
     pub fn get(&self, callsign: &str) -> Option<Value> {
         self.loaded.read().unwrap().routes.get(&callsign.trim().to_uppercase()).cloned()
+    }
+}
+
+impl RouteBook {
+    /// The network each airline flies, over the whole artifact.
+    pub fn by_airline(&self) -> Arc<Network> {
+        self.loaded.read().unwrap().by_airline.clone()
     }
 }

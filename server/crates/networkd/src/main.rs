@@ -12,6 +12,7 @@ mod catalog;
 mod departure;
 mod estimate;
 mod gapbook;
+mod gaps;
 mod history;
 mod http;
 mod legs;
@@ -19,6 +20,7 @@ mod live;
 mod pg;
 mod pgsort;
 mod proxy;
+mod range_km;
 mod pyjson;
 mod refdata;
 mod refdb;
@@ -156,6 +158,9 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/routes", get(catalog::routes_bulk))
         .route("/v1/flights/{callsign}", get(catalog::flight))
         .route("/v1/airframes/{hex}", get(airframe::airframe))
+        .route("/v1/gaps", get(gaps::gaps))
+        .route("/v1/gaps/{callsign}", get(gaps::gap))
+        .route("/v1/contributors", get(gaps::contributors))
         .route("/v2/point/{lat}/{lon}/{radius}", get(live::point))
         .route("/v1/airlines", get(refdata::airlines))
         .route("/v1/airlines/{icao}", get(refdata::airline))
