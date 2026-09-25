@@ -86,10 +86,45 @@ struct Fields<'a> {
     baro_rate: Present<'a>,
     #[serde(default, borrow)]
     emergency: Present<'a>,
+    /// readsb's message source (`adsb_icao`, `mlat`, ...): kept, not served
+    #[serde(default, borrow, rename = "type")]
+    kind: Present<'a>,
+    /// readsb's database flags, when it loads one: kept, not served
+    #[serde(default, borrow, rename = "dbFlags")]
+    db_flags: Present<'a>,
+}
+
+/// What readsb says about an aircraft that the public allowlist leaves
+/// out. Never written into `Entry::json`; only the private fleet tier
+/// reads it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Hidden {
+    /// the message source, collapsed: adsb, mlat, tisb, adsr, adsc,
+    /// mode_s or other
+    pub source: Option<&'static str>,
+    /// readsb's dbFlags (bit 0: military)
+    pub db_flags: Option<i64>,
+}
+
+/// readsb's `type` -> the source the fleet tier reports.
+pub fn source_of(kind: &str) -> &'static str {
+    match kind {
+        "mlat" => "mlat",
+        "mode_s" => "mode_s",
+        "adsc" => "adsc",
+        k if k.starts_with("adsb") => "adsb",
+        k if k.starts_with("tisb") => "tisb",
+        k if k.starts_with("adsr") => "adsr",
+        _ => "other",
+    }
 }
 
 impl Fields<'_> {
-    fn into_vals(self) -> Vals {
+    fn into_vals(self) -> (Vals, Hidden) {
+        let hidden = Hidden {
+            source: self.kind.0.and_then(|r| serde_json::from_str::<&str>(r.get()).ok()).map(source_of),
+            db_flags: self.db_flags.0.and_then(|r| r.get().parse::<i64>().ok()),
+        };
         let raw = [
             self.hex, self.flight, self.t, self.r, self.lat, self.lon, self.alt_baro, self.gs,
             self.track, self.category, self.squawk, self.seen, self.seen_pos, self.baro_rate,
@@ -106,13 +141,19 @@ impl Fields<'_> {
                 vals[F_FLIGHT] = Some(Val::Str(t.into()));
             }
         }
-        vals
+        (vals, hidden)
     }
 }
 
 /// Parse one aircraft object into its allowlisted values; None when it
 /// is not an object.
+#[cfg(test)]
 pub fn parse_aircraft(json: &str) -> Option<Vals> {
+    parse_aircraft_full(json).map(|(v, _)| v)
+}
+
+/// `parse_aircraft`, plus what the allowlist leaves out.
+pub fn parse_aircraft_full(json: &str) -> Option<(Vals, Hidden)> {
     serde_json::from_str::<Fields>(json).ok().map(Fields::into_vals)
 }
 
@@ -133,6 +174,8 @@ pub struct Entry {
     /// Where each field's `"key":value` sits in `json` (empty: absent),
     /// so a stream can send the fields that changed without re-encoding.
     pub spans: [(u32, u32); NF],
+    /// Kept beside the served fields, never in `json`.
+    pub hidden: Hidden,
 }
 
 fn fnv(h: u64, bytes: &[u8]) -> u64 {
@@ -146,6 +189,10 @@ fn fnv(h: u64, bytes: &[u8]) -> u64 {
 
 impl Entry {
     pub fn new(vals: Vals) -> Entry {
+        Entry::with_hidden(vals, Hidden::default())
+    }
+
+    pub fn with_hidden(vals: Vals, hidden: Hidden) -> Entry {
         let mut json = String::with_capacity(256);
         let mut sig: u64 = 0xcbf29ce484222325;
         json.push('{');
@@ -176,7 +223,7 @@ impl Entry {
         let lon = vals[F_LON].as_ref().and_then(Val::as_f64);
         let present = |i: usize| vals[i].as_ref().is_some_and(|v| !v.is_null());
         let has_pos = present(F_LAT) && present(F_LON);
-        Entry { hex, vals: Box::new(vals), json: json.into(), sig, lat, lon, has_pos, spans }
+        Entry { hex, vals: Box::new(vals), json: json.into(), sig, lat, lon, has_pos, spans, hidden }
     }
 
     /// Field `i` as `"key":value`, or None when absent.
@@ -364,6 +411,7 @@ impl Snapshot {
 
 struct Item {
     vals: Vals,
+    hidden: Hidden,
     at: f64,
 }
 
@@ -399,13 +447,17 @@ impl LiveSky {
     }
 
     pub fn ingest(&mut self, vals: Vals, now: f64) -> bool {
+        self.ingest_full(vals, Hidden::default(), now)
+    }
+
+    pub fn ingest_full(&mut self, vals: Vals, hidden: Hidden, now: f64) -> bool {
         let hex = match &vals[F_HEX] {
             Some(Val::Str(s)) if !s.is_empty() => s.clone(),
             _ => return false,
         };
         self.version += 1;
         // an existing key keeps its place: first-heard order
-        self.aircraft.insert(hex, Item { vals, at: now });
+        self.aircraft.insert(hex, Item { vals, hidden, at: now });
         self.last_line_at = now;
         true
     }
@@ -417,7 +469,7 @@ impl LiveSky {
             if e.hex.is_empty() || self.aircraft.contains_key(&*e.hex) {
                 continue;
             }
-            self.aircraft.insert(Box::from(&*e.hex), Item { vals: (*e.vals).clone(), at: now });
+            self.aircraft.insert(Box::from(&*e.hex), Item { vals: (*e.vals).clone(), hidden: e.hidden.clone(), at: now });
             taken += 1;
         }
         if taken > 0 {
@@ -444,7 +496,7 @@ impl LiveSky {
                     vals[f] = Some(Val::Float(round_to(x + age, 1)));
                 }
             }
-            out.push(Entry::new(vals));
+            out.push(Entry::with_hidden(vals, item.hidden.clone()));
             if out.len() >= self.max_aircraft {
                 break;
             }
@@ -491,12 +543,12 @@ pub async fn read_lines(app: Arc<App>, endpoint: String) {
                         Ok(_) => {}
                     }
                     let Ok(text) = std::str::from_utf8(&line) else { continue };
-                    let Some(vals) = parse_aircraft(text.trim_end()) else { continue };
+                    let Some((vals, hidden)) = parse_aircraft_full(text.trim_end()) else { continue };
                     let now = now_s();
                     if let Some(w) = &app.squawks {
                         w.lock().unwrap().observe(&vals, now);
                     }
-                    app.live.lock().unwrap().ingest(vals, now);
+                    app.live.lock().unwrap().ingest_full(vals, hidden, now);
                 }
                 app.live.lock().unwrap().connected = false;
             }
@@ -568,8 +620,8 @@ pub fn snapshot_from_poll(body: &[u8], max_aircraft: usize, point: bool) -> anyh
         .unwrap_or_default()
         .into_iter()
         .take(max_aircraft)
-        .filter_map(|r| parse_aircraft(r.get()))
-        .map(Entry::new)
+        .filter_map(|r| parse_aircraft_full(r.get()))
+        .map(|(v, h)| Entry::with_hidden(v, h))
         .collect();
     Ok(Snapshot::new(now.unwrap_or_else(now_s), entries))
 }
