@@ -64,6 +64,9 @@ pub struct Settings {
     /// estimate positions of aircraft that left coverage (off where the
     /// Python service still does)
     pub estimates: bool,
+    /// keep the North Atlantic track messages (off where the Python
+    /// service still does)
+    pub nat: bool,
     pub routes_path: String,
     pub gaps_path: String,
     /// keep the stations registry (off where the Python service still does)
@@ -132,6 +135,7 @@ impl Settings {
             search_rate_limit: int("NETWORK_API_SEARCH_RATE_LIMIT", 600) as usize,
             database_url: s("NETWORK_API_DATABASE_URL", ""),
             squawks: matches!(s("NETWORKD_SQUAWKS", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
+            nat: matches!(s("NETWORKD_NAT", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
             estimates: matches!(s("NETWORKD_ESTIMATES", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
             gaps_path: s("NETWORK_API_GAPS_PATH", "data/gaps.json.gz"),
             routes_path: s("NETWORK_API_ROUTES_PATH", "data/routes.json.gz"),

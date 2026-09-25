@@ -166,6 +166,11 @@ class Settings:
     estimates: bool = field(default_factory=lambda: _env(
         "NETWORK_API_ESTIMATES", "on").strip().lower()
         not in ("off", "0", "false", "no"))
+    # The North Atlantic track collector (nat.py). Off where another
+    # process keeps the same messages.
+    nat_collect: bool = field(default_factory=lambda: _env(
+        "NETWORK_API_NAT_COLLECT", "on").strip().lower()
+        not in ("off", "0", "false", "no"))
     # The stations registry pollers (clients.json, receivers.json). Off
     # where another process keeps the same registry, so each poll is
     # written once and the presence map lives where the routes are.

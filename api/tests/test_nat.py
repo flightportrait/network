@@ -129,3 +129,12 @@ def test_fix_table_parsers():
     ie = b"<tr><td>MALOT</td><td>530000N 0150000W</td><td>Oceanic Entry</td></tr>"
     assert F.aip(ie, F._IE) == [("MALOT", 53.0, -15.0)]
     assert F.inside(53.0, -15.0) and not F.inside(48.3, 35.4)
+
+
+def test_collector_can_be_turned_off(monkeypatch):
+    # where another process keeps the same messages
+    from app.settings import Settings
+    monkeypatch.setenv("NETWORK_API_NAT_COLLECT", "off")
+    assert Settings().nat_collect is False
+    monkeypatch.delenv("NETWORK_API_NAT_COLLECT")
+    assert Settings().nat_collect is True

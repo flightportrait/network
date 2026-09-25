@@ -61,7 +61,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
                 import asyncio
                 from .estimate_store import keep
                 tasks.append(asyncio.create_task(keep(app, app.state.estimates)))
-            if settings.source_mode != "point":
+            if settings.source_mode != "point" and settings.nat_collect:
                 # the North Atlantic track messages, kept from today on
                 import asyncio
                 from .nat import collect

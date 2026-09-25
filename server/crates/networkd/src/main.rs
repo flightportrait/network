@@ -11,12 +11,14 @@ mod beacon;
 mod boards;
 mod catalog;
 mod departure;
+mod docs;
 mod estimate;
 mod gapbook;
 mod gaps;
 mod history;
 mod http;
 mod legs;
+mod nat;
 mod live;
 mod pg;
 mod pgsort;
@@ -127,6 +129,10 @@ fn start_tasks(app: &Arc<App>) {
     if let Some(est) = &app.estimates {
         tokio::spawn(est.clone().keep());
     }
+    if s.nat && !s.point_mode() && !s.database_url.is_empty() {
+        // the North Atlantic track messages, kept from today on
+        tokio::spawn(nat::collect(s.database_url.clone()));
+    }
     if let Some(w) = &app.squawks {
         // our own sky only: emergency squawks become airframe events
         tokio::spawn(squawks::flush_loop(w.clone(), s.database_url.clone()));
@@ -152,6 +158,10 @@ pub fn router(app: Arc<App>) -> Router {
     let routes = Router::new()
         .route("/", get(live::index))
         .route("/healthz", get(live::healthz))
+        .route("/openapi.json", get(docs::openapi))
+        .route("/docs", get(docs::swagger))
+        .route("/docs/oauth2-redirect", get(docs::oauth2_redirect))
+        .route("/redoc", get(docs::redoc))
         .route("/v1/now", get(live::now))
         .route("/v1/aircraft", get(live::aircraft))
         .route("/v1/trace/{hex}", get(live::trace))
