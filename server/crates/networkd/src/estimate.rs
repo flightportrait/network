@@ -565,15 +565,19 @@ impl Estimator {
         match catalog {
             Err(()) => None,
             Ok(Some(chain)) => Some(chain),
-            Ok(None) => self.schedule(app, callsign),
+            Ok(None) => {
+                // SQLite reads block: off the async workers
+                let (db, cs) = (app.refdb.clone(), callsign.to_string());
+                tokio::task::spawn_blocking(move || Estimator::schedule(&db, &cs)).await.ok().flatten()
+            }
         }
     }
 
-    fn schedule(&self, app: &App, callsign: &str) -> Option<Chain> {
-        if !app.refdb.has(&["ref_schedule"]) {
+    fn schedule(refdb: &crate::refdb::RefDb, callsign: &str) -> Option<Chain> {
+        if !refdb.has(&["ref_schedule"]) {
             return None;
         }
-        let c = app.refdb.conn().ok()?;
+        let c = refdb.conn().ok()?;
         // Postgres reads these through the (callsign, org, dst) key
         let legs: Vec<(Option<String>, Option<String>, Option<i64>)> = c
             .prepare_cached("SELECT org, dst, n_flights FROM ref_schedule WHERE callsign = ?1 ORDER BY org, dst")
