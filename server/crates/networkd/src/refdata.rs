@@ -757,15 +757,20 @@ pub async fn airline_fleet_type(
                 Ok(a) => a,
                 Err(e) => return Ok(Err(e)),
             };
-            let frames: Vec<(String, Option<String>)> = c
+            // ORDER BY registration LIMIT 300 over the scan's storage order
+            let all: Vec<(String, Option<String>, i64)> = c
                 .prepare_cached(
-                    "SELECT f.hex, f.registration FROM ref_airframes f \
+                    "SELECT f.hex, f.registration, r.rank FROM ref_airframes f \
                      JOIN rank_ref_airframes_registration r ON r.key = f.hex \
-                     WHERE (f.operator_icao = ?1 OR f.operator_norm = ?2) AND f.type_code = ?3 \
-                     ORDER BY r.rank LIMIT 300",
+                     WHERE (f.operator_icao = ?1 OR f.operator_norm = ?2) AND f.type_code = ?3 ORDER BY f.rowid",
                 )?
-                .query_map((&a.icao, a.name.to_uppercase(), &designator), |r| Ok((r.get(0)?, r.get(1)?)))?
+                .query_map((&a.icao, a.name.to_uppercase(), &designator), |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
                 .collect::<rusqlite::Result<_>>()?;
+            let frames: Vec<(String, Option<String>)> =
+                crate::pgsort::top_n(all, 300, &|x: &(String, Option<String>, i64), y: &(String, Option<String>, i64)| x.2.cmp(&y.2))
+                    .into_iter()
+                    .map(|(h, r, _)| (h, r))
+                    .collect();
             if frames.is_empty() {
                 return Ok(Err(ApiError::new(404, "not_observed", "no airframes")));
             }

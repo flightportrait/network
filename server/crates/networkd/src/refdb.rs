@@ -134,6 +134,8 @@ impl RefDb {
                     OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
                 )?;
                 c.pragma_update(None, "query_only", true)?;
+                // LIKE as Postgres has it: case-sensitive
+                c.pragma_update(None, "case_sensitive_like", true)?;
                 c.pragma_update(None, "cache_size", -32_000)?;
                 c
             }

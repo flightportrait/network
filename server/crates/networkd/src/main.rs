@@ -16,6 +16,7 @@ mod proxy;
 mod pyjson;
 mod refdata;
 mod refdb;
+mod search;
 mod ratelimit;
 mod settings;
 mod sky;
@@ -134,6 +135,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/airlines/{icao}/fleet", get(refdata::airline_fleet))
         .route("/v1/airlines/{icao}/fleet/{designator}", get(refdata::airline_fleet_type))
         .route("/v1/types/{designator}", get(refdata::aircraft_type))
+        .route("/v1/search", get(search::search))
         .route("/v1/airports/{code}", get(history::airport))
         .route("/v1/stream", get(stream::stream_v1))
         .route("/v2/stream", get(stream::stream_v2))

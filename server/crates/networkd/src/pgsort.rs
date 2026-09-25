@@ -129,6 +129,84 @@ pub fn sort<T>(v: &mut [T], cmp: &impl Fn(&T, &T) -> Ordering) {
     }
 }
 
+/// `ORDER BY ... LIMIT bound` as Postgres runs it over `v` in scan order:
+/// up to 2×bound rows are sorted whole (the quicksort above); past that a
+/// bounded heap keeps the best `bound` (a row equal to the worst kept is
+/// dropped, so among ties the first scanned stay), and the heap is then
+/// unwound into order (tuplesort.c: make_bounded_heap, sort_bounded_heap).
+pub fn top_n<T: Clone>(v: Vec<T>, bound: usize, cmp: &impl Fn(&T, &T) -> Ordering) -> Vec<T> {
+    let mut v = v;
+    if bound == 0 {
+        return vec![];
+    }
+    if v.len() <= bound * 2 {
+        sort(&mut v, cmp);
+        v.truncate(bound);
+        return v;
+    }
+    // the heap runs in reversed direction: its root is the worst kept row
+    let rev = |a: &T, b: &T| cmp(b, a);
+    let mut heap: Vec<T> = Vec::with_capacity(bound);
+    for t in v {
+        if heap.len() < bound {
+            heap_insert(&mut heap, t, &rev);
+        } else if rev(&t, &heap[0]) != Ordering::Greater {
+            // new row <= root in reversed order: no better than the worst kept
+        } else {
+            replace_top(&mut heap, t, &rev);
+        }
+    }
+    // unwind: each delete-top takes the worst left and stores it past the
+    // shrinking heap, which leaves the array in sort order
+    let n = heap.len();
+    let mut len = n;
+    while len > 1 {
+        let top = heap[0].clone();
+        len -= 1;
+        let last = heap[len].clone();
+        replace_top(&mut heap[..len], last, &rev);
+        heap[len] = top;
+    }
+    heap
+}
+
+fn heap_insert<T>(heap: &mut Vec<T>, t: T, rev: &impl Fn(&T, &T) -> Ordering) {
+    heap.push(t);
+    let mut j = heap.len() - 1;
+    while j > 0 {
+        let i = (j - 1) >> 1;
+        if rev(&heap[j], &heap[i]) != Ordering::Less {
+            break;
+        }
+        heap.swap(i, j);
+        j = i;
+    }
+}
+
+/// Put `t` at the root and sift it down (tuplesort_heap_replace_top).
+fn replace_top<T>(heap: &mut [T], t: T, rev: &impl Fn(&T, &T) -> Ordering) {
+    let n = heap.len();
+    if n == 0 {
+        return;
+    }
+    heap[0] = t;
+    let mut i = 0;
+    loop {
+        let mut j = 2 * i + 1;
+        if j >= n {
+            break;
+        }
+        if j + 1 < n && rev(&heap[j], &heap[j + 1]) == Ordering::Greater {
+            j += 1;
+        }
+        if rev(&heap[i], &heap[j]) != Ordering::Greater {
+            break;
+        }
+        heap.swap(i, j);
+        i = j;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,6 +222,21 @@ mod tests {
                 want.sort();
                 sort(&mut v, &|a: &i32, b: &i32| a.cmp(b));
                 assert_eq!(v, want, "n={n}");
+            }
+        }
+    }
+
+    #[test]
+    fn top_n_is_a_prefix_of_the_sort() {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(8);
+        for n in [0usize, 3, 5, 10, 11, 12, 50, 500] {
+            for bound in [1usize, 5, 80] {
+                let v: Vec<i32> = (0..n).map(|_| rng.gen_range(0..20)).collect();
+                let got = top_n(v.clone(), bound, &|a: &i32, b: &i32| b.cmp(a));
+                let mut want = v;
+                want.sort_by(|a, b| b.cmp(a));
+                want.truncate(bound);
+                assert_eq!(got, want, "n={n} bound={bound}");
             }
         }
     }

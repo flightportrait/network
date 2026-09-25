@@ -39,11 +39,38 @@ BATCH = 5000
 # database's collation (en_US), which SQLite does not have; the export
 # asks Postgres for each order and stores it as ranks, one table per
 # (table, key column, sort column): rank_<table>_<column>(key, rank).
+# Dense ranks give equal values equal ranks, so the reader can leave
+# their order to the same sort Postgres uses (networkd's pgsort).
 RANKS = (
-    ("ref_airlines", "icao", "icao"),
-    ("ref_alliances", "slug", "name"),
-    ("ref_airports", "ident", "ident"),
-    ("ref_airframes", "hex", "registration"),
+    ("ref_airlines", "icao", "icao", False),
+    ("ref_alliances", "slug", "name", False),
+    ("ref_airports", "ident", "ident", False),
+    ("ref_airframes", "hex", "registration", True),
+    ("ref_airports", "ident", "name", False),
+    ("ref_airlines", "icao", "name", False),
+)
+
+# Tables computed by Postgres itself, for lookups whose answer depends on
+# its rules: upper() is the database's (en_US: 'ß' stays 'ß', where
+# Python's str.upper() writes 'SS'), and an airport's traffic is the
+# departures search ranks by. (name, SQLite definition, Postgres query.)
+DERIVED = (
+    ("search_airports",
+     "CREATE TABLE search_airports (ident TEXT PRIMARY KEY, name_upper TEXT,"
+     " municipality_upper TEXT, traffic INTEGER NOT NULL)",
+     "SELECT a.ident, upper(a.name), upper(a.municipality),"
+     " coalesce((SELECT sum(s.n_flights) FROM ref_schedule s"
+     " WHERE s.org = coalesce(a.iata, a.ident)), 0) FROM ref_airports a"),
+    ("search_airlines",
+     "CREATE TABLE search_airlines (icao TEXT PRIMARY KEY, name_upper TEXT)",
+     "SELECT icao, upper(name) FROM ref_airlines"),
+    ("search_types",
+     "CREATE TABLE search_types (designator TEXT PRIMARY KEY, name_upper TEXT)",
+     "SELECT designator, upper(name) FROM ref_types"),
+    ("rank_callsign",
+     "CREATE TABLE rank_callsign (key TEXT PRIMARY KEY, rank INTEGER NOT NULL)",
+     "SELECT callsign, row_number() OVER (ORDER BY callsign) - 1"
+     " FROM (SELECT DISTINCT callsign FROM ref_schedule) c"),
 )
 
 # Indexes for the reader's lookups that the Postgres schema does not
@@ -53,6 +80,13 @@ INDEXES = (
     "CREATE INDEX ix_snap_schedule_dst_n ON ref_schedule (dst, n_flights)",
     "CREATE INDEX ix_snap_schedule_flight ON ref_schedule (flight)",
     "CREATE INDEX ix_snap_airports_iata ON ref_airports (iata)",
+    "CREATE INDEX ix_snap_airframes_reg ON ref_airframes (registration)",
+    "CREATE INDEX ix_snap_airframes_bare ON ref_airframes"
+    " (replace(registration, '-', ''))",
+    "CREATE INDEX ix_snap_search_airports_name ON search_airports (name_upper)",
+    "CREATE INDEX ix_snap_search_airports_city ON search_airports"
+    " (municipality_upper)",
+    "CREATE INDEX ix_snap_search_airlines_name ON search_airlines (name_upper)",
 )
 
 
@@ -88,17 +122,28 @@ def export(source_url: str, out_path: str, log=print) -> dict:
                                    % (table.name, want, n, got))
             counts[table.name] = n
             log("  %-26s %9d rows  %5.1f s" % (table.name, n, time.time() - t0))
-        for tname, key, col in RANKS:
+        for tname, key, col, dense in RANKS:
             t = Base.metadata.tables[tname]
             rank_table = "rank_%s_%s" % (tname, col)
             d.exec_driver_sql("CREATE TABLE %s (key TEXT PRIMARY KEY, "
                               "rank INTEGER NOT NULL)" % rank_table)
-            ordered = s.execute(select(t.c[key]).order_by(t.c[col], t.c[key]))
-            ranks = [(k, i) for i, (k,) in enumerate(ordered)]
+            order = t.c[col] if dense else (t.c[col], t.c[key])
+            window = (func.dense_rank() if dense else func.row_number()) \
+                .over(order_by=order)
+            ranks = [(k, r - 1) for k, r in s.execute(select(t.c[key], window))]
             if ranks:
                 d.exec_driver_sql("INSERT INTO %s VALUES (?, ?)" % rank_table,
                                   ranks)
             d.commit()
+        for name, create, query in DERIVED:
+            d.exec_driver_sql(create)
+            rows = s.exec_driver_sql(query).fetchall()
+            if rows:
+                marks = ",".join("?" * len(rows[0]))
+                d.exec_driver_sql("INSERT INTO %s VALUES (%s)" % (name, marks),
+                                  [tuple(r) for r in rows])
+            d.commit()
+            log("  %-26s %9d rows" % (name, len(rows)))
         for sql in INDEXES:
             d.exec_driver_sql(sql)
         d.exec_driver_sql(

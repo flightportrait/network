@@ -270,6 +270,23 @@ pub fn airframe_summary(c: &Connection, hex: &str) -> rusqlite::Result<Option<Ai
     }))
 }
 
+/// `callsigns`: flight numbers starting with `prefix`, busiest first,
+/// over valid legs (a range, not LIKE: it lands on the prefix directly).
+/// (callsign, flights, last date).
+pub fn callsigns(c: &Connection, prefix: &str, limit: usize) -> rusqlite::Result<Vec<(String, i64, Option<String>)>> {
+    let prefix = prefix.trim().to_uppercase();
+    if prefix.is_empty() {
+        return Ok(vec![]);
+    }
+    let upper = format!("{prefix}\u{ffff}");
+    c.prepare_cached(
+        "SELECT callsign, COUNT(*), MAX(date) FROM legs WHERE callsign >= ? AND callsign < ? \
+         AND org IS NOT NULL AND dst IS NOT NULL AND org <> dst GROUP BY callsign ORDER BY 2 DESC, 1 LIMIT ?",
+    )?
+    .query_map((&prefix, &upper, limit as i64), |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+    .collect()
+}
+
 impl Inner {
     fn empty() -> Inner {
         Inner {

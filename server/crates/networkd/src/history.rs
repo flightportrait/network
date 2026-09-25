@@ -3,10 +3,10 @@
 //! inferred boards from the schedule, today's published board from
 //! boards.db). Port of `routes_history.py`'s `airport`.
 //!
-//! One deliberate difference: where Python's schedule query leaves the
-//! order of rows with equal flight counts to the database's plan, ties
-//! here fall back to callsign, origin, destination, so the page is the
-//! same on every request.
+//! One deliberate difference: the arrivals board's rows tied at its
+//! 80-row cut, which Python's database picks differently from call to
+//! call (a parallel scan); here ties fall back to callsign, origin,
+//! destination, so the page is the same on every request.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -52,6 +52,7 @@ fn read_airport(r: &rusqlite::Row) -> rusqlite::Result<Airport> {
     })
 }
 
+#[derive(Clone)]
 struct Leg {
     callsign: String,
     org: String,
@@ -200,8 +201,20 @@ fn build(app: &App, code: &str) -> rusqlite::Result<Result<String, ApiError>> {
     }
 
     let min = app.settings.schedule_min_flights;
-    let side = |col: &str| -> rusqlite::Result<Vec<Leg>> {
+    // ORDER BY n_flights DESC LIMIT 80. Departures: Postgres reads the
+    // schedule through its (org, dst) index, in storage order, and
+    // pgsort::top_n picks among ties exactly as it does. Arrivals: it
+    // scans the whole table in parallel, so Python's own pick among ties
+    // changes from call to call; here it is stable.
+    let side = |col: &str, exact: bool| -> rusqlite::Result<Vec<Leg>> {
         let Some(i) = &iata else { return Ok(vec![]) };
+        if exact {
+            let rows: Vec<Leg> = c
+                .prepare_cached(&format!("SELECT {LEG_COLS} FROM ref_schedule WHERE {col} = ?1 AND n_flights >= ?2 ORDER BY rowid"))?
+                .query_map((i, min), read_leg)?
+                .collect::<rusqlite::Result<_>>()?;
+            return Ok(crate::pgsort::top_n(rows, 80, &|x: &Leg, y: &Leg| y.n_flights.cmp(&x.n_flights)));
+        }
         c.prepare_cached(&format!(
             "SELECT {LEG_COLS} FROM ref_schedule WHERE {col} = ?1 AND n_flights >= ?2 \
              ORDER BY n_flights DESC, callsign, org, dst LIMIT 80"
@@ -209,8 +222,8 @@ fn build(app: &App, code: &str) -> rusqlite::Result<Result<String, ApiError>> {
         .query_map((i, min), read_leg)?
         .collect()
     };
-    let mut deps = side("org")?;
-    let mut arrs = side("dst")?;
+    let mut deps = side("org", true)?;
+    let mut arrs = side("dst", false)?;
     // airlines by flights, in first-seen order among equals (Python's
     // dict order through a stable sort)
     let mut airlines: Vec<(String, i64)> = vec![];
