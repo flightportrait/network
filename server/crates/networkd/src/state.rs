@@ -44,6 +44,8 @@ pub struct App {
     /// Postgres for the routes that read what changes during the day
     /// (the community catalog, the airframe record); None: they forward
     pub db: Option<crate::pg::Lazy>,
+    /// Stations waiting for setup, by home network (memory only)
+    pub beacons: Mutex<crate::beacon::Beacons>,
     /// the gaps artifact (routes settled at one end only)
     pub gaps: Arc<crate::gapbook::GapBook>,
     /// the observed routes artifact
@@ -78,6 +80,7 @@ impl App {
             refdb: crate::refdb::RefDb::new(&settings.refdata_path),
             squawks: (settings.squawks && !settings.point_mode() && !settings.database_url.is_empty())
                 .then(|| Arc::new(Mutex::new(crate::squawks::Watcher::default()))),
+            beacons: crate::beacon::Beacons::new(),
             gaps: crate::gapbook::GapBook::new(&settings.gaps_path),
             routes,
             estimates,

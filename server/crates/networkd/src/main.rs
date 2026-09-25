@@ -7,6 +7,7 @@
 
 mod address_blocks;
 mod airframe;
+mod beacon;
 mod boards;
 mod catalog;
 mod departure;
@@ -161,6 +162,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/gaps", get(gaps::gaps))
         .route("/v1/gaps/{callsign}", get(gaps::gap))
         .route("/v1/contributors", get(gaps::contributors))
+        .route("/v1/setup/beacon", get(beacon::find).post(beacon::report).fallback(beacon::other_method))
         .route("/v2/point/{lat}/{lon}/{radius}", get(live::point))
         .route("/v1/airlines", get(refdata::airlines))
         .route("/v1/airlines/{icao}", get(refdata::airline))

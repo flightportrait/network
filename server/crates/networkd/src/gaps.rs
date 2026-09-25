@@ -207,7 +207,7 @@ fn gap_row(callsign: &str, gap: &Map<String, Value>) -> Map<String, Value> {
 
 /// A query string as pydantic reads an int: trimmed, a sign, digits with
 /// single underscores between them, and a fraction only if all zeros.
-fn pydantic_int(raw: &str) -> Option<i64> {
+pub(crate) fn pydantic_int(raw: &str) -> Option<i64> {
     let s = raw.trim();
     let s = match s.split_once('.') {
         Some((whole, frac)) if !frac.is_empty() && frac.bytes().all(|b| b == b'0') => whole,
