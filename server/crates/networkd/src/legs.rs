@@ -327,6 +327,70 @@ impl LegBook {
     }
 }
 
+/// A SQLite value as Python's sqlite3 hands it over, as JSON.
+pub fn sql_json(v: rusqlite::types::ValueRef) -> serde_json::Value {
+    use rusqlite::types::ValueRef;
+    use serde_json::Value;
+    match v {
+        ValueRef::Null => Value::Null,
+        ValueRef::Integer(i) => Value::from(i),
+        ValueRef::Real(f) => serde_json::Number::from_f64(f).map_or(Value::Null, Value::Number),
+        ValueRef::Text(t) => Value::String(String::from_utf8_lossy(t).into_owned()),
+        ValueRef::Blob(_) => Value::Null,
+    }
+}
+
+fn rows_json(c: &Connection, sql: &str, callsign: &str, keys: &[&str]) -> rusqlite::Result<Vec<serde_json::Value>> {
+    let mut stmt = c.prepare_cached(sql)?;
+    let mut rows = stmt.query([callsign])?;
+    let mut out = vec![];
+    while let Some(r) = rows.next()? {
+        let mut m = serde_json::Map::new();
+        for (i, k) in keys.iter().enumerate() {
+            m.insert(k.to_string(), sql_json(r.get_ref(i)?));
+        }
+        out.push(serde_json::Value::Object(m));
+    }
+    Ok(out)
+}
+
+/// `LegBook.flight`: one flight number's legs, the tails that fly it
+/// and its recent operations (circuits and one-sided legs excluded).
+/// None when it was never observed.
+pub fn flight(c: &Connection, callsign: &str) -> rusqlite::Result<Option<serde_json::Value>> {
+    let callsign = callsign.trim().to_uppercase();
+    let legs = rows_json(
+        c,
+        "SELECT org, dst, COUNT(*), COUNT(DISTINCT date), MAX(date) FROM legs WHERE callsign = ? \
+         AND org IS NOT NULL AND dst IS NOT NULL AND org <> dst GROUP BY org, dst ORDER BY 3 DESC LIMIT 10",
+        &callsign,
+        &["org", "dst", "flights", "days", "last"],
+    )?;
+    if legs.is_empty() {
+        return Ok(None);
+    }
+    let tails = rows_json(
+        c,
+        "SELECT hex, reg, type, COUNT(*) FROM legs WHERE callsign = ? AND hex IS NOT NULL \
+         AND org IS NOT NULL AND dst IS NOT NULL AND org <> dst GROUP BY hex ORDER BY 4 DESC LIMIT 8",
+        &callsign,
+        &["hex", "reg", "type", "flights"],
+    )?;
+    let recent = rows_json(
+        c,
+        "SELECT date, org, dst, dep_ts, arr_ts FROM legs WHERE callsign = ? AND org IS NOT NULL \
+         AND dst IS NOT NULL AND org <> dst ORDER BY date DESC, dep_ts DESC LIMIT 10",
+        &callsign,
+        &["date", "org", "dst", "dep_ts", "arr_ts"],
+    )?;
+    let mut m = serde_json::Map::new();
+    m.insert("callsign".into(), callsign.into());
+    m.insert("legs".into(), legs.into());
+    m.insert("aircraft".into(), tails.into());
+    m.insert("recent".into(), recent.into());
+    Ok(Some(serde_json::Value::Object(m)))
+}
+
 /// `airframe_summary`: an airframe's legs in the window, its last leg,
 /// where it likely sits, and the route it flies most. Written as the
 /// fields the fleet page takes: legs, last_date, last_org, last_dst,

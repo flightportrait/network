@@ -144,8 +144,8 @@ impl AirlineRow {
     }
 }
 
-/// `_serialize_airline` plus the two counts.
-fn write_airline(out: &mut String, a: &AirlineRow, memberships: Option<&Vec<Membership>>, counts: (i64, i64)) {
+/// `_serialize_airline`, plus the two counts where the route adds them.
+fn write_airline(out: &mut String, a: &AirlineRow, memberships: Option<&Vec<Membership>>, counts: Option<(i64, i64)>) {
     let mut o = Obj::new(out);
     o.str("icao", &a.icao);
     opt_str(o.key("iata"), &a.iata);
@@ -160,8 +160,24 @@ fn write_airline(out: &mut String, a: &AirlineRow, memberships: Option<&Vec<Memb
         buf.push_str(&m.json);
     }
     buf.push(']');
-    o.int("n_routes", counts.0).int("n_countries", counts.1);
+    if let Some(counts) = counts {
+        o.int("n_routes", counts.0).int("n_countries", counts.1);
+    }
     o.end();
+}
+
+/// One airline as `_serialize_airline` writes it: (name, JSON), or None
+/// when the registry does not know the code.
+pub fn airline_object(c: &Conn, icao: &str) -> rusqlite::Result<Option<(String, String)>> {
+    let row = c
+        .prepare_cached("SELECT icao, iata, name, palette FROM ref_airlines WHERE icao = ?1")?
+        .query_row([icao], AirlineRow::read)
+        .optional()?;
+    let Some(a) = row else { return Ok(None) };
+    let memberships = memberships_by_airline(c, Some(&a.icao))?;
+    let mut out = String::with_capacity(256);
+    write_airline(&mut out, &a, memberships.get(&a.icao), None);
+    Ok(Some((a.name, out)))
 }
 
 fn counts(c: &Conn, sql: &str) -> rusqlite::Result<HashMap<String, i64>> {
@@ -192,7 +208,7 @@ pub async fn airlines(State(app): State<Arc<App>>, req: Request) -> Response {
             first = false;
             let a = AirlineRow::read(r)?;
             let n = (*routes.get(&a.icao).unwrap_or(&0), *countries.get(&a.icao).unwrap_or(&0));
-            write_airline(&mut out, &a, memberships.get(&a.icao), n);
+            write_airline(&mut out, &a, memberships.get(&a.icao), Some(n));
         }
         out.push_str("]}");
         Ok(Ok(out))
@@ -217,7 +233,7 @@ pub async fn airline(State(app): State<Arc<App>>, axum::extract::Path(icao): axu
             n("SELECT COUNT(*) FROM ref_airline_countries WHERE airline_icao = ?1")?,
         );
         let mut out = String::with_capacity(512);
-        write_airline(&mut out, &a, memberships.get(&a.icao), counts);
+        write_airline(&mut out, &a, memberships.get(&a.icao), Some(counts));
         Ok(Ok(out))
     })
     .await

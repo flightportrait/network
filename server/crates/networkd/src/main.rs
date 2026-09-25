@@ -5,9 +5,13 @@
 //! the live stream. Configured by the same NETWORK_API_* environment as
 //! the Python service it replaces; NETWORKD_BIND sets the listen address.
 
+mod address_blocks;
+mod airframe;
 mod boards;
+mod catalog;
 mod departure;
 mod estimate;
+mod gapbook;
 mod history;
 mod http;
 mod legs;
@@ -116,6 +120,7 @@ fn start_tasks(app: &Arc<App>) {
         every("snapshot", snap_every, || sky::poll_snapshot_once(&a)).await;
     });
     tokio::spawn(app.routes.clone().keep());
+    tokio::spawn(app.gaps.clone().keep());
     if let Some(est) = &app.estimates {
         tokio::spawn(est.clone().keep());
     }
@@ -148,6 +153,9 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/aircraft", get(live::aircraft))
         .route("/v1/trace/{hex}", get(live::trace))
         .route("/v1/estimated", get(estimate::estimated))
+        .route("/v1/routes", get(catalog::routes_bulk))
+        .route("/v1/flights/{callsign}", get(catalog::flight))
+        .route("/v1/airframes/{hex}", get(airframe::airframe))
         .route("/v2/point/{lat}/{lon}/{radius}", get(live::point))
         .route("/v1/airlines", get(refdata::airlines))
         .route("/v1/airlines/{icao}", get(refdata::airline))

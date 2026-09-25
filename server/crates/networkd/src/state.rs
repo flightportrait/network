@@ -41,6 +41,11 @@ pub struct App {
     pub refdb: Arc<crate::refdb::RefDb>,
     /// the emergency-squawk watcher, when this instance records squawks
     pub squawks: Option<Arc<Mutex<crate::squawks::Watcher>>>,
+    /// Postgres for the routes that read what changes during the day
+    /// (the community catalog, the airframe record); None: they forward
+    pub db: Option<crate::pg::Lazy>,
+    /// the gaps artifact (routes settled at one end only)
+    pub gaps: Arc<crate::gapbook::GapBook>,
     /// the observed routes artifact
     pub routes: Arc<crate::routebook::RouteBook>,
     /// the position estimator, when this instance runs it
@@ -73,8 +78,10 @@ impl App {
             refdb: crate::refdb::RefDb::new(&settings.refdata_path),
             squawks: (settings.squawks && !settings.point_mode() && !settings.database_url.is_empty())
                 .then(|| Arc::new(Mutex::new(crate::squawks::Watcher::default()))),
+            gaps: crate::gapbook::GapBook::new(&settings.gaps_path),
             routes,
             estimates,
+            db: (!settings.database_url.is_empty()).then(|| crate::pg::Lazy::new(&settings.database_url)),
             stations: (settings.stations && !settings.point_mode() && !settings.database_url.is_empty())
                 .then(|| crate::stations::Registry::new(&settings.database_url)),
             snapshot: SnapshotCell::new(),
