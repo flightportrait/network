@@ -7,6 +7,7 @@
 
 mod boards;
 mod departure;
+mod estimate;
 mod history;
 mod http;
 mod legs;
@@ -17,6 +18,7 @@ mod proxy;
 mod pyjson;
 mod refdata;
 mod refdb;
+mod routebook;
 mod search;
 mod squawks;
 mod stations;
@@ -113,6 +115,10 @@ fn start_tasks(app: &Arc<App>) {
     tokio::spawn(async move {
         every("snapshot", snap_every, || sky::poll_snapshot_once(&a)).await;
     });
+    tokio::spawn(app.routes.clone().keep());
+    if let Some(est) = &app.estimates {
+        tokio::spawn(est.clone().keep());
+    }
     if let Some(w) = &app.squawks {
         // our own sky only: emergency squawks become airframe events
         tokio::spawn(squawks::flush_loop(w.clone(), s.database_url.clone()));
@@ -141,6 +147,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/now", get(live::now))
         .route("/v1/aircraft", get(live::aircraft))
         .route("/v1/trace/{hex}", get(live::trace))
+        .route("/v1/estimated", get(estimate::estimated))
         .route("/v2/point/{lat}/{lon}/{radius}", get(live::point))
         .route("/v1/airlines", get(refdata::airlines))
         .route("/v1/airlines/{icao}", get(refdata::airline))
@@ -191,6 +198,16 @@ async fn main() -> anyhow::Result<()> {
     let bind = settings.bind.clone();
     let app = App::new(settings);
     start_tasks(&app);
+    // docker stop: keep what only this process knows, then go
+    let a = app.clone();
+    tokio::spawn(async move {
+        let Ok(mut term) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) else { return };
+        term.recv().await;
+        if let Some(est) = &a.estimates {
+            let _ = tokio::time::timeout(Duration::from_secs(5), est.save()).await;
+        }
+        std::process::exit(0);
+    });
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     eprintln!("networkd listening on {bind}");
     axum::serve(listener, router(app).into_make_service_with_connect_info::<SocketAddr>()).await?;

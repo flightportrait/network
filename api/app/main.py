@@ -61,7 +61,9 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
                 import asyncio
                 from .estimate_store import keep
                 tasks.append(asyncio.create_task(keep(app, app.state.estimates)))
+            if settings.source_mode != "point":
                 # the North Atlantic track messages, kept from today on
+                import asyncio
                 from .nat import collect
                 tasks.append(asyncio.create_task(collect(app)))
         try:
@@ -94,7 +96,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
     # only, like the squawk watcher (a remote aggregator is not ours)
     app.state.estimates = None
     app.state.nat = []
-    if settings.source_mode != "point":
+    if settings.source_mode != "point" and settings.estimates:
         from .estimate import EstimateBook
         from .routes_live import airport_coords, route_of
         app.state.estimates = EstimateBook(

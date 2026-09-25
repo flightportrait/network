@@ -22,6 +22,29 @@ pub async fn connect(database_url: &str) -> Result<tokio_postgres::Client, tokio
     Ok(client)
 }
 
+/// A connection opened on first use and reopened after a loss; one
+/// caller at a time.
+pub struct Lazy {
+    url: String,
+    client: tokio::sync::Mutex<Option<tokio_postgres::Client>>,
+}
+
+impl Lazy {
+    pub fn new(url: &str) -> Lazy {
+        Lazy { url: url.to_string(), client: tokio::sync::Mutex::new(None) }
+    }
+
+    pub async fn get(
+        &self,
+    ) -> Result<tokio::sync::MutexGuard<'_, Option<tokio_postgres::Client>>, tokio_postgres::Error> {
+        let mut g = self.client.lock().await;
+        if g.as_ref().is_none_or(|c| c.is_closed()) {
+            *g = Some(connect(&self.url).await?);
+        }
+        Ok(g)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

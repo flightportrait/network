@@ -233,6 +233,62 @@ pub fn write_value(out: &mut String, v: &Value) {
     }
 }
 
+/// `json.dumps(s)` with its defaults: non-ASCII escaped (as UTF-16).
+pub fn write_str_ascii(out: &mut String, s: &str) {
+    use std::fmt::Write;
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            c if (c as u32) < 0x20 || (c as u32) > 0x7e => {
+                let mut buf = [0u16; 2];
+                for u in c.encode_utf16(&mut buf) {
+                    let _ = write!(out, "\\u{:04x}", u);
+                }
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+}
+
+/// `json.dumps(v)` with its defaults (what a SQLAlchemy JSON column
+/// stores): `", "` and `": "` separators, ASCII only.
+pub fn write_dumps(out: &mut String, v: &Value) {
+    match v {
+        Value::Array(a) => {
+            out.push('[');
+            for (i, x) in a.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                write_dumps(out, x);
+            }
+            out.push(']');
+        }
+        Value::Object(o) => {
+            out.push('{');
+            for (i, (k, x)) in o.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                write_str_ascii(out, k);
+                out.push_str(": ");
+                write_dumps(out, x);
+            }
+            out.push('}');
+        }
+        Value::String(s) => write_str_ascii(out, s),
+        other => Val::from_json(other).write(out),
+    }
+}
+
 /// Small builder for the compact objects the routes return.
 pub struct Obj<'a> {
     out: &'a mut String,
@@ -334,6 +390,15 @@ mod tests {
         let mut s = String::new();
         write_str(&mut s, "a\"b\\c\nd\u{1}é/");
         assert_eq!(s, "\"a\\\"b\\\\c\\nd\\u0001é/\"");
+    }
+
+    #[test]
+    fn dumps_like_python() {
+        // json.dumps({"a": [1, 2.5, None], "é": "x\u2028😀\x7f", "b": {}})
+        let v: Value = serde_json::from_str(r#"{"a":[1,2.5,null],"é":"x\u2028😀\u007f","b":{}}"#).unwrap();
+        let mut s = String::new();
+        write_dumps(&mut s, &v);
+        assert_eq!(s, r#"{"a": [1, 2.5, null], "\u00e9": "x\u2028\ud83d\ude00\u007f", "b": {}}"#);
     }
 
     #[test]

@@ -61,6 +61,10 @@ pub struct Settings {
     pub database_url: String,
     /// record emergency squawks (off where the Python service still does)
     pub squawks: bool,
+    /// estimate positions of aircraft that left coverage (off where the
+    /// Python service still does)
+    pub estimates: bool,
+    pub routes_path: String,
     /// keep the stations registry (off where the Python service still does)
     pub stations: bool,
     pub receivers_poll_s: f64,
@@ -123,6 +127,8 @@ impl Settings {
             search_rate_limit: int("NETWORK_API_SEARCH_RATE_LIMIT", 600) as usize,
             database_url: s("NETWORK_API_DATABASE_URL", ""),
             squawks: matches!(s("NETWORKD_SQUAWKS", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
+            estimates: matches!(s("NETWORKD_ESTIMATES", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
+            routes_path: s("NETWORK_API_ROUTES_PATH", "data/routes.json.gz"),
             stations: matches!(s("NETWORKD_STATIONS", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
             receivers_poll_s: float("NETWORK_API_RECEIVERS_POLL_S", 300.0),
             offline_after_s: int("NETWORK_API_OFFLINE_AFTER_S", 60),

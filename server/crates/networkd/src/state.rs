@@ -41,6 +41,10 @@ pub struct App {
     pub refdb: Arc<crate::refdb::RefDb>,
     /// the emergency-squawk watcher, when this instance records squawks
     pub squawks: Option<Arc<Mutex<crate::squawks::Watcher>>>,
+    /// the observed routes artifact
+    pub routes: Arc<crate::routebook::RouteBook>,
+    /// the position estimator, when this instance runs it
+    pub estimates: Option<Arc<crate::estimate::Estimator>>,
     /// the stations registry, when this instance keeps it
     pub stations: Option<Arc<crate::stations::Registry>>,
     published: watch::Sender<u64>,
@@ -49,6 +53,9 @@ pub struct App {
 impl App {
     pub fn new(settings: Settings) -> Arc<App> {
         let (published, _) = watch::channel(0);
+        let routes = crate::routebook::RouteBook::new(&settings.routes_path);
+        let estimates = (settings.estimates && !settings.point_mode())
+            .then(|| crate::estimate::Estimator::new(routes.clone(), &settings.database_url));
         Arc::new(App {
             live: Mutex::new(LiveSky::new(settings.max_aircraft)),
             traces: Mutex::new(TraceBook::new(
@@ -66,6 +73,8 @@ impl App {
             refdb: crate::refdb::RefDb::new(&settings.refdata_path),
             squawks: (settings.squawks && !settings.point_mode() && !settings.database_url.is_empty())
                 .then(|| Arc::new(Mutex::new(crate::squawks::Watcher::default()))),
+            routes,
+            estimates,
             stations: (settings.stations && !settings.point_mode() && !settings.database_url.is_empty())
                 .then(|| crate::stations::Registry::new(&settings.database_url)),
             snapshot: SnapshotCell::new(),

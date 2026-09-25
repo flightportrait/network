@@ -79,6 +79,9 @@ INDEXES = (
     "CREATE INDEX ix_snap_schedule_org_n ON ref_schedule (org, n_flights)",
     "CREATE INDEX ix_snap_schedule_dst_n ON ref_schedule (dst, n_flights)",
     "CREATE INDEX ix_snap_schedule_flight ON ref_schedule (flight)",
+    # a callsign's legs in the order of Postgres's (callsign, org, dst) key
+    "CREATE INDEX ix_snap_schedule_callsign ON ref_schedule"
+    " (callsign, org, dst)",
     "CREATE INDEX ix_snap_airports_iata ON ref_airports (iata)",
     "CREATE INDEX ix_snap_airframes_reg ON ref_airframes (registration)",
     "CREATE INDEX ix_snap_airframes_bare ON ref_airframes"

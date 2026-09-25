@@ -15,8 +15,8 @@ use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, TimeDelta, Timelike, Utc};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use tokio::sync::Mutex;
 
+use crate::pg::Lazy;
 use crate::http::{client_ip, json, peer_of, throttle, ApiError};
 use crate::pyjson::{round_to, write_float, write_str, Obj};
 use crate::state::{now_s, App};
@@ -135,36 +135,16 @@ pub struct Live {
     pub connected_since: String,
 }
 
-/// A Postgres connection opened on first use and reopened after a loss.
-pub struct Db {
-    url: String,
-    client: Mutex<Option<tokio_postgres::Client>>,
-}
-
-impl Db {
-    pub fn new(url: &str) -> Db {
-        Db { url: url.to_string(), client: Mutex::new(None) }
-    }
-
-    async fn get(&self) -> Result<tokio::sync::MutexGuard<'_, Option<tokio_postgres::Client>>, tokio_postgres::Error> {
-        let mut g = self.client.lock().await;
-        if g.as_ref().is_none_or(|c| c.is_closed()) {
-            *g = Some(crate::pg::connect(&self.url).await?);
-        }
-        Ok(g)
-    }
-}
-
 /// The registry: one connection for the pollers' writes, one for the
 /// routes' reads, so a write never queues a page behind it.
 pub struct Registry {
-    writer: Db,
-    reader: Db,
+    writer: Lazy,
+    reader: Lazy,
 }
 
 impl Registry {
     pub fn new(database_url: &str) -> Arc<Registry> {
-        Arc::new(Registry { writer: Db::new(database_url), reader: Db::new(database_url) })
+        Arc::new(Registry { writer: Lazy::new(database_url), reader: Lazy::new(database_url) })
     }
 
     /// Apply one clients.json poll: create and update stations, keep

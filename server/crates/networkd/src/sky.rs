@@ -536,6 +536,9 @@ pub async fn publish(app: Arc<App>) {
         if now - last_trace >= TRACE_EVERY_S {
             last_trace = now;
             app.traces.lock().unwrap().record(&snap);
+            if let Some(est) = &app.estimates {
+                est.observe(snap.entries.iter().map(|e| &*e.vals), now);
+            }
         }
         app.bump();
     }
@@ -599,6 +602,9 @@ pub async fn poll_snapshot_once(app: &App) -> anyhow::Result<()> {
     let snap = Arc::new(snap);
     app.set_snapshot(snap.clone());
     app.traces.lock().unwrap().record(&snap);
+    if let Some(est) = &app.estimates {
+        est.observe(snap.entries.iter().map(|e| &*e.vals), now_s());
+    }
     app.bump();
     Ok(())
 }

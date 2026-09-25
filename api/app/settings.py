@@ -160,6 +160,12 @@ class Settings:
     squawk_watcher: bool = field(default_factory=lambda: _env(
         "NETWORK_API_SQUAWK_WATCHER", "on").strip().lower()
         not in ("off", "0", "false", "no"))
+    # The position estimator (estimate.py) and its saved memory. Off
+    # where another process estimates from the same sky: one book, one
+    # saved state.
+    estimates: bool = field(default_factory=lambda: _env(
+        "NETWORK_API_ESTIMATES", "on").strip().lower()
+        not in ("off", "0", "false", "no"))
     # The stations registry pollers (clients.json, receivers.json). Off
     # where another process keeps the same registry, so each poll is
     # written once and the presence map lives where the routes are.

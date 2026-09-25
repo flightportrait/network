@@ -187,3 +187,20 @@ def test_estimates_are_shown_for_fifteen_minutes_only():
     book.observe([], t0 + 60)
     assert len(book.estimates(t0 + E.SHOW_MAX_S - 30)) == 1
     assert book.estimates(t0 + E.SHOW_MAX_S + 30) == []
+
+
+def test_estimates_can_be_turned_off(monkeypatch):
+    # where another process estimates from the same sky
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.main import create_network_api_app
+    from app.settings import Settings
+    monkeypatch.setenv("NETWORK_API_ESTIMATES", "off")
+    settings = Settings()
+    assert settings.estimates is False
+    sm = sessionmaker(create_engine("sqlite://"))
+    app = create_network_api_app(settings, sessionmaker=sm,
+                                 start_pollers=False)
+    assert app.state.estimates is None
+    monkeypatch.delenv("NETWORK_API_ESTIMATES")
+    assert Settings().estimates is True
