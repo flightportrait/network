@@ -4,6 +4,8 @@
 //! with aircraft.json as the fallback) and serves the open data API and
 //! the live stream. Configured by the same NETWORK_API_* environment as
 //! the Python service it replaces; NETWORKD_BIND sets the listen address.
+//! NETWORKD_FLEET_BIND, when set, opens the private fleet tier on a
+//! second listener (fleet.rs).
 
 mod address_blocks;
 mod airframe;
@@ -13,6 +15,7 @@ mod catalog;
 mod departure;
 mod docs;
 mod estimate;
+mod fleet;
 mod gapbook;
 mod gaps;
 mod history;
@@ -193,6 +196,9 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/airports/{code}", get(history::airport))
         .route("/v1/stations", get(stations::roster))
         .route("/v1/stations/{uuid}", get(stations::self_view))
+        // the fleet tier has its own listener; never this one
+        .route("/fleet", get(http::not_found))
+        .route("/fleet/{*rest}", get(http::not_found))
         .route("/v1/stream", get(stream::stream_v1))
         .route("/v2/stream", get(stream::stream_v2))
         .fallback(proxy::forward)
@@ -238,6 +244,7 @@ async fn main() -> anyhow::Result<()> {
         }
         std::process::exit(0);
     });
+    fleet::start(&app).await;
     let listener = tokio::net::TcpListener::bind(&bind).await?;
     eprintln!("networkd listening on {bind}");
     axum::serve(listener, router(app).into_make_service_with_connect_info::<SocketAddr>()).await?;

@@ -47,8 +47,9 @@ class RefAirframe(Base):
                                                       nullable=True,
                                                       index=True)
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Raw source flags (e.g. tar1090-db's dbFlags digits), stored verbatim
-    # and never interpreted — we don't assert what we haven't verified.
+    # Raw source flags (e.g. tar1090-db's dbFlags digits), stored verbatim.
+    # Character i is bit i ("10": military, "0001": LADD); networkd's
+    # private fleet tier reads bit 0 (military), nothing public does.
     flags: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
     source: Mapped[str] = mapped_column(String(16), nullable=False)

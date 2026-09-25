@@ -56,6 +56,8 @@ pub struct App {
     pub local: Option<Arc<crate::localdb::LocalDb>>,
     /// the stations registry, when this instance keeps it
     pub stations: Option<Arc<crate::stations::Registry>>,
+    /// the private fleet tier's lookups, remembered between requests
+    pub fleet: crate::fleet::Caches,
     published: watch::Sender<u64>,
 }
 
@@ -110,6 +112,7 @@ impl App {
             db: (!settings.database_url.is_empty()).then(|| crate::pg::Lazy::new(&settings.database_url)),
             stations,
             local,
+            fleet: crate::fleet::Caches::default(),
             snapshot: SnapshotCell::new(),
             published,
             settings,

@@ -18,7 +18,7 @@ use crate::state::{now_s, App};
 const EARTH_RADIUS_NM: f64 = 3440.065;
 const BOUNDS_TTL_S: f64 = 60.0;
 
-fn fresh(app: &App) -> Result<Arc<Snapshot>, ApiError> {
+pub fn fresh(app: &App) -> Result<Arc<Snapshot>, ApiError> {
     let snap = app.snapshot();
     if !snap.fresh(app.settings.stale_after_s) {
         // a dead upstream reads as an outage, never as an empty sky
@@ -95,7 +95,7 @@ pub async fn aircraft(State(app): State<Arc<App>>, req: Request) -> ApiResult {
     })
 }
 
-fn distance_nm(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+pub fn distance_nm(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let (p1, p2) = (lat1.to_radians(), lat2.to_radians());
     let dp = p2 - p1;
     let dl = (lon2 - lon1).to_radians();

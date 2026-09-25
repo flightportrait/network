@@ -32,6 +32,37 @@ The network server in Rust, and the harness that measures it.
   The routes on data written during the day then read the snapshot's
   public copy of it (the community catalog, the answers on file, the
   airframe record), a day old, plus the instance's own squawks.
+  `NETWORKD_FLEET_BIND` (e.g. `0.0.0.0:8093`; unset: off) opens a
+  second, private listener, the fleet tier, for one known client (the
+  frames' backend). It is not part of the public API, is not in
+  `/openapi.json`, and the public listener answers 404 for all of it.
+  Every `/fleet/v1/*` request carries
+  `Authorization: Bearer <NETWORKD_FLEET_TOKEN>` (at least 32
+  characters, or the tier stays off); a missing or wrong token is 401
+  `{"error": "unauthorized", "detail": ...}`. No rate limits, no CORS,
+  every response `Cache-Control: no-store`, errors in the public shape.
+  - `GET /fleet/v1/point/{lat}/{lon}/{radius_nm}`: the `/v2/point`
+    envelope (`ac`, `msg`, `now`, `total`, `ctime`, `ptime`), nearest
+    first, `dst` in nm, radius capped at 250 nm, aircraft on the ground
+    included.
+  - `GET /fleet/v1/callsign/{callsign}`: `{"ac": [...], "now": ...}`,
+    the aircraft live under that callsign (trimmed, any case); `ac` is
+    empty when there are none.
+  - `GET /fleet/v1/routes?cs=A,B`: the `/v1/routes` body, up to 200
+    callsigns.
+  - `GET /fleet/healthz` (no token): `ok`, `age_s`, `generated_at`,
+    `aircraft`; 503 `stale_snapshot` past `NETWORK_API_STALE_AFTER_S`.
+
+  Aircraft carry the public fields and, each omitted when unknown:
+  `mil` (bit 0 of readsb's `dbFlags`, or the first digit of the
+  registry's tar1090-db flags), `type_name` and `class` (the type's name
+  and category from `ref_types`), `operator` and `operator_icao` (as
+  `/v1/airframes/{hex}` resolves them), `year`, `route` (`[org, ...via,
+  dst]`, as `/v1/routes`) and `source` (readsb's message type collapsed
+  to `adsb`, `mlat`, `tisb`, `adsr`, `adsc`, `mode_s` or `other`). The
+  enrichment reads memory and the local reference snapshot; the
+  community catalog is asked at most once per request, for callsigns it
+  has not answered in ten minutes.
   `/openapi.json` and the docs pages are copies in
   `crates/networkd/static`; after an API change, rerun
   `python api/export_openapi.py --networkd server/crates/networkd/static`

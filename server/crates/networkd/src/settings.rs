@@ -85,6 +85,11 @@ pub struct Settings {
     pub station_detail_rate_limit: usize,
     pub schedule_min_flights: i64,
     pub boards_path: String,
+    /// the private fleet tier's listen address (empty: off)
+    pub fleet_bind: String,
+    /// the bearer token every /fleet/v1 request carries (empty: the
+    /// fleet tier stays off)
+    pub fleet_token: String,
 }
 
 impl Settings {
@@ -155,6 +160,8 @@ impl Settings {
             station_detail_rate_limit: int("NETWORK_API_STATION_DETAIL_RATE_LIMIT", 60) as usize,
             schedule_min_flights: int("NETWORK_API_SCHEDULE_MIN_FLIGHTS", 5),
             boards_path: s("NETWORK_API_BOARDS_PATH", "data/boards.db"),
+            fleet_bind: s("NETWORKD_FLEET_BIND", "").trim().to_string(),
+            fleet_token: s("NETWORKD_FLEET_TOKEN", "").trim().to_string(),
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),
         }
     }

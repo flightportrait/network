@@ -89,30 +89,49 @@ pub fn catalog_here(app: &App) -> bool {
 }
 
 /// Python's `str.isalnum` for the characters a callsign may hold.
-fn alnum(s: &str) -> bool {
+pub fn alnum(s: &str) -> bool {
     !s.is_empty() && s.chars().all(char::is_alphanumeric)
 }
+
+/// How many callsigns one /v1/routes request may ask about.
+pub struct RoutesLimits {
+    pub max_callsigns: usize,
+    pub max_chars: usize,
+}
+
+pub const PUBLIC_ROUTES: RoutesLimits = RoutesLimits { max_callsigns: 80, max_chars: 1100 };
 
 /// GET /v1/routes?cs=A,B,...
 pub async fn routes_bulk(State(app): State<Arc<App>>, req: Request) -> Response {
     if !catalog_here(&app) {
         return crate::proxy::forward(State(app), req).await.into_response();
     }
+    let ip = client_ip(&app, req.headers(), peer_of(&req));
+    routes_body(&app, req.uri().query(), &PUBLIC_ROUTES, Some(&ip)).await
+}
+
+/// The /v1/routes body for the query `q`; `ip` set: rate limited.
+pub async fn routes_body(app: &App, q: Option<&str>, limits: &RoutesLimits, ip: Option<&str>) -> Response {
     // the query's own checks come before the rate limit, as FastAPI's do
-    let Some(cs) = query_param(req.uri().query(), "cs") else {
+    let Some(cs) = query_param(q, "cs") else {
         return ApiError::new(422, "invalid_request", "query.cs: Field required").into_response();
     };
     let len = cs.chars().count();
     if len < 2 {
         return ApiError::new(422, "invalid_request", "query.cs: String should have at least 2 characters").into_response();
     }
-    if len > 1100 {
-        return ApiError::new(422, "invalid_request", "query.cs: String should have at most 1100 characters")
-            .into_response();
+    if len > limits.max_chars {
+        return ApiError::new(
+            422,
+            "invalid_request",
+            format!("query.cs: String should have at most {} characters", limits.max_chars),
+        )
+        .into_response();
     }
-    let ip = client_ip(&app, req.headers(), peer_of(&req));
-    if let Err(e) = throttle(&app, &ip, "routes", app.settings.routes_rate_limit) {
-        return e.into_response();
+    if let Some(ip) = ip {
+        if let Err(e) = throttle(app, ip, "routes", app.settings.routes_rate_limit) {
+            return e.into_response();
+        }
     }
     let mut names: Vec<String> = vec![];
     for c in cs.split(',') {
@@ -126,10 +145,15 @@ pub async fn routes_bulk(State(app): State<Arc<App>>, req: Request) -> Response 
         }
     }
     if names.is_empty()
-        || names.len() > 80
+        || names.len() > limits.max_callsigns
         || names.iter().any(|n| !(2..=12).contains(&n.chars().count()) || !alnum(n))
     {
-        return ApiError::new(422, "invalid_request", "1 to 80 callsigns, 2-12 alphanumerics each").into_response();
+        return ApiError::new(
+            422,
+            "invalid_request",
+            format!("1 to {} callsigns, 2-12 alphanumerics each", limits.max_callsigns),
+        )
+        .into_response();
     }
     let routes_up = app.routes.available();
     if !routes_up && !app.legs.available() {
@@ -137,7 +161,7 @@ pub async fn routes_bulk(State(app): State<Arc<App>>, req: Request) -> Response 
     }
     let mut found: Vec<Option<Value>> = names.iter().map(|n| if routes_up { app.routes.get(n) } else { None }).collect();
     let missing: Vec<String> = names.iter().zip(&found).filter(|(_, r)| r.is_none()).map(|(n, _)| n.clone()).collect();
-    match catalog_routes(&app, &missing).await {
+    match catalog_routes(app, &missing).await {
         Ok(mut cat) => {
             for (n, r) in names.iter().zip(found.iter_mut()) {
                 if r.is_none() {
