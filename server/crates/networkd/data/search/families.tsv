@@ -1,0 +1,37 @@
+# Aircraft families for /v2/search: what people type for a type ("A380",
+# "787", "Boeing 777") and the ICAO designators it covers. Within a
+# family, results rank by how many airframes the registry holds.
+# Accents and case do not matter; a name is matched whole.
+#
+# family	other names (comma separated)	designators
+A380	Airbus A380, A-380, Superjumbo	A388
+A350	Airbus A350, A-350	A359 A35K
+A340	Airbus A340, A-340	A342 A343 A345 A346
+A330	Airbus A330, A-330	A332 A333 A338 A339
+A320	Airbus A320, A-320, A320neo	A320 A20N
+A321	Airbus A321, A-321, A321neo	A321 A21N
+A319	Airbus A319, A-319, A319neo	A319 A19N
+A318	Airbus A318	A318
+A220	Airbus A220, CSeries	BCS1 BCS3
+A300	Airbus A300	A30B A306
+A310	Airbus A310	A310
+747	Boeing 747, B747, Jumbo, Jumbo Jet	B741 B742 B743 B744 B748 B74S B74R
+777	Boeing 777, B777, Triple Seven	B77W B772 B77L B773 B778 B779
+787	Boeing 787, B787, Dreamliner	B789 B788 B78X
+767	Boeing 767, B767	B763 B762 B764
+757	Boeing 757, B757	B752 B753
+737	Boeing 737, B737	B738 B737 B739 B38M B39M B37M B3XM B736 B735 B734 B733 B732
+737 MAX	Boeing 737 MAX, 737MAX, B737 MAX	B38M B39M B37M B3XM
+717	Boeing 717, B717	B712
+MD-11	MD11, McDonnell Douglas MD-11	MD11
+E-Jet	Embraer E-Jet, E-Jets	E75L E190 E195 E170 E75S E290 E295
+E175	Embraer 175, Embraer E175	E75L E75S
+E190	Embraer 190, Embraer E190, E190-E2	E190 E290
+E195	Embraer 195, Embraer E195, E195-E2	E195 E295
+ATR 72	ATR72, ATR-72	AT76 AT75 AT72
+ATR 42	ATR42, ATR-42	AT46 AT45 AT43
+Dash 8	Q400, DHC-8, Bombardier Dash 8	DH8D DH8C DH8B DH8A
+CRJ	Bombardier CRJ, Canadair Regional Jet	CRJ9 CRJ7 CRJ2 CRJX CRJ1
+C919	COMAC C919	C919
+ARJ21	COMAC ARJ21, C909	AJ27
+Concorde		CONC

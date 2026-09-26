@@ -5,7 +5,8 @@
 //! the live stream. Configured by the same NETWORK_API_* environment as
 //! the Python service it replaces; NETWORKD_BIND sets the listen address.
 //! NETWORKD_FLEET_BIND, when set, opens the private fleet tier on a
-//! second listener (fleet.rs).
+//! second listener (fleet.rs). `networkd search-index build` writes the
+//! /v2 search index and exits (search2/build.rs).
 
 mod address_blocks;
 mod airframe;
@@ -33,6 +34,7 @@ mod refdata;
 mod refdb;
 mod routebook;
 mod search;
+mod search2;
 mod snap;
 mod squawks;
 mod stations;
@@ -193,6 +195,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/airlines/{icao}/fleet/{designator}", get(refdata::airline_fleet_type))
         .route("/v1/types/{designator}", get(refdata::aircraft_type))
         .route("/v1/search", get(search::search))
+        .route("/v2/search", get(search2::search))
         .route("/v1/airports/{code}", get(history::airport))
         .route("/v1/stations", get(stations::roster))
         .route("/v1/stations/{uuid}", get(stations::self_view))
@@ -227,6 +230,11 @@ fn health(bind: &str) -> ! {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("search-index") {
+        // the nightly's index build: no server
+        std::process::exit(search2::build::cli(&args[2..]));
+    }
     let settings = Settings::from_env();
     if std::env::args().nth(1).as_deref() == Some("--health") {
         health(&settings.bind);

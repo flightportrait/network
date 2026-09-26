@@ -39,6 +39,8 @@ pub struct App {
     pub bounds_cache: Mutex<HashMap<String, (f64, crate::departure::Bounds)>>,
     pub fallback: Option<crate::proxy::Fallback>,
     pub refdb: Arc<crate::refdb::RefDb>,
+    /// the /v2 search index, when one has been built
+    pub search_index: Arc<crate::search2::SearchIndex>,
     /// the emergency-squawk watcher, when this instance records squawks
     pub squawks: Option<Arc<Mutex<crate::squawks::Watcher>>>,
     /// Postgres for the routes that read what changes during the day
@@ -103,6 +105,7 @@ impl App {
             bounds_cache: Mutex::new(HashMap::new()),
             fallback: crate::proxy::Fallback::new(&settings.fallback),
             refdb: crate::refdb::RefDb::new(&settings.refdata_path),
+            search_index: crate::search2::SearchIndex::new(&settings.search_index_path),
             squawks: (settings.squawks && !settings.point_mode() && stored)
                 .then(|| Arc::new(Mutex::new(crate::squawks::Watcher::default()))),
             beacons: crate::beacon::Beacons::new(),

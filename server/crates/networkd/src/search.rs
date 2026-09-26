@@ -32,7 +32,7 @@ use crate::pyjson::{round_to, write_float, write_str, Obj};
 use crate::refdb::Conn;
 use crate::state::App;
 
-const CACHE: &str = "public, s-maxage=43200";
+pub(crate) const CACHE: &str = "public, s-maxage=43200";
 const PER_KIND: usize = 5;
 const EXACT: i64 = 100;
 const PREFIX: i64 = 60;
@@ -127,11 +127,11 @@ fn lift(n: i64) -> f64 {
 }
 
 /// Python's `" ".join(q.strip().upper().split())`.
-fn norm(q: &str) -> String {
+pub(crate) fn norm(q: &str) -> String {
     q.trim().to_uppercase().split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn fold(s: &str) -> String {
+pub(crate) fn fold(s: &str) -> String {
     static MAP: OnceLock<HashMap<char, char>> = OnceLock::new();
     let map = MAP.get_or_init(|| FOLD_FROM.chars().zip(FOLD_TO.chars()).collect());
     s.chars().map(|c| *map.get(&c).unwrap_or(&c)).collect()
@@ -145,7 +145,7 @@ fn whole(text: &Option<String>, q: &str) -> bool {
 /// "SQ 322" -> "SQ322": an airline code of two or three letters and
 /// digits (a letter among them), a space, then one to four digits and a
 /// letter if the number has one. Anything else as it is.
-fn compact_flight(q: &str) -> String {
+pub(crate) fn compact_flight(q: &str) -> String {
     if let Some((code, number)) = q.split_once(' ') {
         let code_ok = (2..=3).contains(&code.len())
             && code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
@@ -166,7 +166,7 @@ const ARROW: &str = "\u{2192}";
 /// "Singapore to London", "from SIN to LHR", "flights to London from
 /// Singapore". A dash joins two places only between words of three
 /// letters or more, so 9V-SMA stays a registration.
-fn places(q: &str) -> Option<(String, String)> {
+pub(crate) fn places(q: &str) -> Option<(String, String)> {
     let mut s = q.to_string();
     for a in ["->", ARROW, "\u{2013}", "\u{2014}", ">"] {
         s = s.replace(a, &format!(" {ARROW} "));
@@ -902,7 +902,7 @@ fn run(c: &Conn, app: &App, q: &str) -> rusqlite::Result<String> {
 }
 
 /// Python's `urllib.parse.quote(s, safe="")`.
-fn quote(s: &str) -> String {
+pub(crate) fn quote(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 3);
     for b in s.bytes() {
         if b.is_ascii_alphanumeric() || b"_.-~".contains(&b) {

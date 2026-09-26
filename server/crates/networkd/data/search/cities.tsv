@@ -1,0 +1,104 @@
+# Cities for /v2/search: a place name finds every airport listed, the
+# first one first. The registry names an airport's municipality, which
+# is often a suburb (Narita, Sepang, Zaventem) or a neighbour (Newark):
+# this table says which airports serve a city and under which names
+# people type it (English and local names, old names still in use).
+# Accents and case do not matter here; the index folds both.
+#
+# city	other names (comma separated)	airports (IATA), main first
+London		LHR LGW STN LTN LCY SEN
+New York	New York City, NYC	JFK EWR LGA
+Tokyo	Tokio	HND NRT
+Paris		CDG ORY BVA
+Seoul		ICN GMP
+Shanghai		PVG SHA
+Beijing	Peking	PEK PKX
+Moscow	Moskva, Moscou	SVO DME VKO
+Milan	Milano, Mailand	MXP LIN BGY
+Osaka		KIX ITM UKB
+São Paulo	Sao Paulo, Sampa	GRU CGH VCP
+Buenos Aires		EZE AEP
+Washington	Washington DC, Washington D.C.	IAD DCA BWI
+Chicago		ORD MDW
+Bangkok	Krung Thep	BKK DMK
+Jakarta		CGK HLP
+Istanbul	İstanbul, Constantinople	IST SAW
+Rio de Janeiro	Rio	GIG SDU
+Dubai		DXB DWC
+Kuala Lumpur		KUL SZB
+Toronto		YYZ YTZ
+Montreal	Montréal	YUL YHU
+Stockholm		ARN BMA NYO
+Oslo		OSL TRF
+Rome	Roma, Rom	FCO CIA
+Brussels	Bruxelles, Brussel, Brüssel	BRU CRL
+Athens	Athina, Athènes, Athen	ATH
+Vienna	Wien, Vienne	VIE
+Prague	Praha, Prag	PRG
+Lisbon	Lisboa, Lissabon, Lisbonne	LIS
+Warsaw	Warszawa, Warschau, Varsovie	WAW WMI
+Copenhagen	København, Kobenhavn, Kopenhagen	CPH
+Munich	München, Muenchen	MUC
+Cologne	Köln, Koeln	CGN
+Frankfurt	Frankfurt am Main	FRA HHN
+Düsseldorf	Duesseldorf	DUS
+Nuremberg	Nürnberg, Nuernberg	NUE
+Geneva	Genève, Geneve, Genf, Ginevra	GVA
+Zurich	Zürich, Zuerich	ZRH
+Basel	Bâle, Bale	BSL
+Venice	Venezia, Venedig	VCE TSF
+Florence	Firenze, Florenz	FLR
+Naples	Napoli, Neapel	NAP
+Turin	Torino	TRN
+Seville	Sevilla	SVQ
+Gothenburg	Göteborg, Goteborg	GOT
+Helsinki	Helsingfors	HEL
+Reykjavik	Reykjavík	KEF RKV
+Kyiv	Kiev, Kiew	KBP IEV
+Saint Petersburg	St Petersburg, St. Petersburg, Sankt-Peterburg	LED
+Bucharest	București, Bucuresti	OTP
+Belgrade	Beograd	BEG
+Edinburgh		EDI
+Manchester		MAN
+Taipei		TPE TSA
+Tehran	Teheran	IKA THR
+Delhi	New Delhi	DEL
+Mumbai	Bombay	BOM
+Bengaluru	Bangalore	BLR
+Chennai	Madras	MAA
+Kolkata	Calcutta	CCU
+Ho Chi Minh City	Saigon, HCMC	SGN
+Hanoi	Hà Nội, Ha Noi	HAN
+Guangzhou	Canton	CAN
+Chengdu		CTU TFU
+Nagoya		NGO NKM
+Sapporo		CTS OKD
+Busan	Pusan	PUS
+Bali	Denpasar	DPS
+Cebu		CEB
+Mexico City	Ciudad de México, Ciudad de Mexico, CDMX	MEX NLU
+Bogotá	Bogota	BOG
+Panama City	Ciudad de Panamá	PTY
+Montevideo		MVD
+Tel Aviv	Tel Aviv-Yafo	TLV
+Cairo	Al Qahirah, Le Caire	CAI
+Johannesburg	Joburg	JNB
+Melbourne		MEL AVV
+Sydney		SYD
+Hong Kong		HKG
+Macau	Macao	MFM
+Singapore	Singapura	SIN
+Doha		DOH
+Abu Dhabi		AUH
+Muscat		MCT
+Kuwait	Kuwait City	KWI
+Los Angeles		LAX BUR LGB SNA ONT
+San Francisco	Bay Area	SFO OAK SJC
+Houston		IAH HOU
+Dallas	Dallas-Fort Worth	DFW DAL
+Miami		MIA FLL
+Boston		BOS
+Seattle		SEA
+Philadelphia		PHL
+Vancouver		YVR
+Honolulu		HNL

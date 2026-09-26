@@ -58,6 +58,11 @@ pub struct Settings {
     pub refdata_rate_limit: usize,
     pub airport_rate_limit: usize,
     pub search_rate_limit: usize,
+    /// the /v2 search index directory (networkd search-index build)
+    pub search_index_path: String,
+    pub search_v2_rate_limit: usize,
+    /// the network site, for the links /v2 results carry
+    pub site_url: String,
     pub database_url: String,
     /// record emergency squawks (off where the Python service still does)
     pub squawks: bool,
@@ -141,6 +146,9 @@ impl Settings {
             refdata_rate_limit: int("NETWORK_API_REFDATA_RATE_LIMIT", 300) as usize,
             airport_rate_limit: int("NETWORK_API_AIRPORT_RATE_LIMIT", 120) as usize,
             search_rate_limit: int("NETWORK_API_SEARCH_RATE_LIMIT", 600) as usize,
+            search_index_path: s("NETWORKD_SEARCH_INDEX", "data/search"),
+            search_v2_rate_limit: int("NETWORK_API_SEARCH_V2_RATE_LIMIT", 600) as usize,
+            site_url: s("NETWORKD_SITE_URL", "https://flightportrait.com/network"),
             database_url: s("NETWORK_API_DATABASE_URL", ""),
             squawks: matches!(s("NETWORKD_SQUAWKS", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
             nat: matches!(s("NETWORKD_NAT", "").trim().to_lowercase().as_str(), "on" | "1" | "true" | "yes"),
