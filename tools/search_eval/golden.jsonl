@@ -1,0 +1,215 @@
+{"q": "SQ322", "expect_top": [{"kind": "flight", "id": "SIA322"}], "tags": ["flight", "iata"]}
+{"q": "SIA322", "expect_top": [{"kind": "flight", "id": "SIA322"}], "tags": ["flight", "icao"]}
+{"q": "sq322", "expect_top": [{"kind": "flight", "id": "SIA322"}], "tags": ["flight", "iata"]}
+{"q": "BAW16", "expect_top": [{"kind": "flight", "id": "BAW16"}], "tags": ["flight", "icao"]}
+{"q": "BA12", "expect_top": [{"kind": "flight", "id": "BAW12"}], "tags": ["flight", "iata"]}
+{"q": "CX251", "expect_top": [{"kind": "flight", "id": "CPA251"}], "tags": ["flight", "iata"]}
+{"q": "TG910", "expect_top": [{"kind": "flight", "id": "THA910"}], "tags": ["flight", "iata"]}
+{"q": "AA100", "expect_top": [{"kind": "flight", "id": "AAL100"}], "tags": ["flight", "iata"]}
+{"q": "LH400", "expect_top": [{"kind": "flight", "id": "DLH400"}], "tags": ["flight", "iata"]}
+{"q": "BAW15", "expect_top": [{"kind": "flight", "id": "BAW15"}], "tags": ["flight", "icao"]}
+{"q": "TGW12", "expect_top": [{"kind": "flight", "id": "TGW12"}], "tags": ["flight", "icao"]}
+{"q": "BA16", "expect_top": [{"kind": "flight", "id": "BAW16"}], "tags": ["flight", "iata"], "note": "IATA prefix rows used to fill the cap first"}
+{"q": "BA15", "expect_top": [{"kind": "flight", "id": "BAW15"}], "tags": ["flight", "iata"]}
+{"q": "EK1", "expect_in_top_k": [{"kind": "flight", "id": "UAE1"}], "tags": ["flight", "iata"], "note": "the exact ICAO number must be scored, not cut by busier prefixes"}
+{"q": "QR1", "expect_in_top_k": [{"kind": "flight", "id": "QTR1"}], "tags": ["flight", "iata"], "note": "the exact ICAO number must be scored, not cut by busier prefixes"}
+{"q": "UA1", "expect_in_top_k": [{"kind": "flight", "id": "UAL1"}], "tags": ["flight", "iata"], "note": "the exact ICAO number must be scored, not cut by busier prefixes"}
+{"q": "DL1", "expect_in_top_k": [{"kind": "flight", "id": "DAL1"}], "tags": ["flight", "iata"], "note": "the exact ICAO number must be scored, not cut by busier prefixes"}
+{"q": "TK1", "expect_in_top_k": [{"kind": "flight", "id": "THY1"}], "tags": ["flight", "iata"], "note": "the exact ICAO number must be scored, not cut by busier prefixes"}
+{"q": "QF1", "expect_in_top_k": [{"kind": "flight", "id": "QFA1"}], "tags": ["flight", "iata"], "note": "the exact ICAO number must be scored, not cut by busier prefixes"}
+{"q": "MH1", "expect_in_top_k": [{"kind": "flight", "id": "MAS1"}], "tags": ["flight", "iata"], "note": "the exact ICAO number must be scored, not cut by busier prefixes"}
+{"q": "UAE1", "expect_top": [{"kind": "flight", "id": "UAE1"}], "tags": ["flight", "icao"], "note": "the exact number before busier ones that start with it"}
+{"q": "QTR1", "expect_top": [{"kind": "flight", "id": "QTR1"}], "tags": ["flight", "icao"], "note": "the exact number before busier ones that start with it"}
+{"q": "UAL1", "expect_top": [{"kind": "flight", "id": "UAL1"}], "tags": ["flight", "icao"], "note": "the exact number before busier ones that start with it"}
+{"q": "SQ 322", "expect_top": [{"kind": "flight", "id": "SIA322"}], "tags": ["flight", "space"]}
+{"q": "BA 16", "expect_top": [{"kind": "flight", "id": "BAW16"}], "tags": ["flight", "space"]}
+{"q": "SIA 322", "expect_top": [{"kind": "flight", "id": "SIA322"}], "tags": ["flight", "space"]}
+{"q": "sq 322", "expect_top": [{"kind": "flight", "id": "SIA322"}], "tags": ["flight", "space"]}
+{"q": "CX 251", "expect_top": [{"kind": "flight", "id": "CPA251"}], "tags": ["flight", "space"]}
+{"q": "TG 910", "expect_top": [{"kind": "flight", "id": "THA910"}], "tags": ["flight", "space"]}
+{"q": "AA 100", "expect_top": [{"kind": "flight", "id": "AAL100"}], "tags": ["flight", "space"]}
+{"q": "BA 12", "expect_top": [{"kind": "flight", "id": "BAW12"}], "tags": ["flight", "space"]}
+{"q": "SQ32", "expect_top": [{"kind": "flight"}], "tags": ["flight", "prefix"]}
+{"q": "KE81", "expect_top": [{"kind": "flight", "id": "KAL81"}], "tags": ["flight", "iata", "legs"]}
+{"q": "SIN LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "codes"]}
+{"q": "sin lhr", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "cities"]}
+{"q": "SIN-LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "connector", "codes"]}
+{"q": "SIN - LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "connector", "codes"]}
+{"q": "SIN–LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "connector", "codes"]}
+{"q": "SIN — LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "connector", "codes"]}
+{"q": "SIN → LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "connector", "codes"]}
+{"q": "SIN > LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "connector", "codes"]}
+{"q": "SIN->LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "connector", "codes"]}
+{"q": "SIN to LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "words", "codes"]}
+{"q": "from SIN to LHR", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "words"]}
+{"q": "to LHR from SIN", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "words"]}
+{"q": "WSSS EGLL", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "codes"]}
+{"q": "Singapore London", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "cities"]}
+{"q": "Singapore to London", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "words", "cities"]}
+{"q": "from Singapore to London", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "words", "cities"]}
+{"q": "flights from Singapore to London", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "words", "cities"]}
+{"q": "flights to London from Singapore", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "words", "cities"]}
+{"q": "Singapore - London", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "connector", "cities"]}
+{"q": "Singapore → London", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "connector", "cities"]}
+{"q": "Changi to Heathrow", "expect_top": [{"kind": "flight", "detail_prefix": "SIN → LHR"}], "tags": ["route", "words", "cities"]}
+{"q": "LHR SIN", "expect_top": [{"kind": "flight", "detail_prefix": "LHR → SIN"}], "tags": ["route", "codes"]}
+{"q": "London to Singapore", "expect_top": [{"kind": "flight", "detail_prefix": "LHR → SIN"}], "tags": ["route", "words", "cities"]}
+{"q": "Sydney to Singapore", "expect_top": [{"kind": "flight", "detail_prefix": "SYD → SIN"}], "tags": ["route", "words", "cities"]}
+{"q": "Hong Kong to Singapore", "expect_top": [{"kind": "flight", "detail_prefix": "HKG → SIN"}], "tags": ["route", "words", "cities"]}
+{"q": "Kuala Lumpur to Singapore", "expect_top": [{"kind": "flight", "detail_prefix": "KUL → SIN"}], "tags": ["route", "words", "cities"]}
+{"q": "New York to London", "expect_top": [{"kind": "flight", "detail_prefix": "JFK → LHR"}], "tags": ["route", "words", "cities"]}
+{"q": "Dubai London", "expect_top": [{"kind": "flight", "detail_prefix": "DXB → LHR"}], "tags": ["route", "cities"]}
+{"q": "DXB LHR", "expect_top": [{"kind": "flight", "detail_prefix": "DXB → LHR"}], "tags": ["route", "codes"]}
+{"q": "JFK-LHR", "expect_top": [{"kind": "flight", "detail_prefix": "JFK → LHR"}], "tags": ["route", "codes", "connector"]}
+{"q": "Sao Paulo to Lisbon", "expect_top": [{"kind": "flight", "detail_prefix": "GRU → LIS"}], "tags": ["route", "words", "cities", "accent"]}
+{"q": "Singapore Airlines", "expect_in_top_k": [{"kind": "airline", "id": "SIA"}], "tags": ["airline", "name"]}
+{"q": "singapore air", "expect_in_top_k": [{"kind": "airline", "id": "SIA"}], "tags": ["airline", "name"]}
+{"q": "SIA", "expect_in_top_k": [{"kind": "airline", "id": "SIA"}], "tags": ["airline", "code"]}
+{"q": "SQ", "expect_in_top_k": [{"kind": "airline", "id": "SIA"}], "tags": ["airline", "code"]}
+{"q": "Scoot", "expect_in_top_k": [{"kind": "airline", "id": "TGW"}], "tags": ["airline", "name"]}
+{"q": "TGW", "expect_in_top_k": [{"kind": "airline", "id": "TGW"}], "tags": ["airline", "code"]}
+{"q": "TR", "expect_in_top_k": [{"kind": "airline", "id": "TGW"}], "tags": ["airline", "code"]}
+{"q": "Emirates", "expect_in_top_k": [{"kind": "airline", "id": "UAE"}], "tags": ["airline", "name"]}
+{"q": "EK", "expect_in_top_k": [{"kind": "airline", "id": "UAE"}], "tags": ["airline", "code"]}
+{"q": "Qantas", "expect_in_top_k": [{"kind": "airline", "id": "QFA"}], "tags": ["airline", "name"]}
+{"q": "Lufthansa", "expect_in_top_k": [{"kind": "airline", "id": "DLH"}], "tags": ["airline", "name"]}
+{"q": "British Airways", "expect_in_top_k": [{"kind": "airline", "id": "BAW"}], "tags": ["airline", "name"]}
+{"q": "BAW", "expect_in_top_k": [{"kind": "airline", "id": "BAW"}], "tags": ["airline", "code"]}
+{"q": "Cathay", "expect_in_top_k": [{"kind": "airline", "id": "CPA"}], "tags": ["airline", "name"]}
+{"q": "Cathay Pacific", "expect_in_top_k": [{"kind": "airline", "id": "CPA"}], "tags": ["airline", "name"]}
+{"q": "Qatar", "expect_in_top_k": [{"kind": "airline", "id": "QTR"}], "tags": ["airline", "name"]}
+{"q": "KLM", "expect_in_top_k": [{"kind": "airline", "id": "KLM"}], "tags": ["airline", "code"]}
+{"q": "Air France", "expect_in_top_k": [{"kind": "airline", "id": "AFR"}], "tags": ["airline", "name"]}
+{"q": "Delta", "expect_in_top_k": [{"kind": "airline", "id": "DAL"}], "tags": ["airline", "name"]}
+{"q": "United", "expect_in_top_k": [{"kind": "airline", "id": "UAL"}], "tags": ["airline", "name"]}
+{"q": "Ryanair", "expect_in_top_k": [{"kind": "airline", "id": "RYR"}], "tags": ["airline", "name"]}
+{"q": "easyJet", "expect_in_top_k": [{"kind": "airline", "id": "EZY"}], "tags": ["airline", "name"]}
+{"q": "AirAsia", "expect_in_top_k": [{"kind": "airline", "id": "AXM"}], "tags": ["airline", "name"]}
+{"q": "Jetstar", "expect_in_top_k": [{"kind": "airline", "id": "JST"}], "tags": ["airline", "name"]}
+{"q": "Turkish", "expect_in_top_k": [{"kind": "airline", "id": "THY"}], "tags": ["airline", "name"]}
+{"q": "Etihad", "expect_in_top_k": [{"kind": "airline", "id": "ETD"}], "tags": ["airline", "name"]}
+{"q": "Swiss", "expect_in_top_k": [{"kind": "airline", "id": "SWR"}], "tags": ["airline", "name"]}
+{"q": "Garuda", "expect_in_top_k": [{"kind": "airline", "id": "GIA"}], "tags": ["airline", "name"]}
+{"q": "Thai", "expect_in_top_k": [{"kind": "airline", "id": "THA"}], "tags": ["airline", "name"]}
+{"q": "Vietnam Airlines", "expect_in_top_k": [{"kind": "airline", "id": "HVN"}], "tags": ["airline", "name"]}
+{"q": "EVA", "expect_in_top_k": [{"kind": "airline", "id": "EVA"}], "tags": ["airline", "code"]}
+{"q": "All Nippon", "expect_in_top_k": [{"kind": "airline", "id": "ANA"}], "tags": ["airline", "name"]}
+{"q": "Japan Airlines", "expect_in_top_k": [{"kind": "airline", "id": "JAL"}], "tags": ["airline", "name"]}
+{"q": "Korean Air", "expect_in_top_k": [{"kind": "airline", "id": "KAL"}], "tags": ["airline", "name"]}
+{"q": "IndiGo", "expect_in_top_k": [{"kind": "airline", "id": "IGO"}], "tags": ["airline", "name"]}
+{"q": "6E", "expect_in_top_k": [{"kind": "airline", "id": "IGO"}], "tags": ["airline", "code"], "known_gap": true, "note": "an airline code with a digit is not looked up"}
+{"q": "Icelandair", "expect_in_top_k": [{"kind": "airline", "id": "ICE"}], "tags": ["airline", "name"]}
+{"q": "Aeromexico", "expect_in_top_k": [{"kind": "airline", "id": "AMX"}], "tags": ["airline", "name"]}
+{"q": "Scoot", "expect_top": [{"kind": "airline", "id": "TGW"}], "expect_not_in_top_k": [{"kind": "airport", "id": "BLV"}], "tags": ["airline", "name", "noise"], "note": "no near misses once a name matched"}
+{"q": "Emirats", "expect_in_top_k": [{"kind": "airline", "id": "UAE"}], "tags": ["airline", "typo"]}
+{"q": "Lufthnsa", "expect_in_top_k": [{"kind": "airline", "id": "DLH"}], "tags": ["airline", "typo"]}
+{"q": "Qantsa", "expect_in_top_k": [{"kind": "airline", "id": "QFA"}], "tags": ["airline", "typo"], "known_gap": true, "note": "airport near misses, lifted by traffic, crowd the airline out"}
+{"q": "Cathey", "expect_in_top_k": [{"kind": "airline", "id": "CPA"}], "tags": ["airline", "typo"]}
+{"q": "Ryanar", "expect_in_top_k": [{"kind": "airline", "id": "RYR"}], "tags": ["airline", "typo"], "known_gap": true, "note": "airport near misses, lifted by traffic, crowd the airline out"}
+{"q": "Etihd", "expect_in_top_k": [{"kind": "airline", "id": "ETD"}], "tags": ["airline", "typo"]}
+{"q": "Scot", "expect_in_top_k": [{"kind": "airline", "id": "TGW"}], "tags": ["airline", "typo"], "note": "four letters, one edit"}
+{"q": "Wideroe", "expect_in_top_k": [{"kind": "airline", "id": "WIF"}], "tags": ["airline", "accent"]}
+{"q": "Air Caraibes", "expect_in_top_k": [{"kind": "airline", "id": "FWI"}], "tags": ["airline", "accent"]}
+{"q": "Malmo Aviation", "expect_in_top_k": [{"kind": "airline", "id": "SCW"}], "tags": ["airline", "accent"]}
+{"q": "SIN", "expect_top": [{"kind": "airport", "id": "SIN"}], "tags": ["airport", "code"]}
+{"q": "WSSS", "expect_top": [{"kind": "airport", "id": "SIN"}], "tags": ["airport", "code"]}
+{"q": "LHR", "expect_top": [{"kind": "airport", "id": "LHR"}], "tags": ["airport", "code"]}
+{"q": "EGLL", "expect_top": [{"kind": "airport", "id": "LHR"}], "tags": ["airport", "code"]}
+{"q": "JFK", "expect_top": [{"kind": "airport", "id": "JFK"}], "tags": ["airport", "code"]}
+{"q": "KJFK", "expect_top": [{"kind": "airport", "id": "JFK"}], "tags": ["airport", "code"]}
+{"q": "HND", "expect_top": [{"kind": "airport", "id": "HND"}], "tags": ["airport", "code"]}
+{"q": "NRT", "expect_top": [{"kind": "airport", "id": "NRT"}], "tags": ["airport", "code"]}
+{"q": "CDG", "expect_top": [{"kind": "airport", "id": "CDG"}], "tags": ["airport", "code"]}
+{"q": "DXB", "expect_top": [{"kind": "airport", "id": "DXB"}], "tags": ["airport", "code"]}
+{"q": "ZRH", "expect_top": [{"kind": "airport", "id": "ZRH"}], "tags": ["airport", "code"]}
+{"q": "GRU", "expect_top": [{"kind": "airport", "id": "GRU"}], "tags": ["airport", "code"]}
+{"q": "SYD", "expect_top": [{"kind": "airport", "id": "SYD"}], "tags": ["airport", "code"]}
+{"q": "sin", "expect_top": [{"kind": "airport", "id": "SIN"}], "tags": ["airport", "code", "case"]}
+{"q": "lhr", "expect_top": [{"kind": "airport", "id": "LHR"}], "tags": ["airport", "code", "case"]}
+{"q": "Changi", "expect_top": [{"kind": "airport", "id": "SIN"}], "tags": ["airport", "name"]}
+{"q": "Heathrow", "expect_top": [{"kind": "airport", "id": "LHR"}], "tags": ["airport", "name"]}
+{"q": "Gatwick", "expect_top": [{"kind": "airport", "id": "LGW"}], "tags": ["airport", "name"]}
+{"q": "Schiphol", "expect_top": [{"kind": "airport", "id": "AMS"}], "tags": ["airport", "name"]}
+{"q": "Narita", "expect_top": [{"kind": "airport", "id": "NRT"}], "tags": ["airport", "name"]}
+{"q": "Haneda", "expect_top": [{"kind": "airport", "id": "HND"}], "tags": ["airport", "name"]}
+{"q": "Kennedy", "expect_top": [{"kind": "airport", "id": "JFK"}], "tags": ["airport", "name"]}
+{"q": "Charles de Gaulle", "expect_top": [{"kind": "airport", "id": "CDG"}], "tags": ["airport", "name"]}
+{"q": "Incheon", "expect_top": [{"kind": "airport", "id": "ICN"}], "tags": ["airport", "name"]}
+{"q": "Suvarnabhumi", "expect_top": [{"kind": "airport", "id": "BKK"}], "tags": ["airport", "name"]}
+{"q": "Soekarno", "expect_top": [{"kind": "airport", "id": "CGK"}], "tags": ["airport", "name"]}
+{"q": "Hong Kong", "expect_top": [{"kind": "airport", "id": "HKG"}], "tags": ["airport", "name"]}
+{"q": "Dubai", "expect_top": [{"kind": "airport", "id": "DXB"}], "tags": ["airport", "name"]}
+{"q": "Changi", "expect_top": [{"kind": "airport", "id": "SIN"}], "expect_in_top_k": [{"kind": "airport", "id": "WSAC"}], "tags": ["airport", "name", "rank"], "note": "the civil airport over the air base"}
+{"q": "changi airport", "expect_top": [{"kind": "airport", "id": "SIN"}], "tags": ["airport", "name"]}
+{"q": "Chnagi", "expect_in_top_k": [{"kind": "airport", "id": "SIN"}], "tags": ["airport", "typo"]}
+{"q": "Heathro", "expect_in_top_k": [{"kind": "airport", "id": "LHR"}], "tags": ["airport", "typo"]}
+{"q": "Heatrow", "expect_in_top_k": [{"kind": "airport", "id": "LHR"}], "tags": ["airport", "typo"]}
+{"q": "Gatwik", "expect_in_top_k": [{"kind": "airport", "id": "LGW"}], "tags": ["airport", "typo"]}
+{"q": "Schipol", "expect_in_top_k": [{"kind": "airport", "id": "AMS"}], "tags": ["airport", "typo"]}
+{"q": "Frankfrut", "expect_in_top_k": [{"kind": "airport", "id": "FRA"}], "tags": ["airport", "typo"]}
+{"q": "London", "expect_top": [{"kind": "airport", "id": "LHR"}], "expect_in_top_k": [{"kind": "airport", "id": "LGW"}], "tags": ["city"]}
+{"q": "Tokyo", "expect_top": [{"kind": "airport", "id": "HND"}], "expect_in_top_k": [{"kind": "airport", "id": "NRT"}], "tags": ["city"], "known_gap": true, "note": "a city: Narita's city is Narita"}
+{"q": "Paris", "expect_top": [{"kind": "airport", "id": "CDG"}], "tags": ["city"]}
+{"q": "Singapore", "expect_top": [{"kind": "airport", "id": "SIN"}], "tags": ["city"]}
+{"q": "Sydney", "expect_top": [{"kind": "airport", "id": "SYD"}], "tags": ["city"]}
+{"q": "Bangkok", "expect_top": [{"kind": "airport", "id": "BKK"}], "expect_in_top_k": [{"kind": "airport", "id": "DMK"}], "tags": ["city"]}
+{"q": "Seoul", "expect_top": [{"kind": "airport", "id": "ICN"}], "tags": ["city"]}
+{"q": "Kuala Lumpur", "expect_top": [{"kind": "airport", "id": "KUL"}], "tags": ["city"]}
+{"q": "Los Angeles", "expect_top": [{"kind": "airport", "id": "LAX"}], "tags": ["city"]}
+{"q": "Toronto", "expect_top": [{"kind": "airport", "id": "YYZ"}], "tags": ["city"]}
+{"q": "Munich", "expect_top": [{"kind": "airport", "id": "MUC"}], "tags": ["city"]}
+{"q": "Cologne", "expect_top": [{"kind": "airport", "id": "CGN"}], "tags": ["city"]}
+{"q": "Montreal", "expect_top": [{"kind": "airport", "id": "YUL"}], "tags": ["city"]}
+{"q": "Istanbul", "expect_top": [{"kind": "airport", "id": "IST"}], "tags": ["city"]}
+{"q": "Frankfurt", "expect_top": [{"kind": "airport", "id": "FRA"}], "tags": ["city"]}
+{"q": "New York", "expect_top": [{"kind": "airport", "id": "JFK"}], "expect_in_top_k": [{"kind": "airport", "id": "LGA"}, {"kind": "airport", "id": "EWR"}], "tags": ["city"], "known_gap": true, "note": "a city: LGA departs more often than JFK; EWR is Newark"}
+{"q": "new york", "expect_top": [{"kind": "airport", "id": "JFK"}], "tags": ["city", "case"], "known_gap": true, "note": "a city: LGA departs more often than JFK"}
+{"q": "Washington", "expect_in_top_k": [{"kind": "airport", "id": "IAD"}, {"kind": "airport", "id": "DCA"}], "tags": ["city"]}
+{"q": "Rio", "expect_in_top_k": [{"kind": "airport", "id": "GIG"}], "tags": ["city"]}
+{"q": "Sao Paulo", "expect_in_top_k": [{"kind": "airport", "id": "GRU"}], "tags": ["airport", "accent"]}
+{"q": "São Paulo", "expect_in_top_k": [{"kind": "airport", "id": "GRU"}], "tags": ["airport", "accent"]}
+{"q": "Zurich", "expect_in_top_k": [{"kind": "airport", "id": "ZRH"}], "tags": ["airport", "accent"]}
+{"q": "Zürich", "expect_in_top_k": [{"kind": "airport", "id": "ZRH"}], "tags": ["airport", "accent"]}
+{"q": "Reykjavik", "expect_in_top_k": [{"kind": "airport", "id": "KEF"}], "tags": ["airport", "accent"]}
+{"q": "Dusseldorf", "expect_in_top_k": [{"kind": "airport", "id": "DUS"}], "tags": ["airport", "accent"]}
+{"q": "Düsseldorf", "expect_in_top_k": [{"kind": "airport", "id": "DUS"}], "tags": ["airport", "accent"]}
+{"q": "Cancun", "expect_in_top_k": [{"kind": "airport", "id": "CUN"}], "tags": ["airport", "accent"]}
+{"q": "Medellin", "expect_in_top_k": [{"kind": "airport", "id": "MDE"}], "tags": ["airport", "accent"]}
+{"q": "Bogota", "expect_in_top_k": [{"kind": "airport", "id": "BOG"}], "tags": ["airport", "accent"]}
+{"q": "Montréal", "expect_in_top_k": [{"kind": "airport", "id": "YUL"}], "tags": ["airport", "accent"]}
+{"q": "Koln", "expect_in_top_k": [{"kind": "airport", "id": "CGN"}], "tags": ["airport", "accent"]}
+{"q": "Köln", "expect_in_top_k": [{"kind": "airport", "id": "CGN"}], "tags": ["airport", "accent"]}
+{"q": "Malmo", "expect_in_top_k": [{"kind": "airport", "id": "MMX"}], "tags": ["airport", "accent"]}
+{"q": "München", "expect_in_top_k": [{"kind": "airport", "id": "MUC"}], "tags": ["airport", "accent"], "known_gap": true, "note": "the endonym; the data says Munich"}
+{"q": "9V-SMA", "expect_top": [{"kind": "aircraft", "label_contains": "9V-SMA"}], "tags": ["registration"]}
+{"q": "9v-sma", "expect_top": [{"kind": "aircraft", "label_contains": "9V-SMA"}], "tags": ["registration", "case"]}
+{"q": "9VSMA", "expect_top": [{"kind": "aircraft", "label_contains": "9V-SMA"}], "tags": ["registration"]}
+{"q": "G-XLEA", "expect_top": [{"kind": "aircraft", "label_contains": "G-XLEA"}], "tags": ["registration"]}
+{"q": "D-AIMA", "expect_top": [{"kind": "aircraft", "label_contains": "D-AIMA"}], "tags": ["registration"]}
+{"q": "VH-OQA", "expect_top": [{"kind": "aircraft", "label_contains": "VH-OQA"}], "tags": ["registration"]}
+{"q": "A6-EDA", "expect_top": [{"kind": "aircraft", "label_contains": "A6-EDA"}], "tags": ["registration"]}
+{"q": "JA801A", "expect_top": [{"kind": "aircraft", "label_contains": "JA801A"}], "tags": ["registration"]}
+{"q": "N12005", "expect_top": [{"kind": "aircraft", "label_contains": "N12005"}], "tags": ["registration"]}
+{"q": "GXLEA", "expect_top": [{"kind": "aircraft", "label_contains": "G-XLEA"}], "tags": ["registration"], "known_gap": true, "note": "without the dash, letters only: kept out so a city is not a tail"}
+{"q": "9V-SM", "expect_in_top_k": [{"kind": "aircraft", "label_contains": "9V-SMA"}], "tags": ["registration", "prefix"]}
+{"q": "9V SMA", "expect_top": [{"kind": "aircraft", "label_contains": "9V-SMA"}], "tags": ["registration", "space"], "known_gap": true, "note": "a registration typed with a space"}
+{"q": "76CDA1", "expect_top": [{"kind": "aircraft", "id": "76cda1"}], "tags": ["hex"]}
+{"q": "76cda1", "expect_top": [{"kind": "aircraft", "id": "76cda1"}], "tags": ["hex", "case"]}
+{"q": "40688B", "expect_top": [{"kind": "aircraft", "id": "40688b"}], "tags": ["hex"]}
+{"q": "3c65a1", "expect_top": [{"kind": "aircraft", "id": "3c65a1"}], "tags": ["hex", "case"]}
+{"q": "Singapore A350", "expect_top": [{"kind": "aircraft"}], "tags": ["fleet", "type"]}
+{"q": "SIA A359", "expect_top": [{"kind": "aircraft"}], "tags": ["fleet", "type"]}
+{"q": "SQ 777", "expect_top": [{"kind": "aircraft"}], "tags": ["fleet", "type"]}
+{"q": "Qatar A350", "expect_top": [{"kind": "aircraft"}], "tags": ["fleet", "type"]}
+{"q": "Emirates A380", "expect_top": [{"kind": "aircraft"}], "tags": ["fleet", "type"]}
+{"q": "A380 Qantas", "expect_top": [{"kind": "aircraft"}], "tags": ["fleet", "type"]}
+{"q": "BA A380", "expect_top": [{"kind": "aircraft"}], "tags": ["fleet", "type"], "known_gap": true, "note": "a two-letter code loses to airline names that start with it"}
+{"q": "A350", "expect_top": [{"kind": "type", "id": "A359"}], "tags": ["type"], "known_gap": true, "note": "no type results yet"}
+{"q": "Boeing 777", "expect_top": [{"kind": "type", "id": "B77W"}], "tags": ["type"], "known_gap": true, "note": "no type results yet"}
+{"q": "A380", "expect_top": [{"kind": "type", "id": "A388"}], "tags": ["type"], "known_gap": true, "note": "no type results yet"}
+{"q": "787", "expect_top": [{"kind": "type", "id": "B789"}], "tags": ["type"], "known_gap": true, "note": "no type results yet"}
+{"q": "Tokyo Haneda", "expect_top": [{"kind": "airport", "id": "HND"}], "tags": ["airport", "guard"]}
+{"q": "Toronto Pearson", "expect_top": [{"kind": "airport", "id": "YYZ"}], "tags": ["airport", "guard"]}
+{"q": "Doha", "expect_top": [{"kind": "airport", "id": "DOH"}], "expect_not_in_top_k": [{"kind": "aircraft"}], "tags": ["city", "guard"]}
+{"q": "Porto", "expect_top": [{"kind": "airport", "id": "OPO"}], "tags": ["city", "guard"]}
+{"q": "Winston", "expect_in_top_k": [{"kind": "airport", "id": "INT"}], "tags": ["city", "guard"]}

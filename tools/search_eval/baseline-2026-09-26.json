@@ -1,0 +1,5888 @@
+{
+ "3c65a1": {
+  "body": {
+   "q": "3C65A1",
+   "results": [
+    {
+     "detail": "Airbus A380-800 · Lufthansa",
+     "id": "3c65a1",
+     "kind": "aircraft",
+     "label": "D-AIMA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=3c65a1"
+ },
+ "40688B": {
+  "body": {
+   "q": "40688B",
+   "results": [
+    {
+     "detail": "Airbus A380-800 · British Airways",
+     "id": "40688b",
+     "kind": "aircraft",
+     "label": "G-XLEA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=40688B"
+ },
+ "6E": {
+  "body": {
+   "q": "6E",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=6E"
+ },
+ "76CDA1": {
+  "body": {
+   "q": "76CDA1",
+   "results": [
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda1",
+     "kind": "aircraft",
+     "label": "9V-SMA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=76CDA1"
+ },
+ "76cda1": {
+  "body": {
+   "q": "76CDA1",
+   "results": [
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda1",
+     "kind": "aircraft",
+     "label": "9V-SMA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=76cda1"
+ },
+ "787": {
+  "body": {
+   "q": "787",
+   "results": [
+    {
+     "detail": "Y20",
+     "id": "7a42a7",
+     "kind": "aircraft",
+     "label": "787",
+     "score": 100
+    },
+    {
+     "detail": "DRON",
+     "id": "4781c7",
+     "kind": "aircraft",
+     "label": "7874",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=787"
+ },
+ "9V SMA": {
+  "body": {
+   "q": "9V SMA",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=9V+SMA"
+ },
+ "9V-SM": {
+  "body": {
+   "q": "9V-SM",
+   "results": [
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda1",
+     "kind": "aircraft",
+     "label": "9V-SMA",
+     "score": 60
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda2",
+     "kind": "aircraft",
+     "label": "9V-SMB",
+     "score": 60
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda3",
+     "kind": "aircraft",
+     "label": "9V-SMC",
+     "score": 60
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda4",
+     "kind": "aircraft",
+     "label": "9V-SMD",
+     "score": 60
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda5",
+     "kind": "aircraft",
+     "label": "9V-SME",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=9V-SM"
+ },
+ "9V-SMA": {
+  "body": {
+   "q": "9V-SMA",
+   "results": [
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda1",
+     "kind": "aircraft",
+     "label": "9V-SMA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=9V-SMA"
+ },
+ "9VSMA": {
+  "body": {
+   "q": "9VSMA",
+   "results": [
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda1",
+     "kind": "aircraft",
+     "label": "9V-SMA",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=9VSMA"
+ },
+ "9v-sma": {
+  "body": {
+   "q": "9V-SMA",
+   "results": [
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cda1",
+     "kind": "aircraft",
+     "label": "9V-SMA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=9v-sma"
+ },
+ "A350": {
+  "body": {
+   "q": "A350",
+   "results": [
+    {
+     "detail": "RV8",
+     "id": "a35097",
+     "kind": "aircraft",
+     "label": "N3120",
+     "score": 60
+    },
+    {
+     "detail": "M7 · N7775MW LLC",
+     "id": "a350b0",
+     "kind": "aircraft",
+     "label": "N31200",
+     "score": 60
+    },
+    {
+     "detail": "KR2 · MARKAL FLYING CLUB INC",
+     "id": "a350b3",
+     "kind": "aircraft",
+     "label": "N31203",
+     "score": 60
+    },
+    {
+     "detail": "ULAC · TRUAX WESLEY M",
+     "id": "a350b4",
+     "kind": "aircraft",
+     "label": "N31204",
+     "score": 60
+    },
+    {
+     "detail": "SKYR · INNES WILLIAM J",
+     "id": "a350b7",
+     "kind": "aircraft",
+     "label": "N31207",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=A350"
+ },
+ "A380": {
+  "body": {
+   "q": "A380",
+   "results": [
+    {
+     "detail": "TIGR",
+     "id": "7cfa18",
+     "kind": "aircraft",
+     "label": "A38-001",
+     "score": 60
+    },
+    {
+     "detail": "TIGR",
+     "id": "7cfa19",
+     "kind": "aircraft",
+     "label": "A38-002",
+     "score": 60
+    },
+    {
+     "detail": "TIGR",
+     "id": "7cfa1a",
+     "kind": "aircraft",
+     "label": "A38-003",
+     "score": 60
+    },
+    {
+     "detail": "TIGR",
+     "id": "7cfa1b",
+     "kind": "aircraft",
+     "label": "A38-004",
+     "score": 60
+    },
+    {
+     "detail": "TIGR",
+     "id": "7cfa1c",
+     "kind": "aircraft",
+     "label": "A38-005",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=A380"
+ },
+ "A380 Qantas": {
+  "body": {
+   "q": "A380 QANTAS",
+   "results": [
+    {
+     "detail": "Airbus A380-800 · Qantas",
+     "id": "7c4920",
+     "kind": "aircraft",
+     "label": "VH-OQA",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A380-800 · Qantas",
+     "id": "7c4921",
+     "kind": "aircraft",
+     "label": "VH-OQB",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A380-800 · Qantas",
+     "id": "7c4922",
+     "kind": "aircraft",
+     "label": "VH-OQC",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A380-800 · Qantas",
+     "id": "7c4923",
+     "kind": "aircraft",
+     "label": "VH-OQD",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A380-800 · Qantas",
+     "id": "7c4926",
+     "kind": "aircraft",
+     "label": "VH-OQG",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=A380+Qantas"
+ },
+ "A6-EDA": {
+  "body": {
+   "q": "A6-EDA",
+   "results": [
+    {
+     "detail": "Airbus A380-800",
+     "id": "8960e2",
+     "kind": "aircraft",
+     "label": "A6-EDA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=A6-EDA"
+ },
+ "AA 100": {
+  "body": {
+   "q": "AA 100",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=AA+100"
+ },
+ "AA100": {
+  "body": {
+   "q": "AA100",
+   "results": [
+    {
+     "detail": "JFK → LHR · 53 flights",
+     "id": "AAL100",
+     "kind": "flight",
+     "label": "AAL100",
+     "score": 106.9
+    },
+    {
+     "detail": "6 legs · 70 flights",
+     "id": "AAL1008",
+     "kind": "flight",
+     "label": "AAL1008",
+     "score": 67.4
+    },
+    {
+     "detail": "MSN → CLT · 58 flights",
+     "id": "AAL1002",
+     "kind": "flight",
+     "label": "AAL1002",
+     "score": 67.1
+    },
+    {
+     "detail": "2 legs · 55 flights",
+     "id": "AAL1009",
+     "kind": "flight",
+     "label": "AAL1009",
+     "score": 67.0
+    },
+    {
+     "detail": "CLT → DFW · 50 flights",
+     "id": "AAL1005",
+     "kind": "flight",
+     "label": "AAL1005",
+     "score": 66.8
+    },
+    {
+     "detail": "Boeing 747-8 · UNITED STATES AIR FORCE",
+     "id": "aa1000",
+     "kind": "aircraft",
+     "label": "N7478E",
+     "score": 60
+    },
+    {
+     "detail": "Boeing 747-8 · UNITED STATES AIR FORCE",
+     "id": "aa1001",
+     "kind": "aircraft",
+     "label": "N7478F",
+     "score": 60
+    },
+    {
+     "detail": "Cessna 172 · MCKINNEY BRIAN M",
+     "id": "aa1002",
+     "kind": "aircraft",
+     "label": "N7478G",
+     "score": 60
+    },
+    {
+     "detail": "J3 · MILES RHONDA J",
+     "id": "aa1003",
+     "kind": "aircraft",
+     "label": "N7478H",
+     "score": 60
+    },
+    {
+     "detail": "P28R · GALLO GERALD F",
+     "id": "aa1004",
+     "kind": "aircraft",
+     "label": "N7478J",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=AA100"
+ },
+ "Aeromexico": {
+  "body": {
+   "q": "AEROMEXICO",
+   "results": [
+    {
+     "detail": "AMX · AM",
+     "id": "AMX",
+     "kind": "airline",
+     "label": "Aeromexico",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Aeromexico"
+ },
+ "Air Caraibes": {
+  "body": {
+   "q": "AIR CARAIBES",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Air+Caraibes"
+ },
+ "Air France": {
+  "body": {
+   "q": "AIR FRANCE",
+   "results": [
+    {
+     "detail": "AFR · AF",
+     "id": "AFR",
+     "kind": "airline",
+     "label": "Air France",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Air+France"
+ },
+ "AirAsia": {
+  "body": {
+   "q": "AIRASIA",
+   "results": [
+    {
+     "detail": "AXM · AK",
+     "id": "AXM",
+     "kind": "airline",
+     "label": "AirAsia",
+     "score": 62
+    },
+    {
+     "detail": "XAX · D7",
+     "id": "XAX",
+     "kind": "airline",
+     "label": "AirAsia X",
+     "score": 62
+    },
+    {
+     "detail": "AWQ · QZ",
+     "id": "AWQ",
+     "kind": "airline",
+     "label": "Indonesia AirAsia",
+     "score": 42
+    },
+    {
+     "detail": "APG · Z2",
+     "id": "APG",
+     "kind": "airline",
+     "label": "Philippines AirAsia",
+     "score": 42
+    },
+    {
+     "detail": "AIQ · FD",
+     "id": "AIQ",
+     "kind": "airline",
+     "label": "Thai AirAsia",
+     "score": 42
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=AirAsia"
+ },
+ "All Nippon": {
+  "body": {
+   "q": "ALL NIPPON",
+   "results": [
+    {
+     "detail": "ANA · NH",
+     "id": "ANA",
+     "kind": "airline",
+     "label": "All Nippon Airways",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=All+Nippon"
+ },
+ "BA 12": {
+  "body": {
+   "q": "BA 12",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=BA+12"
+ },
+ "BA 16": {
+  "body": {
+   "q": "BA 16",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=BA+16"
+ },
+ "BA A380": {
+  "body": {
+   "q": "BA A380",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=BA+A380"
+ },
+ "BA12": {
+  "body": {
+   "q": "BA12",
+   "results": [
+    {
+     "detail": "SIN → LHR · 31 flights",
+     "id": "BAW12",
+     "kind": "flight",
+     "label": "BAW12",
+     "score": 106.0
+    },
+    {
+     "detail": "TPA → LGW · 33 flights",
+     "id": "BAW12TB",
+     "kind": "flight",
+     "label": "BAW12TB",
+     "score": 66.1
+    },
+    {
+     "detail": "CVG → LHR · 26 flights",
+     "id": "BAW120",
+     "kind": "flight",
+     "label": "BAW120",
+     "score": 65.7
+    },
+    {
+     "detail": "LHR → CVG · 4 flights",
+     "id": "BA121",
+     "kind": "flight",
+     "label": "BA121",
+     "score": 62.8
+    },
+    {
+     "detail": "PDX → LHR · 1 flights",
+     "id": "BA1266",
+     "kind": "flight",
+     "label": "BA1266",
+     "score": 61.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=BA12"
+ },
+ "BA15": {
+  "body": {
+   "q": "BA15",
+   "results": [
+    {
+     "detail": "MAD → DFW · 4 flights",
+     "id": "BA1513",
+     "kind": "flight",
+     "label": "BA1513",
+     "score": 62.8
+    },
+    {
+     "detail": "BCN → MIA · 4 flights",
+     "id": "BA1519",
+     "kind": "flight",
+     "label": "BA1519",
+     "score": 62.8
+    },
+    {
+     "detail": "BCN → ORD · 4 flights",
+     "id": "BA1552",
+     "kind": "flight",
+     "label": "BA1552",
+     "score": 62.8
+    },
+    {
+     "detail": "BCN → JFK · 4 flights",
+     "id": "BA1557",
+     "kind": "flight",
+     "label": "BA1557",
+     "score": 62.8
+    },
+    {
+     "detail": "MAD → MIA · 4 flights",
+     "id": "BA1559",
+     "kind": "flight",
+     "label": "BA1559",
+     "score": 62.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=BA15"
+ },
+ "BA16": {
+  "body": {
+   "q": "BA16",
+   "results": [
+    {
+     "detail": "2 legs · 5 flights",
+     "id": "BA1611",
+     "kind": "flight",
+     "label": "BA1611",
+     "score": 63.1
+    },
+    {
+     "detail": "MAD → PHL · 4 flights",
+     "id": "BA1606",
+     "kind": "flight",
+     "label": "BA1606",
+     "score": 62.8
+    },
+    {
+     "detail": "BCN → PHL · 4 flights",
+     "id": "BA1608",
+     "kind": "flight",
+     "label": "BA1608",
+     "score": 62.8
+    },
+    {
+     "detail": "FCO → MIA · 4 flights",
+     "id": "BA1635",
+     "kind": "flight",
+     "label": "BA1635",
+     "score": 62.8
+    },
+    {
+     "detail": "MAD → ORD · 4 flights",
+     "id": "BA1637",
+     "kind": "flight",
+     "label": "BA1637",
+     "score": 62.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=BA16"
+ },
+ "BAW": {
+  "body": {
+   "q": "BAW",
+   "results": [
+    {
+     "detail": "BAW · BA",
+     "id": "BAW",
+     "kind": "airline",
+     "label": "British Airways",
+     "score": 102
+    },
+    {
+     "detail": "2 legs · 62 flights",
+     "id": "BAW16",
+     "kind": "flight",
+     "label": "BAW16",
+     "score": 67.2
+    },
+    {
+     "detail": "TLS → LHR · 57 flights",
+     "id": "BAW16MT",
+     "kind": "flight",
+     "label": "BAW16MT",
+     "score": 67.1
+    },
+    {
+     "detail": "CDG → LHR · 56 flights",
+     "id": "BAW315",
+     "kind": "flight",
+     "label": "BAW315",
+     "score": 67.0
+    },
+    {
+     "detail": "2 legs · 56 flights",
+     "id": "BAW327",
+     "kind": "flight",
+     "label": "BAW327",
+     "score": 67.0
+    },
+    {
+     "detail": "LHR → TLS · 56 flights",
+     "id": "BAW366U",
+     "kind": "flight",
+     "label": "BAW366U",
+     "score": 67.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=BAW"
+ },
+ "BAW15": {
+  "body": {
+   "q": "BAW15",
+   "results": [
+    {
+     "detail": "2 legs · 34 flights",
+     "id": "BAW15",
+     "kind": "flight",
+     "label": "BAW15",
+     "score": 106.2
+    },
+    {
+     "detail": "55 flights, last 2025-10-25",
+     "id": "BAW15PZ",
+     "kind": "flight",
+     "label": "BAW15PZ",
+     "score": 66.0
+    },
+    {
+     "detail": "LHR → JFK · 2 flights",
+     "id": "BAW15K",
+     "kind": "flight",
+     "label": "BAW15K",
+     "score": 61.9
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=BAW15"
+ },
+ "BAW16": {
+  "body": {
+   "q": "BAW16",
+   "results": [
+    {
+     "detail": "2 legs · 62 flights",
+     "id": "BAW16",
+     "kind": "flight",
+     "label": "BAW16",
+     "score": 107.2
+    },
+    {
+     "detail": "TLS → LHR · 57 flights",
+     "id": "BAW16MT",
+     "kind": "flight",
+     "label": "BAW16MT",
+     "score": 67.1
+    },
+    {
+     "detail": "2 legs · 8 flights",
+     "id": "BAW16UP",
+     "kind": "flight",
+     "label": "BAW16UP",
+     "score": 63.8
+    },
+    {
+     "detail": "MUC → LHR · 1 flights",
+     "id": "BAW168",
+     "kind": "flight",
+     "label": "BAW168",
+     "score": 61.2
+    },
+    {
+     "detail": "LHR → CWL · 1 flights",
+     "id": "BAW169",
+     "kind": "flight",
+     "label": "BAW169",
+     "score": 61.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=BAW16"
+ },
+ "Bangkok": {
+  "body": {
+   "q": "BANGKOK",
+   "results": [
+    {
+     "detail": "Bangkok · TH",
+     "id": "BKK",
+     "kind": "airport",
+     "label": "Suvarnabhumi Airport (BKK)",
+     "score": 77.6
+    },
+    {
+     "detail": "Bangkok · TH",
+     "id": "DMK",
+     "kind": "airport",
+     "label": "Don Mueang International Airport (DMK)",
+     "score": 74.3
+    },
+    {
+     "detail": "BKP · PG",
+     "id": "BKP",
+     "kind": "airline",
+     "label": "Bangkok Airways",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Bangkok"
+ },
+ "Boeing 777": {
+  "body": {
+   "q": "BOEING 777",
+   "results": [
+    {
+     "detail": "Boeing 777-9 · BOEING CO",
+     "id": "a1955b",
+     "kind": "aircraft",
+     "label": "N2007L",
+     "score": 40
+    },
+    {
+     "detail": "Boeing 777-9 · Boeing",
+     "id": "a1958c",
+     "kind": "aircraft",
+     "label": "N20080",
+     "score": 40
+    },
+    {
+     "detail": "Boeing 777-200 · BOEING CO",
+     "id": "aa4cba",
+     "kind": "aircraft",
+     "label": "N763AN",
+     "score": 40
+    },
+    {
+     "detail": "Boeing 777-200 · BOEING CO",
+     "id": "aa5071",
+     "kind": "aircraft",
+     "label": "N764AN",
+     "score": 40
+    },
+    {
+     "detail": "Boeing 777-200 · BOEING AIRCRAFT HOLDING COMPANY",
+     "id": "aa7091",
+     "kind": "aircraft",
+     "label": "N772BC",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Boeing+777"
+ },
+ "Bogota": {
+  "body": {
+   "q": "BOGOTA",
+   "results": [
+    {
+     "detail": "Bogota · CO",
+     "id": "BOG",
+     "kind": "airport",
+     "label": "El Dorado International Airport (BOG)",
+     "score": 69.4
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Bogota"
+ },
+ "British Airways": {
+  "body": {
+   "q": "BRITISH AIRWAYS",
+   "results": [
+    {
+     "detail": "BAW · BA",
+     "id": "BAW",
+     "kind": "airline",
+     "label": "British Airways",
+     "score": 62
+    },
+    {
+     "detail": "SHT",
+     "id": "SHT",
+     "kind": "airline",
+     "label": "British Airways Shuttle",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=British+Airways"
+ },
+ "CDG": {
+  "body": {
+   "q": "CDG",
+   "results": [
+    {
+     "detail": "Paris (Roissy-en-France, Val-d'Oise) · FR",
+     "id": "CDG",
+     "kind": "airport",
+     "label": "Charles de Gaulle International Airport (CDG)",
+     "score": 119.7
+    },
+    {
+     "detail": "CDG",
+     "id": "CDG",
+     "kind": "airline",
+     "label": "Shandong Airlines",
+     "score": 100
+    },
+    {
+     "detail": "SIN → CGK · 1 flights",
+     "id": "CDG2153",
+     "kind": "flight",
+     "label": "CDG2153",
+     "score": 61.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=CDG"
+ },
+ "CX 251": {
+  "body": {
+   "q": "CX 251",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=CX+251"
+ },
+ "CX251": {
+  "body": {
+   "q": "CX251",
+   "results": [
+    {
+     "detail": "HKG → LHR · 41 flights",
+     "id": "CPA251",
+     "kind": "flight",
+     "label": "CPA251",
+     "score": 106.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=CX251"
+ },
+ "Cancun": {
+  "body": {
+   "q": "CANCUN",
+   "results": [
+    {
+     "detail": "Cluj-Napoca · RO",
+     "id": "CLJ",
+     "kind": "airport",
+     "label": "Avram Iancu Cluj International Airport (CLJ)",
+     "score": 35.1
+    },
+    {
+     "detail": "Akron · US",
+     "id": "CAK",
+     "kind": "airport",
+     "label": "Akron Canton Regional Airport (CAK)",
+     "score": 35.0
+    },
+    {
+     "detail": "Cancún · MX",
+     "id": "CUN",
+     "kind": "airport",
+     "label": "Cancún International Airport (CUN)",
+     "score": 31.0
+    },
+    {
+     "detail": "Grand Canyon - Tusayan · US",
+     "id": "GCN",
+     "kind": "airport",
+     "label": "Grand Canyon National Park Airport (GCN)",
+     "score": 22.0
+    },
+    {
+     "detail": "Santiago · PA",
+     "id": "SYP",
+     "kind": "airport",
+     "label": "Ruben Cantu Airport (SYP)",
+     "score": 22.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Cancun"
+ },
+ "Cathay": {
+  "body": {
+   "q": "CATHAY",
+   "results": [
+    {
+     "detail": "HDA · KA",
+     "id": "HDA",
+     "kind": "airline",
+     "label": "Cathay Dragon",
+     "score": 62
+    },
+    {
+     "detail": "CPA · CX",
+     "id": "CPA",
+     "kind": "airline",
+     "label": "Cathay Pacific",
+     "score": 62
+    },
+    {
+     "detail": "Antakya · TR",
+     "id": "HTY",
+     "kind": "airport",
+     "label": "Hatay Airport (HTY)",
+     "score": 23.9
+    },
+    {
+     "detail": "Vientiane · LA",
+     "id": "VTE",
+     "kind": "airport",
+     "label": "Wattay International Airport (VTE)",
+     "score": 23.2
+    },
+    {
+     "detail": "Samana · DO",
+     "id": "AZS",
+     "kind": "airport",
+     "label": "Samaná El Catey International Airport (AZS)",
+     "score": 22.0
+    },
+    {
+     "detail": "St Athan, Vale of Glamorgan · GB",
+     "id": "EGDX",
+     "kind": "airport",
+     "label": "MOD St Athan (EGDX)",
+     "score": 21.9
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Cathay"
+ },
+ "Cathay Pacific": {
+  "body": {
+   "q": "CATHAY PACIFIC",
+   "results": [
+    {
+     "detail": "CPA · CX",
+     "id": "CPA",
+     "kind": "airline",
+     "label": "Cathay Pacific",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Cathay+Pacific"
+ },
+ "Cathey": {
+  "body": {
+   "q": "CATHEY",
+   "results": [
+    {
+     "detail": "Sacramento · US",
+     "id": "MHR",
+     "kind": "airport",
+     "label": "Sacramento Mather Airport (MHR)",
+     "score": 32.5
+    },
+    {
+     "detail": "Cache Creek · CA",
+     "id": "YZA",
+     "kind": "airport",
+     "label": "Cache Creek-Ashcroft Regional Airport (YZA)",
+     "score": 22.0
+    },
+    {
+     "detail": "Samana · DO",
+     "id": "AZS",
+     "kind": "airport",
+     "label": "Samaná El Catey International Airport (AZS)",
+     "score": 22.0
+    },
+    {
+     "detail": "HDA · KA",
+     "id": "HDA",
+     "kind": "airline",
+     "label": "Cathay Dragon",
+     "score": 22
+    },
+    {
+     "detail": "CPA · CX",
+     "id": "CPA",
+     "kind": "airline",
+     "label": "Cathay Pacific",
+     "score": 22
+    },
+    {
+     "detail": "TEX",
+     "id": "TEX",
+     "kind": "airline",
+     "label": "Catex",
+     "score": 20
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Cathey"
+ },
+ "Changi": {
+  "body": {
+   "q": "CHANGI",
+   "results": [
+    {
+     "detail": "Singapore · SG",
+     "id": "WSAC",
+     "kind": "airport",
+     "label": "Changi Air Base (East) (WSAC)",
+     "score": 69.8
+    },
+    {
+     "detail": "Singapore · SG",
+     "id": "SIN",
+     "kind": "airport",
+     "label": "Singapore Changi Airport (SIN)",
+     "score": 58.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Changi"
+ },
+ "Changi to Heathrow": {
+  "body": {
+   "q": "CHANGI TO HEATHROW",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Changi+to+Heathrow"
+ },
+ "Charles de Gaulle": {
+  "body": {
+   "q": "CHARLES DE GAULLE",
+   "results": [
+    {
+     "detail": "Paris (Roissy-en-France, Val-d'Oise) · FR",
+     "id": "CDG",
+     "kind": "airport",
+     "label": "Charles de Gaulle International Airport (CDG)",
+     "score": 79.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Charles+de+Gaulle"
+ },
+ "Chnagi": {
+  "body": {
+   "q": "CHNAGI",
+   "results": [
+    {
+     "detail": "Singapore · SG",
+     "id": "SIN",
+     "kind": "airport",
+     "label": "Singapore Changi Airport (SIN)",
+     "score": 38.0
+    },
+    {
+     "detail": "Singapore · SG",
+     "id": "WSAC",
+     "kind": "airport",
+     "label": "Changi Air Base (East) (WSAC)",
+     "score": 29.8
+    },
+    {
+     "detail": "Shuishang · TW",
+     "id": "CYI",
+     "kind": "airport",
+     "label": "Chiayi Airport (CYI)",
+     "score": 22.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Chnagi"
+ },
+ "Cologne": {
+  "body": {
+   "q": "COLOGNE",
+   "results": [
+    {
+     "detail": "Köln (Cologne) · DE",
+     "id": "CGN",
+     "kind": "airport",
+     "label": "Cologne Bonn Airport (CGN)",
+     "score": 77.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Cologne"
+ },
+ "D-AIMA": {
+  "body": {
+   "q": "D-AIMA",
+   "results": [
+    {
+     "detail": "Airbus A380-800 · Lufthansa",
+     "id": "3c65a1",
+     "kind": "aircraft",
+     "label": "D-AIMA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=D-AIMA"
+ },
+ "DL1": {
+  "body": {
+   "q": "DL1",
+   "results": [
+    {
+     "detail": "MAD → ATL · 5 flights",
+     "id": "DL109",
+     "kind": "flight",
+     "label": "DL109",
+     "score": 63.1
+    },
+    {
+     "detail": "MAD → JFK · 5 flights",
+     "id": "DL127",
+     "kind": "flight",
+     "label": "DL127",
+     "score": 63.1
+    },
+    {
+     "detail": "BCN → JFK · 5 flights",
+     "id": "DL129",
+     "kind": "flight",
+     "label": "DL129",
+     "score": 63.1
+    },
+    {
+     "detail": "2 legs · 5 flights",
+     "id": "DL1301",
+     "kind": "flight",
+     "label": "DL1301",
+     "score": 63.1
+    },
+    {
+     "detail": "2 legs · 5 flights",
+     "id": "DL1352",
+     "kind": "flight",
+     "label": "DL1352",
+     "score": 63.1
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=DL1"
+ },
+ "DXB": {
+  "body": {
+   "q": "DXB",
+   "results": [
+    {
+     "detail": "Dubai · AE",
+     "id": "DXB",
+     "kind": "airport",
+     "label": "Dubai International Airport (DXB)",
+     "score": 118.4
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=DXB"
+ },
+ "DXB LHR": {
+  "body": {
+   "q": "DXB LHR",
+   "results": [
+    {
+     "detail": "DXB → LHR · 53 flights",
+     "id": "UAE7",
+     "kind": "flight",
+     "label": "UAE7",
+     "score": 46.9
+    },
+    {
+     "detail": "DXB → LHR · 51 flights",
+     "id": "UAE4PY",
+     "kind": "flight",
+     "label": "UAE4PY",
+     "score": 46.9
+    },
+    {
+     "detail": "DXB → LHR · 51 flights",
+     "id": "UAE70M",
+     "kind": "flight",
+     "label": "UAE70M",
+     "score": 46.9
+    },
+    {
+     "detail": "DXB → LHR · 50 flights",
+     "id": "UAE4CK",
+     "kind": "flight",
+     "label": "UAE4CK",
+     "score": 46.8
+    },
+    {
+     "detail": "DXB → LHR · 49 flights",
+     "id": "UAE62T",
+     "kind": "flight",
+     "label": "UAE62T",
+     "score": 46.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=DXB+LHR"
+ },
+ "Delta": {
+  "body": {
+   "q": "DELTA",
+   "results": [
+    {
+     "detail": "Delta · CA",
+     "id": "YDT",
+     "kind": "airport",
+     "label": "Boundary Bay Airport (YDT)",
+     "score": 68.5
+    },
+    {
+     "detail": "Delta Junction Ft Greely · US",
+     "id": "BIG",
+     "kind": "airport",
+     "label": "Allen Army Airfield (BIG)",
+     "score": 64.4
+    },
+    {
+     "detail": "Escanaba · US",
+     "id": "ESC",
+     "kind": "airport",
+     "label": "Delta County Airport (ESC)",
+     "score": 62.0
+    },
+    {
+     "detail": "DAL · DL",
+     "id": "DAL",
+     "kind": "airline",
+     "label": "Delta",
+     "score": 62
+    },
+    {
+     "detail": "Greenville · US",
+     "id": "GLH",
+     "kind": "airport",
+     "label": "Mid Delta Regional Airport (GLH)",
+     "score": 49.3
+    },
+    {
+     "detail": "Mihail Kogălniceanu · RO",
+     "id": "TCE",
+     "kind": "airport",
+     "label": "Tulcea Danube Delta Airport (TCE)",
+     "score": 42.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Delta"
+ },
+ "Doha": {
+  "body": {
+   "q": "DOHA",
+   "results": [
+    {
+     "detail": "Doha · QA",
+     "id": "DOH",
+     "kind": "airport",
+     "label": "Hamad International Airport (DOH)",
+     "score": 76.9
+    },
+    {
+     "detail": "Doha · QA",
+     "id": "DIA",
+     "kind": "airport",
+     "label": "Doha International Airport (DIA)",
+     "score": 69.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Doha"
+ },
+ "Dubai": {
+  "body": {
+   "q": "DUBAI",
+   "results": [
+    {
+     "detail": "Dubai · AE",
+     "id": "DXB",
+     "kind": "airport",
+     "label": "Dubai International Airport (DXB)",
+     "score": 78.4
+    },
+    {
+     "detail": "Dubai(Jebel Ali) · AE",
+     "id": "DWC",
+     "kind": "airport",
+     "label": "Al Maktoum International Airport (DWC)",
+     "score": 74.3
+    },
+    {
+     "detail": "Dubai · AE",
+     "id": "NHD",
+     "kind": "airport",
+     "label": "Al Minhad Air Base (NHD)",
+     "score": 63.9
+    },
+    {
+     "detail": "DUB",
+     "id": "DUB",
+     "kind": "airline",
+     "label": "Dubai Airwing",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Dubai"
+ },
+ "Dubai London": {
+  "body": {
+   "q": "DUBAI LONDON",
+   "results": [
+    {
+     "detail": "DXB → LHR · 53 flights",
+     "id": "UAE7",
+     "kind": "flight",
+     "label": "UAE7",
+     "score": 46.9
+    },
+    {
+     "detail": "DXB → LHR · 51 flights",
+     "id": "UAE4PY",
+     "kind": "flight",
+     "label": "UAE4PY",
+     "score": 46.9
+    },
+    {
+     "detail": "DXB → LHR · 51 flights",
+     "id": "UAE70M",
+     "kind": "flight",
+     "label": "UAE70M",
+     "score": 46.9
+    },
+    {
+     "detail": "DXB → LHR · 50 flights",
+     "id": "UAE4CK",
+     "kind": "flight",
+     "label": "UAE4CK",
+     "score": 46.8
+    },
+    {
+     "detail": "DXB → LHR · 49 flights",
+     "id": "UAE62T",
+     "kind": "flight",
+     "label": "UAE62T",
+     "score": 46.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Dubai+London"
+ },
+ "Dusseldorf": {
+  "body": {
+   "q": "DUSSELDORF",
+   "results": [
+    {
+     "detail": "Düsseldorf · DE",
+     "id": "DUS",
+     "kind": "airport",
+     "label": "Düsseldorf Airport (DUS)",
+     "score": 37.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Dusseldorf"
+ },
+ "Düsseldorf": {
+  "body": {
+   "q": "DÜSSELDORF",
+   "results": [
+    {
+     "detail": "Düsseldorf · DE",
+     "id": "DUS",
+     "kind": "airport",
+     "label": "Düsseldorf Airport (DUS)",
+     "score": 77.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=D%C3%BCsseldorf"
+ },
+ "EGLL": {
+  "body": {
+   "q": "EGLL",
+   "results": [
+    {
+     "detail": "London · GB",
+     "id": "LHR",
+     "kind": "airport",
+     "label": "London Heathrow Airport (LHR)",
+     "score": 119.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=EGLL"
+ },
+ "EK": {
+  "body": {
+   "q": "EK",
+   "results": [
+    {
+     "detail": "UAE · EK",
+     "id": "UAE",
+     "kind": "airline",
+     "label": "Emirates",
+     "score": 102
+    },
+    {
+     "detail": "Ekati · CA",
+     "id": "YOA",
+     "kind": "airport",
+     "label": "Ekati Airport (YOA)",
+     "score": 62.0
+    },
+    {
+     "detail": "Ekibastuz · KZ",
+     "id": "EKB",
+     "kind": "airport",
+     "label": "Ekibastuz Airport (EKB)",
+     "score": 62.0
+    },
+    {
+     "detail": "AN12 · FlyOne Armenia",
+     "id": "60003a",
+     "kind": "aircraft",
+     "label": "EK11810",
+     "score": 60
+    },
+    {
+     "detail": "TBM9",
+     "id": "600009",
+     "kind": "aircraft",
+     "label": "EK222",
+     "score": 60
+    },
+    {
+     "detail": "Airbus A320",
+     "id": "60000a",
+     "kind": "aircraft",
+     "label": "EK-32002",
+     "score": 60
+    },
+    {
+     "detail": "Airbus A320",
+     "id": "60000b",
+     "kind": "aircraft",
+     "label": "EK32003",
+     "score": 60
+    },
+    {
+     "detail": "L410",
+     "id": "60001e",
+     "kind": "aircraft",
+     "label": "EK4117",
+     "score": 60
+    },
+    {
+     "detail": "Calabar · NG",
+     "id": "CBQ",
+     "kind": "airport",
+     "label": "Margaret Ekpo International Airport (CBQ)",
+     "score": 42.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=EK"
+ },
+ "EK1": {
+  "body": {
+   "q": "EK1",
+   "results": [
+    {
+     "detail": "3 legs · 7 flights",
+     "id": "EK147",
+     "kind": "flight",
+     "label": "EK147",
+     "score": 63.6
+    },
+    {
+     "detail": "DXB → MXP · 5 flights",
+     "id": "EK101",
+     "kind": "flight",
+     "label": "EK101",
+     "score": 63.1
+    },
+    {
+     "detail": "DXB → ATH · 5 flights",
+     "id": "EK103",
+     "kind": "flight",
+     "label": "EK103",
+     "score": 63.1
+    },
+    {
+     "detail": "DXB → MLA · 5 flights",
+     "id": "EK109",
+     "kind": "flight",
+     "label": "EK109",
+     "score": 63.1
+    },
+    {
+     "detail": "DXB → BUD · 5 flights",
+     "id": "EK111",
+     "kind": "flight",
+     "label": "EK111",
+     "score": 63.1
+    },
+    {
+     "detail": "AN12 · FlyOne Armenia",
+     "id": "60003a",
+     "kind": "aircraft",
+     "label": "EK11810",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=EK1"
+ },
+ "EVA": {
+  "body": {
+   "q": "EVA",
+   "results": [
+    {
+     "detail": "EVA · BR",
+     "id": "EVA",
+     "kind": "airline",
+     "label": "EVA Air",
+     "score": 102
+    },
+    {
+     "detail": "Evansville · US",
+     "id": "EVV",
+     "kind": "airport",
+     "label": "Evansville Regional Airport (EVV)",
+     "score": 69.8
+    },
+    {
+     "detail": "2 legs · 104 flights",
+     "id": "EVA68",
+     "kind": "flight",
+     "label": "EVA68",
+     "score": 68.1
+    },
+    {
+     "detail": "3 legs · 64 flights",
+     "id": "EVA61",
+     "kind": "flight",
+     "label": "EVA61",
+     "score": 67.3
+    },
+    {
+     "detail": "TSA → HND · 60 flights",
+     "id": "EVA190",
+     "kind": "flight",
+     "label": "EVA190",
+     "score": 67.1
+    },
+    {
+     "detail": "2 legs · 59 flights",
+     "id": "EVA115",
+     "kind": "flight",
+     "label": "EVA115",
+     "score": 67.1
+    },
+    {
+     "detail": "TPE → NRT · 59 flights",
+     "id": "EVA196",
+     "kind": "flight",
+     "label": "EVA196",
+     "score": 67.1
+    },
+    {
+     "detail": "Evanston · US",
+     "id": "EVW",
+     "kind": "airport",
+     "label": "Evanston-Uinta County Airport-Burns Field (EVW)",
+     "score": 62.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=EVA"
+ },
+ "Emirates": {
+  "body": {
+   "q": "EMIRATES",
+   "results": [
+    {
+     "detail": "UAE · EK",
+     "id": "UAE",
+     "kind": "airline",
+     "label": "Emirates",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Emirates"
+ },
+ "Emirates A380": {
+  "body": {
+   "q": "EMIRATES A380",
+   "results": [
+    {
+     "detail": "Airbus A380-800 · Emirates",
+     "id": "8960e7",
+     "kind": "aircraft",
+     "label": "A6-EDF",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A380-800 · Emirates",
+     "id": "8960ec",
+     "kind": "aircraft",
+     "label": "A6-EDK",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A380-800 · Emirates",
+     "id": "8960ee",
+     "kind": "aircraft",
+     "label": "A6-EDM",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A380-800 · Emirates",
+     "id": "8960ef",
+     "kind": "aircraft",
+     "label": "A6-EDN",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A380-800 · Emirates",
+     "id": "8960f0",
+     "kind": "aircraft",
+     "label": "A6-EDO",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Emirates+A380"
+ },
+ "Emirats": {
+  "body": {
+   "q": "EMIRATS",
+   "results": [
+    {
+     "detail": "UAE · EK",
+     "id": "UAE",
+     "kind": "airline",
+     "label": "Emirates",
+     "score": 22
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Emirats"
+ },
+ "Etihad": {
+  "body": {
+   "q": "ETIHAD",
+   "results": [
+    {
+     "detail": "ETD · EY",
+     "id": "ETD",
+     "kind": "airline",
+     "label": "Etihad",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Etihad"
+ },
+ "Etihd": {
+  "body": {
+   "q": "ETIHD",
+   "results": [
+    {
+     "detail": "Enid · US",
+     "id": "END",
+     "kind": "airport",
+     "label": "Vance Air Force Base (END)",
+     "score": 27.8
+    },
+    {
+     "detail": "ETD · EY",
+     "id": "ETD",
+     "kind": "airline",
+     "label": "Etihad",
+     "score": 22
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Etihd"
+ },
+ "Frankfrut": {
+  "body": {
+   "q": "FRANKFRUT",
+   "results": [
+    {
+     "detail": "Frankfurt am Main · DE",
+     "id": "FRA",
+     "kind": "airport",
+     "label": "Frankfurt Main Airport (FRA)",
+     "score": 39.7
+    },
+    {
+     "detail": "Frankfurt am Main (Lautzenhausen) · DE",
+     "id": "HHN",
+     "kind": "airport",
+     "label": "Frankfurt-Hahn Airport (HHN)",
+     "score": 33.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Frankfrut"
+ },
+ "Frankfurt": {
+  "body": {
+   "q": "FRANKFURT",
+   "results": [
+    {
+     "detail": "Frankfurt am Main · DE",
+     "id": "FRA",
+     "kind": "airport",
+     "label": "Frankfurt Main Airport (FRA)",
+     "score": 79.7
+    },
+    {
+     "detail": "Frankfurt am Main (Lautzenhausen) · DE",
+     "id": "HHN",
+     "kind": "airport",
+     "label": "Frankfurt-Hahn Airport (HHN)",
+     "score": 73.2
+    },
+    {
+     "detail": "Egelsbach · DE",
+     "id": "EDFE",
+     "kind": "airport",
+     "label": "Frankfurt-Egelsbach Airport (EDFE)",
+     "score": 66.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Frankfurt"
+ },
+ "G-XLEA": {
+  "body": {
+   "q": "G-XLEA",
+   "results": [
+    {
+     "detail": "Airbus A380-800 · British Airways",
+     "id": "40688b",
+     "kind": "aircraft",
+     "label": "G-XLEA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=G-XLEA"
+ },
+ "GRU": {
+  "body": {
+   "q": "GRU",
+   "results": [
+    {
+     "detail": "São Paulo · BR",
+     "id": "GRU",
+     "kind": "airport",
+     "label": "São Paulo/Guarulhos–Governor André Franco Montoro International Airport (GRU)",
+     "score": 116.8
+    },
+    {
+     "detail": "GRU → AEP · 1 flights",
+     "id": "GRUAEP41",
+     "kind": "flight",
+     "label": "GRUAEP41",
+     "score": 61.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=GRU"
+ },
+ "GXLEA": {
+  "body": {
+   "q": "GXLEA",
+   "results": [
+    {
+     "detail": "El Menia · DZ",
+     "id": "ELG",
+     "kind": "airport",
+     "label": "El Golea Airport (ELG)",
+     "score": 22.0
+    },
+    {
+     "detail": "Galena · US",
+     "id": "GAL",
+     "kind": "airport",
+     "label": "Edward G. Pitka Sr Airport (GAL)",
+     "score": 22.0
+    },
+    {
+     "detail": "Glen Innes · AU",
+     "id": "GLI",
+     "kind": "airport",
+     "label": "Glen Innes Airport (GLI)",
+     "score": 22.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=GXLEA"
+ },
+ "Garuda": {
+  "body": {
+   "q": "GARUDA",
+   "results": [
+    {
+     "detail": "GIA · GA",
+     "id": "GIA",
+     "kind": "airline",
+     "label": "Garuda Indonesia",
+     "score": 62
+    },
+    {
+     "detail": "Punta Gorda · US",
+     "id": "PGD",
+     "kind": "airport",
+     "label": "Punta Gorda Airport (PGD)",
+     "score": 33.2
+    },
+    {
+     "detail": "Garoua · CM",
+     "id": "GOU",
+     "kind": "airport",
+     "label": "Garoua International Airport (GOU)",
+     "score": 22.0
+    },
+    {
+     "detail": "Arua · UG",
+     "id": "RUA",
+     "kind": "airport",
+     "label": "Arua Airport (RUA)",
+     "score": 22.0
+    },
+    {
+     "detail": "Diego Garcia · IO",
+     "id": "NKW",
+     "kind": "airport",
+     "label": "Naval Support Facility Diego Garcia (NKW)",
+     "score": 22.0
+    },
+    {
+     "detail": "Popondetta · PG",
+     "id": "PNP",
+     "kind": "airport",
+     "label": "Girua Airport (PNP)",
+     "score": 22.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Garuda"
+ },
+ "Gatwick": {
+  "body": {
+   "q": "GATWICK",
+   "results": [
+    {
+     "detail": "London · GB",
+     "id": "LGW",
+     "kind": "airport",
+     "label": "London Gatwick Airport (LGW)",
+     "score": 58.6
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Gatwick"
+ },
+ "Gatwik": {
+  "body": {
+   "q": "GATWIK",
+   "results": [
+    {
+     "detail": "London · GB",
+     "id": "LGW",
+     "kind": "airport",
+     "label": "London Gatwick Airport (LGW)",
+     "score": 38.6
+    },
+    {
+     "detail": "BTK · ID",
+     "id": "BTK",
+     "kind": "airline",
+     "label": "Batik Air",
+     "score": 22
+    },
+    {
+     "detail": "MXD · OD",
+     "id": "MXD",
+     "kind": "airline",
+     "label": "Batik Air Malaysia",
+     "score": 22
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Gatwik"
+ },
+ "HND": {
+  "body": {
+   "q": "HND",
+   "results": [
+    {
+     "detail": "Tokyo · JP",
+     "id": "HND",
+     "kind": "airport",
+     "label": "Tokyo Haneda International Airport (HND)",
+     "score": 118.9
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=HND"
+ },
+ "Haneda": {
+  "body": {
+   "q": "HANEDA",
+   "results": [
+    {
+     "detail": "Tokyo · JP",
+     "id": "HND",
+     "kind": "airport",
+     "label": "Tokyo Haneda International Airport (HND)",
+     "score": 58.9
+    },
+    {
+     "detail": "ACA · AC",
+     "id": "ACA",
+     "kind": "airline",
+     "label": "Air Canada",
+     "score": 22
+    },
+    {
+     "detail": "JZA · QK",
+     "id": "JZA",
+     "kind": "airline",
+     "label": "Air Canada Jazz",
+     "score": 22
+    },
+    {
+     "detail": "ROU · RV",
+     "id": "ROU",
+     "kind": "airline",
+     "label": "Air Canada Rouge",
+     "score": 22
+    },
+    {
+     "detail": "ANT · 4N",
+     "id": "ANT",
+     "kind": "airline",
+     "label": "Air North Charter - Canada",
+     "score": 22
+    },
+    {
+     "detail": "PWC",
+     "id": "PWC",
+     "kind": "airline",
+     "label": "Pratt and Whitney Canada",
+     "score": 20
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Haneda"
+ },
+ "Heathro": {
+  "body": {
+   "q": "HEATHRO",
+   "results": [
+    {
+     "detail": "London · GB",
+     "id": "LHR",
+     "kind": "airport",
+     "label": "London Heathrow Airport (LHR)",
+     "score": 59.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Heathro"
+ },
+ "Heathrow": {
+  "body": {
+   "q": "HEATHROW",
+   "results": [
+    {
+     "detail": "London · GB",
+     "id": "LHR",
+     "kind": "airport",
+     "label": "London Heathrow Airport (LHR)",
+     "score": 59.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Heathrow"
+ },
+ "Heatrow": {
+  "body": {
+   "q": "HEATROW",
+   "results": [
+    {
+     "detail": "London · GB",
+     "id": "LHR",
+     "kind": "airport",
+     "label": "London Heathrow Airport (LHR)",
+     "score": 39.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Heatrow"
+ },
+ "Hong Kong": {
+  "body": {
+   "q": "HONG KONG",
+   "results": [
+    {
+     "detail": "Hong Kong · HK",
+     "id": "HKG",
+     "kind": "airport",
+     "label": "Hong Kong International Airport (HKG)",
+     "score": 78.7
+    },
+    {
+     "detail": "CRK · HX",
+     "id": "CRK",
+     "kind": "airline",
+     "label": "Hong Kong Airlines",
+     "score": 62
+    },
+    {
+     "detail": "HKE · UO",
+     "id": "HKE",
+     "kind": "airline",
+     "label": "Hong Kong Express Airways",
+     "score": 62
+    },
+    {
+     "detail": "HKC",
+     "id": "HKC",
+     "kind": "airline",
+     "label": "Hong Kong Air Cargo",
+     "score": 60
+    },
+    {
+     "detail": "AHK",
+     "id": "AHK",
+     "kind": "airline",
+     "label": "Air Hong Kong",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Hong+Kong"
+ },
+ "Hong Kong to Singapore": {
+  "body": {
+   "q": "HONG KONG TO SINGAPORE",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Hong+Kong+to+Singapore"
+ },
+ "Icelandair": {
+  "body": {
+   "q": "ICELANDAIR",
+   "results": [
+    {
+     "detail": "ICE · FI",
+     "id": "ICE",
+     "kind": "airline",
+     "label": "Icelandair",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Icelandair"
+ },
+ "Incheon": {
+  "body": {
+   "q": "INCHEON",
+   "results": [
+    {
+     "detail": "Seoul · KR",
+     "id": "ICN",
+     "kind": "airport",
+     "label": "Incheon International Airport (ICN)",
+     "score": 78.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Incheon"
+ },
+ "IndiGo": {
+  "body": {
+   "q": "INDIGO",
+   "results": [
+    {
+     "detail": "Bazaruto Island · MZ",
+     "id": "IBL",
+     "kind": "airport",
+     "label": "Indigo Bay Lodge Airport (IBL)",
+     "score": 62.0
+    },
+    {
+     "detail": "IGO · 6E",
+     "id": "IGO",
+     "kind": "airline",
+     "label": "IndiGo",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=IndiGo"
+ },
+ "Istanbul": {
+  "body": {
+   "q": "ISTANBUL",
+   "results": [
+    {
+     "detail": "Istanbul · TR",
+     "id": "IST",
+     "kind": "airport",
+     "label": "İstanbul Airport (IST)",
+     "score": 74.6
+    },
+    {
+     "detail": "Istanbul(Bakırköy) · TR",
+     "id": "ISL",
+     "kind": "airport",
+     "label": "İstanbul Atatürk Airport (ISL)",
+     "score": 72.3
+    },
+    {
+     "detail": "Pendik, Istanbul · TR",
+     "id": "SAW",
+     "kind": "airport",
+     "label": "Istanbul Sabiha Gökçen International Airport (SAW)",
+     "score": 71.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Istanbul"
+ },
+ "JA801A": {
+  "body": {
+   "q": "JA801A",
+   "results": [
+    {
+     "detail": "Boeing 787-8 · Air Japan",
+     "id": "86ce6c",
+     "kind": "aircraft",
+     "label": "JA801A",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=JA801A"
+ },
+ "JFK": {
+  "body": {
+   "q": "JFK",
+   "results": [
+    {
+     "detail": "New York · US",
+     "id": "JFK",
+     "kind": "airport",
+     "label": "John F. Kennedy International Airport (JFK)",
+     "score": 119.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=JFK"
+ },
+ "JFK-LHR": {
+  "body": {
+   "q": "JFK-LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=JFK-LHR"
+ },
+ "Japan Airlines": {
+  "body": {
+   "q": "JAPAN AIRLINES",
+   "results": [
+    {
+     "detail": "JAL · JL",
+     "id": "JAL",
+     "kind": "airline",
+     "label": "Japan Airlines",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Japan+Airlines"
+ },
+ "Jetstar": {
+  "body": {
+   "q": "JETSTAR",
+   "results": [
+    {
+     "detail": "JST · JQ",
+     "id": "JST",
+     "kind": "airline",
+     "label": "Jetstar",
+     "score": 62
+    },
+    {
+     "detail": "JSA · 3K",
+     "id": "JSA",
+     "kind": "airline",
+     "label": "Jetstar Asia",
+     "score": 62
+    },
+    {
+     "detail": "JJP · GK",
+     "id": "JJP",
+     "kind": "airline",
+     "label": "JetStar Japan",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Jetstar"
+ },
+ "KE81": {
+  "body": {
+   "q": "KE81",
+   "results": [
+    {
+     "detail": "1 flights, last 2026-01-26",
+     "id": "KAL81",
+     "kind": "flight",
+     "label": "KAL81",
+     "score": 100.2
+    },
+    {
+     "detail": "HND → GMP · 1 flights",
+     "id": "KAL8104",
+     "kind": "flight",
+     "label": "KAL8104",
+     "score": 61.2
+    },
+    {
+     "detail": "GMP → HND · 1 flights",
+     "id": "KAL8105",
+     "kind": "flight",
+     "label": "KAL8105",
+     "score": 61.2
+    },
+    {
+     "detail": "1 flights, last 2025-10-08",
+     "id": "KAL8120",
+     "kind": "flight",
+     "label": "KAL8120",
+     "score": 60.2
+    },
+    {
+     "detail": "1 flights, last 2026-07-12",
+     "id": "KAL8148",
+     "kind": "flight",
+     "label": "KAL8148",
+     "score": 60.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=KE81"
+ },
+ "KJFK": {
+  "body": {
+   "q": "KJFK",
+   "results": [
+    {
+     "detail": "New York · US",
+     "id": "JFK",
+     "kind": "airport",
+     "label": "John F. Kennedy International Airport (JFK)",
+     "score": 119.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=KJFK"
+ },
+ "KLM": {
+  "body": {
+   "q": "KLM",
+   "results": [
+    {
+     "detail": "KLM · KL",
+     "id": "KLM",
+     "kind": "airline",
+     "label": "KLM",
+     "score": 102
+    },
+    {
+     "detail": "3 legs · 67 flights",
+     "id": "KLM702",
+     "kind": "flight",
+     "label": "KLM702",
+     "score": 67.3
+    },
+    {
+     "detail": "2 legs · 63 flights",
+     "id": "KLM808",
+     "kind": "flight",
+     "label": "KLM808",
+     "score": 67.2
+    },
+    {
+     "detail": "2 legs · 62 flights",
+     "id": "KLM807",
+     "kind": "flight",
+     "label": "KLM807",
+     "score": 67.2
+    },
+    {
+     "detail": "ATH → AMS · 59 flights",
+     "id": "KLM46D",
+     "kind": "flight",
+     "label": "KLM46D",
+     "score": 67.1
+    },
+    {
+     "detail": "AMS → NCL · 59 flights",
+     "id": "KLM961",
+     "kind": "flight",
+     "label": "KLM961",
+     "score": 67.1
+    },
+    {
+     "detail": "KLC · WA",
+     "id": "KLC",
+     "kind": "airline",
+     "label": "KLM Cityhopper",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=KLM"
+ },
+ "Kennedy": {
+  "body": {
+   "q": "KENNEDY",
+   "results": [
+    {
+     "detail": "New York · US",
+     "id": "JFK",
+     "kind": "airport",
+     "label": "John F. Kennedy International Airport (JFK)",
+     "score": 59.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Kennedy"
+ },
+ "Koln": {
+  "body": {
+   "q": "KOLN",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Koln"
+ },
+ "Korean Air": {
+  "body": {
+   "q": "KOREAN AIR",
+   "results": [
+    {
+     "detail": "KAL · KE",
+     "id": "KAL",
+     "kind": "airline",
+     "label": "Korean Air",
+     "score": 62
+    },
+    {
+     "detail": "Airbus A220-300 · Korean Air",
+     "id": "71ba00",
+     "kind": "aircraft",
+     "label": "HL7200",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A220-300 · Korean Air",
+     "id": "71ba01",
+     "kind": "aircraft",
+     "label": "HL7201",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A330-300 · Korean Air",
+     "id": "71bd53",
+     "kind": "aircraft",
+     "label": "HL7553",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A330-300 · Korean Air",
+     "id": "71bd54",
+     "kind": "aircraft",
+     "label": "HL7554",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A330-300 · Korean Air",
+     "id": "71bd84",
+     "kind": "aircraft",
+     "label": "HL7584",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Korean+Air"
+ },
+ "Kuala Lumpur": {
+  "body": {
+   "q": "KUALA LUMPUR",
+   "results": [
+    {
+     "detail": "Sepang · MY",
+     "id": "KUL",
+     "kind": "airport",
+     "label": "Kuala Lumpur International Airport (KUL)",
+     "score": 70.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Kuala+Lumpur"
+ },
+ "Kuala Lumpur to Singapore": {
+  "body": {
+   "q": "KUALA LUMPUR TO SINGAPORE",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Kuala+Lumpur+to+Singapore"
+ },
+ "Köln": {
+  "body": {
+   "q": "KÖLN",
+   "results": [
+    {
+     "detail": "Köln (Cologne) · DE",
+     "id": "CGN",
+     "kind": "airport",
+     "label": "Cologne Bonn Airport (CGN)",
+     "score": 77.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=K%C3%B6ln"
+ },
+ "LH400": {
+  "body": {
+   "q": "LH400",
+   "results": [
+    {
+     "detail": "2 legs · 5 flights",
+     "id": "DLH400",
+     "kind": "flight",
+     "label": "DLH400",
+     "score": 103.1
+    },
+    {
+     "detail": "FRA → JFK · 4 flights",
+     "id": "LH400",
+     "kind": "flight",
+     "label": "LH400",
+     "score": 102.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=LH400"
+ },
+ "LHR": {
+  "body": {
+   "q": "LHR",
+   "results": [
+    {
+     "detail": "London · GB",
+     "id": "LHR",
+     "kind": "airport",
+     "label": "London Heathrow Airport (LHR)",
+     "score": 119.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=LHR"
+ },
+ "LHR SIN": {
+  "body": {
+   "q": "LHR SIN",
+   "results": [
+    {
+     "detail": "LHR → SIN · 21 flights",
+     "id": "BAW15",
+     "kind": "flight",
+     "label": "BAW15",
+     "score": 45.4
+    },
+    {
+     "detail": "LHR → SIN · 19 flights",
+     "id": "QFA2",
+     "kind": "flight",
+     "label": "QFA2",
+     "score": 45.2
+    },
+    {
+     "detail": "LHR → SIN · 18 flights",
+     "id": "SIA321",
+     "kind": "flight",
+     "label": "SIA321",
+     "score": 45.1
+    },
+    {
+     "detail": "LHR → SIN · 11 flights",
+     "id": "SIA319",
+     "kind": "flight",
+     "label": "SIA319",
+     "score": 44.3
+    },
+    {
+     "detail": "LHR → SIN · 7 flights",
+     "id": "BAW11",
+     "kind": "flight",
+     "label": "BAW11",
+     "score": 43.6
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=LHR+SIN"
+ },
+ "London": {
+  "body": {
+   "q": "LONDON",
+   "results": [
+    {
+     "detail": "London · GB",
+     "id": "LHR",
+     "kind": "airport",
+     "label": "London Heathrow Airport (LHR)",
+     "score": 79.5
+    },
+    {
+     "detail": "London · GB",
+     "id": "LGW",
+     "kind": "airport",
+     "label": "London Gatwick Airport (LGW)",
+     "score": 78.6
+    },
+    {
+     "detail": "London, Essex · GB",
+     "id": "STN",
+     "kind": "airport",
+     "label": "London Stansted Airport (STN)",
+     "score": 78.4
+    },
+    {
+     "detail": "Luton, Luton · GB",
+     "id": "LTN",
+     "kind": "airport",
+     "label": "London Luton Airport (LTN)",
+     "score": 77.6
+    },
+    {
+     "detail": "London · GB",
+     "id": "LCY",
+     "kind": "airport",
+     "label": "London City Airport (LCY)",
+     "score": 76.0
+    },
+    {
+     "detail": "LNX",
+     "id": "LNX",
+     "kind": "airline",
+     "label": "London Executive Aviation",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=London"
+ },
+ "London to Singapore": {
+  "body": {
+   "q": "LONDON TO SINGAPORE",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=London+to+Singapore"
+ },
+ "Los Angeles": {
+  "body": {
+   "q": "LOS ANGELES",
+   "results": [
+    {
+     "detail": "Los Angeles · US",
+     "id": "LAX",
+     "kind": "airport",
+     "label": "Los Angeles International Airport (LAX)",
+     "score": 80.1
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Los+Angeles"
+ },
+ "Lufthansa": {
+  "body": {
+   "q": "LUFTHANSA",
+   "results": [
+    {
+     "detail": "DLH · LH",
+     "id": "DLH",
+     "kind": "airline",
+     "label": "Lufthansa",
+     "score": 62
+    },
+    {
+     "detail": "GEC · LH",
+     "id": "GEC",
+     "kind": "airline",
+     "label": "Lufthansa Cargo",
+     "score": 62
+    },
+    {
+     "detail": "LHX · VL",
+     "id": "LHX",
+     "kind": "airline",
+     "label": "Lufthansa City Airlines",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Lufthansa"
+ },
+ "Lufthnsa": {
+  "body": {
+   "q": "LUFTHNSA",
+   "results": [
+    {
+     "detail": "DLH · LH",
+     "id": "DLH",
+     "kind": "airline",
+     "label": "Lufthansa",
+     "score": 22
+    },
+    {
+     "detail": "GEC · LH",
+     "id": "GEC",
+     "kind": "airline",
+     "label": "Lufthansa Cargo",
+     "score": 22
+    },
+    {
+     "detail": "LHX · VL",
+     "id": "LHX",
+     "kind": "airline",
+     "label": "Lufthansa City Airlines",
+     "score": 22
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Lufthnsa"
+ },
+ "MH1": {
+  "body": {
+   "q": "MH1",
+   "results": [
+    {
+     "detail": "MEL → KUL · 5 flights",
+     "id": "MAS128",
+     "kind": "flight",
+     "label": "MAS128",
+     "score": 63.1
+    },
+    {
+     "detail": "MEL → KUL · 4 flights",
+     "id": "MH146",
+     "kind": "flight",
+     "label": "MH146",
+     "score": 62.8
+    },
+    {
+     "detail": "HYD → KUL · 2 flights",
+     "id": "MH199",
+     "kind": "flight",
+     "label": "MH199",
+     "score": 61.9
+    },
+    {
+     "detail": "KUL → MEL · 1 flights",
+     "id": "MH147",
+     "kind": "flight",
+     "label": "MH147",
+     "score": 61.2
+    },
+    {
+     "detail": "KUL → MEL · 1 flights",
+     "id": "MH149",
+     "kind": "flight",
+     "label": "MH149",
+     "score": 61.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=MH1"
+ },
+ "Malmo": {
+  "body": {
+   "q": "MALMO",
+   "results": [
+    {
+     "detail": "LOD",
+     "id": "LOD",
+     "kind": "airline",
+     "label": "Malmoe Air Taxi",
+     "score": 60
+    },
+    {
+     "detail": "Palma de Mallorca · ES",
+     "id": "PMI",
+     "kind": "airport",
+     "label": "Palma de Mallorca Airport (PMI)",
+     "score": 38.1
+    },
+    {
+     "detail": "Venezia (VE) · IT",
+     "id": "VCE",
+     "kind": "airport",
+     "label": "Venice Marco Polo Airport (VCE)",
+     "score": 37.3
+    },
+    {
+     "detail": "Valletta · MT",
+     "id": "MLA",
+     "kind": "airport",
+     "label": "Malta International Airport (MLA)",
+     "score": 37.1
+    },
+    {
+     "detail": "West Palm Beach · US",
+     "id": "DJT",
+     "kind": "airport",
+     "label": "President Donald J. Trump International Airport (DJT)",
+     "score": 36.6
+    },
+    {
+     "detail": "Palm Springs · US",
+     "id": "PSP",
+     "kind": "airport",
+     "label": "Palm Springs International Airport (PSP)",
+     "score": 34.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Malmo"
+ },
+ "Malmo Aviation": {
+  "body": {
+   "q": "MALMO AVIATION",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Malmo+Aviation"
+ },
+ "Medellin": {
+  "body": {
+   "q": "MEDELLIN",
+   "results": [
+    {
+     "detail": "Medellín · CO",
+     "id": "EOH",
+     "kind": "airport",
+     "label": "Enrique Olaya Herrera Airport (EOH)",
+     "score": 26.5
+    },
+    {
+     "detail": "Medellín · CO",
+     "id": "MDE",
+     "kind": "airport",
+     "label": "Jose Maria Córdova International Airport (MDE)",
+     "score": 26.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Medellin"
+ },
+ "Montreal": {
+  "body": {
+   "q": "MONTREAL",
+   "results": [
+    {
+     "detail": "Montréal · CA",
+     "id": "YUL",
+     "kind": "airport",
+     "label": "Montreal / Pierre Elliott Trudeau International Airport (YUL)",
+     "score": 78.2
+    },
+    {
+     "detail": "Montréal · CA",
+     "id": "YMX",
+     "kind": "airport",
+     "label": "Montreal Mirabel International Airport (YMX)",
+     "score": 72.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Montreal"
+ },
+ "Montréal": {
+  "body": {
+   "q": "MONTRÉAL",
+   "results": [
+    {
+     "detail": "Montréal · CA",
+     "id": "YUL",
+     "kind": "airport",
+     "label": "Montreal / Pierre Elliott Trudeau International Airport (YUL)",
+     "score": 78.2
+    },
+    {
+     "detail": "Montréal · CA",
+     "id": "YHU",
+     "kind": "airport",
+     "label": "Montréal / Saint-Hubert Metropolitan Airport (YHU)",
+     "score": 74.5
+    },
+    {
+     "detail": "Montréal · CA",
+     "id": "YMX",
+     "kind": "airport",
+     "label": "Montreal Mirabel International Airport (YMX)",
+     "score": 72.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Montr%C3%A9al"
+ },
+ "Munich": {
+  "body": {
+   "q": "MUNICH",
+   "results": [
+    {
+     "detail": "Munich · DE",
+     "id": "MUC",
+     "kind": "airport",
+     "label": "Munich Airport (MUC)",
+     "score": 79.3
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Munich"
+ },
+ "München": {
+  "body": {
+   "q": "MÜNCHEN",
+   "results": [
+    {
+     "detail": "Cherbourg · FR",
+     "id": "CER",
+     "kind": "airport",
+     "label": "Cherbourg Manche airport (CER)",
+     "score": 25.1
+    },
+    {
+     "detail": "Bréville-sur-Mer, Manche · FR",
+     "id": "GFR",
+     "kind": "airport",
+     "label": "Granville Airport (GFR)",
+     "score": 22.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=M%C3%BCnchen"
+ },
+ "N12005": {
+  "body": {
+   "q": "N12005",
+   "results": [
+    {
+     "detail": "Boeing 787-10 · United",
+     "id": "a05628",
+     "kind": "aircraft",
+     "label": "N12005",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=N12005"
+ },
+ "NRT": {
+  "body": {
+   "q": "NRT",
+   "results": [
+    {
+     "detail": "Narita · JP",
+     "id": "NRT",
+     "kind": "airport",
+     "label": "Narita International Airport (NRT)",
+     "score": 118.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=NRT"
+ },
+ "Narita": {
+  "body": {
+   "q": "NARITA",
+   "results": [
+    {
+     "detail": "Narita · JP",
+     "id": "NRT",
+     "kind": "airport",
+     "label": "Narita International Airport (NRT)",
+     "score": 78.0
+    },
+    {
+     "detail": "PTA · WE",
+     "id": "PTA",
+     "kind": "airline",
+     "label": "Parata Air",
+     "score": 22
+    },
+    {
+     "detail": "ANX",
+     "id": "ANX",
+     "kind": "airline",
+     "label": "Secretaria de Marina",
+     "score": 20
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Narita"
+ },
+ "New York": {
+  "body": {
+   "q": "NEW YORK",
+   "results": [
+    {
+     "detail": "New York · US",
+     "id": "LGA",
+     "kind": "airport",
+     "label": "LaGuardia Airport (LGA)",
+     "score": 79.5
+    },
+    {
+     "detail": "New York · US",
+     "id": "JFK",
+     "kind": "airport",
+     "label": "John F. Kennedy International Airport (JFK)",
+     "score": 79.5
+    },
+    {
+     "detail": "Newburgh · US",
+     "id": "SWF",
+     "kind": "airport",
+     "label": "New York Stewart International Airport (SWF)",
+     "score": 72.8
+    },
+    {
+     "detail": "GRY",
+     "id": "GRY",
+     "kind": "airline",
+     "label": "New York State Police",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=New+York"
+ },
+ "New York to London": {
+  "body": {
+   "q": "NEW YORK TO LONDON",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=New+York+to+London"
+ },
+ "Paris": {
+  "body": {
+   "q": "PARIS",
+   "results": [
+    {
+     "detail": "Paris (Roissy-en-France, Val-d'Oise) · FR",
+     "id": "CDG",
+     "kind": "airport",
+     "label": "Charles de Gaulle International Airport (CDG)",
+     "score": 79.7
+    },
+    {
+     "detail": "Paris (Orly, Val-de-Marne) · FR",
+     "id": "ORY",
+     "kind": "airport",
+     "label": "Paris-Orly Airport (ORY)",
+     "score": 77.9
+    },
+    {
+     "detail": "Paris · FR",
+     "id": "LBG",
+     "kind": "airport",
+     "label": "Paris-Le Bourget International Airport (LBG)",
+     "score": 75.1
+    },
+    {
+     "detail": "Paris · US",
+     "id": "PRX",
+     "kind": "airport",
+     "label": "Cox Field (PRX)",
+     "score": 65.4
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Paris"
+ },
+ "Porto": {
+  "body": {
+   "q": "PORTO",
+   "results": [
+    {
+     "detail": "Porto · PT",
+     "id": "OPO",
+     "kind": "airport",
+     "label": "Francisco de Sá Carneiro Airport (OPO)",
+     "score": 77.7
+    },
+    {
+     "detail": "Porto Alegre · BR",
+     "id": "POA",
+     "kind": "airport",
+     "label": "Porto Alegre-Salgado Filho International Airport (POA)",
+     "score": 74.6
+    },
+    {
+     "detail": "Vila Baleira · PT",
+     "id": "PXO",
+     "kind": "airport",
+     "label": "Porto Santo Airport (PXO)",
+     "score": 69.2
+    },
+    {
+     "detail": "Sečovlje · SI",
+     "id": "POW",
+     "kind": "airport",
+     "label": "Portorož Airport (POW)",
+     "score": 68.7
+    },
+    {
+     "detail": "Porto Alegre · BR",
+     "id": "QNS",
+     "kind": "airport",
+     "label": "Canoas Air Force Base (QNS)",
+     "score": 68.0
+    },
+    {
+     "detail": "ANT · 4N",
+     "id": "ANT",
+     "kind": "airline",
+     "label": "Air North Charter - Canada",
+     "score": 22
+    },
+    {
+     "detail": "AKT · V2",
+     "id": "AKT",
+     "kind": "airline",
+     "label": "Canadian North",
+     "score": 22
+    },
+    {
+     "detail": "POE · PD",
+     "id": "POE",
+     "kind": "airline",
+     "label": "Porter Airlines",
+     "score": 22
+    },
+    {
+     "detail": "FHS",
+     "id": "FHS",
+     "kind": "airline",
+     "label": "Forth and Clyde Helicopter Services",
+     "score": 20
+    },
+    {
+     "detail": "NCB",
+     "id": "NCB",
+     "kind": "airline",
+     "label": "North Caribou Flying Service Ltd",
+     "score": 20
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Porto"
+ },
+ "QF1": {
+  "body": {
+   "q": "QF1",
+   "results": [
+    {
+     "detail": "2 legs · 10 flights",
+     "id": "QF1",
+     "kind": "flight",
+     "label": "QF1",
+     "score": 104.2
+    },
+    {
+     "detail": "HKG → SYD · 4 flights",
+     "id": "QF128",
+     "kind": "flight",
+     "label": "QF128",
+     "score": 62.8
+    },
+    {
+     "detail": "MEL → AKL · 4 flights",
+     "id": "QF151",
+     "kind": "flight",
+     "label": "QF151",
+     "score": 62.8
+    },
+    {
+     "detail": "MEL → AKL · 4 flights",
+     "id": "QF153",
+     "kind": "flight",
+     "label": "QF153",
+     "score": 62.8
+    },
+    {
+     "detail": "MEL → AKL · 4 flights",
+     "id": "QF155",
+     "kind": "flight",
+     "label": "QF155",
+     "score": 62.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=QF1"
+ },
+ "QR1": {
+  "body": {
+   "q": "QR1",
+   "results": [
+    {
+     "detail": "DXB → DOH · 5 flights",
+     "id": "QR1003",
+     "kind": "flight",
+     "label": "QR1003",
+     "score": 63.1
+    },
+    {
+     "detail": "DXB → DOH · 5 flights",
+     "id": "QR1007",
+     "kind": "flight",
+     "label": "QR1007",
+     "score": 63.1
+    },
+    {
+     "detail": "DXB → DOH · 5 flights",
+     "id": "QR1015",
+     "kind": "flight",
+     "label": "QR1015",
+     "score": 63.1
+    },
+    {
+     "detail": "DXB → DOH · 5 flights",
+     "id": "QR1023",
+     "kind": "flight",
+     "label": "QR1023",
+     "score": 63.1
+    },
+    {
+     "detail": "DOH → DXB · 1 flights",
+     "id": "QR1002",
+     "kind": "flight",
+     "label": "QR1002",
+     "score": 61.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=QR1"
+ },
+ "QTR1": {
+  "body": {
+   "q": "QTR1",
+   "results": [
+    {
+     "detail": "SHJ → DOH · 47 flights",
+     "id": "QTR1063",
+     "kind": "flight",
+     "label": "QTR1063",
+     "score": 66.7
+    },
+    {
+     "detail": "DXB → DOH · 40 flights",
+     "id": "QTR1007",
+     "kind": "flight",
+     "label": "QTR1007",
+     "score": 66.5
+    },
+    {
+     "detail": "DOH → SHJ · 40 flights",
+     "id": "QTR1120",
+     "kind": "flight",
+     "label": "QTR1120",
+     "score": 66.5
+    },
+    {
+     "detail": "DOH → AUH · 39 flights",
+     "id": "QTR1050",
+     "kind": "flight",
+     "label": "QTR1050",
+     "score": 66.4
+    },
+    {
+     "detail": "DOH → SHJ · 39 flights",
+     "id": "QTR1066",
+     "kind": "flight",
+     "label": "QTR1066",
+     "score": 66.4
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=QTR1"
+ },
+ "Qantas": {
+  "body": {
+   "q": "QANTAS",
+   "results": [
+    {
+     "detail": "QFA · QF",
+     "id": "QFA",
+     "kind": "airline",
+     "label": "Qantas",
+     "score": 62
+    },
+    {
+     "detail": "QLK · QF",
+     "id": "QLK",
+     "kind": "airline",
+     "label": "QantasLink",
+     "score": 62
+    },
+    {
+     "detail": "Santa Ana · US",
+     "id": "SNA",
+     "kind": "airport",
+     "label": "John Wayne Orange County International Airport (SNA)",
+     "score": 38.0
+    },
+    {
+     "detail": "Helsinki (Vantaa) · FI",
+     "id": "HEL",
+     "kind": "airport",
+     "label": "Helsinki Vantaa Airport (HEL)",
+     "score": 37.8
+    },
+    {
+     "detail": "Kansas City · US",
+     "id": "MCI",
+     "kind": "airport",
+     "label": "Kansas City International Airport (MCI)",
+     "score": 37.8
+    },
+    {
+     "detail": "Nantes · FR",
+     "id": "NTE",
+     "kind": "airport",
+     "label": "Nantes Atlantique Airport (NTE)",
+     "score": 36.0
+    },
+    {
+     "detail": "Santa Barbara · US",
+     "id": "SBA",
+     "kind": "airport",
+     "label": "Santa Barbara Municipal Airport (SBA)",
+     "score": 35.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Qantas"
+ },
+ "Qantsa": {
+  "body": {
+   "q": "QANTSA",
+   "results": [
+    {
+     "detail": "Santa Ana · US",
+     "id": "SNA",
+     "kind": "airport",
+     "label": "John Wayne Orange County International Airport (SNA)",
+     "score": 38.0
+    },
+    {
+     "detail": "Helsinki (Vantaa) · FI",
+     "id": "HEL",
+     "kind": "airport",
+     "label": "Helsinki Vantaa Airport (HEL)",
+     "score": 37.8
+    },
+    {
+     "detail": "Santa Barbara · US",
+     "id": "SBA",
+     "kind": "airport",
+     "label": "Santa Barbara Municipal Airport (SBA)",
+     "score": 35.7
+    },
+    {
+     "detail": "Santa Rosa · US",
+     "id": "STS",
+     "kind": "airport",
+     "label": "Charles M. Schulz Sonoma County Airport (STS)",
+     "score": 35.1
+    },
+    {
+     "detail": "Santa Monica · US",
+     "id": "SMO",
+     "kind": "airport",
+     "label": "Santa Monica Municipal Airport (SMO)",
+     "score": 32.3
+    },
+    {
+     "detail": "QFA · QF",
+     "id": "QFA",
+     "kind": "airline",
+     "label": "Qantas",
+     "score": 22
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Qantsa"
+ },
+ "Qatar": {
+  "body": {
+   "q": "QATAR",
+   "results": [
+    {
+     "detail": "QTR · QR",
+     "id": "QTR",
+     "kind": "airline",
+     "label": "Qatar Airways",
+     "score": 62
+    },
+    {
+     "detail": "Zadar · HR",
+     "id": "ZAD",
+     "kind": "airport",
+     "label": "Zadar Airport (ZAD)",
+     "score": 33.6
+    },
+    {
+     "detail": "Batam · ID",
+     "id": "BTH",
+     "kind": "airport",
+     "label": "Hang Nadim International Airport (BTH)",
+     "score": 33.1
+    },
+    {
+     "detail": "Dakar · SN",
+     "id": "DSS",
+     "kind": "airport",
+     "label": "Blaise Diagne International Airport (DSS)",
+     "score": 33.0
+    },
+    {
+     "detail": "Natal · BR",
+     "id": "NAT",
+     "kind": "airport",
+     "label": "Rio Grande do Norte/São Gonçalo do Amarante–Governador Aluízio Alves International Airport (NAT)",
+     "score": 32.1
+    },
+    {
+     "detail": "Dakar · SN",
+     "id": "DKR",
+     "kind": "airport",
+     "label": "Léopold Sédar Senghor International Airport (DKR)",
+     "score": 25.4
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Qatar"
+ },
+ "Qatar A350": {
+  "body": {
+   "q": "QATAR A350",
+   "results": [
+    {
+     "detail": "Airbus A350-900 · Qatar Airways",
+     "id": "06a0f5",
+     "kind": "aircraft",
+     "label": "A7-ALA",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Qatar Airways",
+     "id": "06a0f6",
+     "kind": "aircraft",
+     "label": "A7-ALB",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Qatar Airways",
+     "id": "06a0f7",
+     "kind": "aircraft",
+     "label": "A7-ALC",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Qatar Airways",
+     "id": "06a0f8",
+     "kind": "aircraft",
+     "label": "A7-ALD",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Qatar Airways",
+     "id": "06a0f9",
+     "kind": "aircraft",
+     "label": "A7-ALE",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Qatar+A350"
+ },
+ "Reykjavik": {
+  "body": {
+   "q": "REYKJAVIK",
+   "results": [
+    {
+     "detail": "Reykjavík · IS",
+     "id": "KEF",
+     "kind": "airport",
+     "label": "Keflavik International Airport (KEF)",
+     "score": 36.0
+    },
+    {
+     "detail": "Reykjavík · IS",
+     "id": "RKV",
+     "kind": "airport",
+     "label": "Reykjavík Domestic Airport (RKV)",
+     "score": 32.4
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Reykjavik"
+ },
+ "Rio": {
+  "body": {
+   "q": "RIO",
+   "results": [
+    {
+     "detail": "Natal · BR",
+     "id": "NAT",
+     "kind": "airport",
+     "label": "Rio Grande do Norte/São Gonçalo do Amarante–Governador Aluízio Alves International Airport (NAT)",
+     "score": 72.1
+    },
+    {
+     "detail": "Rio De Janeiro · BR",
+     "id": "GIG",
+     "kind": "airport",
+     "label": "Rio de Janeiro Galeão – Tom Jobim International Airport (GIG)",
+     "score": 71.7
+    },
+    {
+     "detail": "Rio de Janeiro · BR",
+     "id": "SDU",
+     "kind": "airport",
+     "label": "Santos Dumont Airport (SDU)",
+     "score": 70.0
+    },
+    {
+     "detail": "Rio de Janeiro · BR",
+     "id": "RRJ",
+     "kind": "airport",
+     "label": "Jacarepaguá - Roberto Marinho Airport (RRJ)",
+     "score": 69.1
+    },
+    {
+     "detail": "Rio de Janeiro · BR",
+     "id": "SBAF",
+     "kind": "airport",
+     "label": "Campo Délio Jardim de Mattos Airport (SBAF)",
+     "score": 64.9
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Rio"
+ },
+ "Ryanair": {
+  "body": {
+   "q": "RYANAIR",
+   "results": [
+    {
+     "detail": "RYR · FR",
+     "id": "RYR",
+     "kind": "airline",
+     "label": "Ryanair",
+     "score": 62
+    },
+    {
+     "detail": "RUK · RK",
+     "id": "RUK",
+     "kind": "airline",
+     "label": "Ryanair UK",
+     "score": 62
+    },
+    {
+     "detail": "Ranai-Natuna Besar Island · ID",
+     "id": "NTX",
+     "kind": "airport",
+     "label": "Ranai Airport (NTX)",
+     "score": 22.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Ryanair"
+ },
+ "Ryanar": {
+  "body": {
+   "q": "RYANAR",
+   "results": [
+    {
+     "detail": "Mo i Rana · NO",
+     "id": "MQN",
+     "kind": "airport",
+     "label": "Mo i Rana Airport, Røssvoll (MQN)",
+     "score": 29.6
+    },
+    {
+     "detail": "Barter Island · US",
+     "id": "BTI",
+     "kind": "airport",
+     "label": "Barter Island Long Range Radar Station Airport (BTI)",
+     "score": 22.0
+    },
+    {
+     "detail": "Ranai-Natuna Besar Island · ID",
+     "id": "NTX",
+     "kind": "airport",
+     "label": "Ranai Airport (NTX)",
+     "score": 22.0
+    },
+    {
+     "detail": "MMA · 8M",
+     "id": "MMA",
+     "kind": "airline",
+     "label": "Myanmar Airways Intl",
+     "score": 22
+    },
+    {
+     "detail": "UBA · UB",
+     "id": "UBA",
+     "kind": "airline",
+     "label": "Myanmar National Airlines",
+     "score": 22
+    },
+    {
+     "detail": "RYR · FR",
+     "id": "RYR",
+     "kind": "airline",
+     "label": "Ryanair",
+     "score": 22
+    },
+    {
+     "detail": "RUK · RK",
+     "id": "RUK",
+     "kind": "airline",
+     "label": "Ryanair UK",
+     "score": 22
+    },
+    {
+     "detail": "Ryazan · RU",
+     "id": "RU-10059",
+     "kind": "airport",
+     "label": "Dyagilevo Air Base (RU-10059)",
+     "score": 20.0
+    },
+    {
+     "detail": "RYA",
+     "id": "RYA",
+     "kind": "airline",
+     "label": "Ryan Air Services",
+     "score": 20
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Ryanar"
+ },
+ "SIA": {
+  "body": {
+   "q": "SIA",
+   "results": [
+    {
+     "detail": "Xi'an (Baqiao) · CN",
+     "id": "SIA",
+     "kind": "airport",
+     "label": "Xi'an Xiguan Airport (SIA)",
+     "score": 102.0
+    },
+    {
+     "detail": "SIA · SQ",
+     "id": "SIA",
+     "kind": "airline",
+     "label": "Singapore Airlines",
+     "score": 102
+    },
+    {
+     "detail": "Sialkot · PK",
+     "id": "SKT",
+     "kind": "airport",
+     "label": "Sialkot International Airport (SKT)",
+     "score": 67.4
+    },
+    {
+     "detail": "2 legs · 67 flights",
+     "id": "SIA11",
+     "kind": "flight",
+     "label": "SIA11",
+     "score": 67.3
+    },
+    {
+     "detail": "2 legs · 55 flights",
+     "id": "SIA508",
+     "kind": "flight",
+     "label": "SIA508",
+     "score": 67.0
+    },
+    {
+     "detail": "2 legs · 55 flights",
+     "id": "SIA722",
+     "kind": "flight",
+     "label": "SIA722",
+     "score": 67.0
+    },
+    {
+     "detail": "2 legs · 54 flights",
+     "id": "SIA522",
+     "kind": "flight",
+     "label": "SIA522",
+     "score": 67.0
+    },
+    {
+     "detail": "2 legs · 53 flights",
+     "id": "SIA510",
+     "kind": "flight",
+     "label": "SIA510",
+     "score": 66.9
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIA"
+ },
+ "SIA 322": {
+  "body": {
+   "q": "SIA 322",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIA+322"
+ },
+ "SIA A359": {
+  "body": {
+   "q": "SIA A359",
+   "results": [
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce1",
+     "kind": "aircraft",
+     "label": "9V-SGA",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce2",
+     "kind": "aircraft",
+     "label": "9V-SGB",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce3",
+     "kind": "aircraft",
+     "label": "9V-SGC",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce4",
+     "kind": "aircraft",
+     "label": "9V-SGD",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce5",
+     "kind": "aircraft",
+     "label": "9V-SGE",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIA+A359"
+ },
+ "SIA322": {
+  "body": {
+   "q": "SIA322",
+   "results": [
+    {
+     "detail": "2 legs · 26 flights",
+     "id": "SIA322",
+     "kind": "flight",
+     "label": "SIA322",
+     "score": 105.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIA322"
+ },
+ "SIN": {
+  "body": {
+   "q": "SIN",
+   "results": [
+    {
+     "detail": "Singapore · SG",
+     "id": "SIN",
+     "kind": "airport",
+     "label": "Singapore Changi Airport (SIN)",
+     "score": 118.0
+    },
+    {
+     "detail": "Singapore · SG",
+     "id": "WSAC",
+     "kind": "airport",
+     "label": "Changi Air Base (East) (WSAC)",
+     "score": 69.8
+    },
+    {
+     "detail": "Sint Maarten · SX",
+     "id": "SXM",
+     "kind": "airport",
+     "label": "Princess Juliana International Airport (SXM)",
+     "score": 64.8
+    },
+    {
+     "detail": "Sindal · DK",
+     "id": "CNL",
+     "kind": "airport",
+     "label": "Sindal Airport (CNL)",
+     "score": 63.2
+    },
+    {
+     "detail": "Chipi · IN",
+     "id": "SDW",
+     "kind": "airport",
+     "label": "Sindhudurg Airport (SDW)",
+     "score": 63.2
+    },
+    {
+     "detail": "SIA · SQ",
+     "id": "SIA",
+     "kind": "airline",
+     "label": "Singapore Airlines",
+     "score": 62
+    },
+    {
+     "detail": "SQC",
+     "id": "SQC",
+     "kind": "airline",
+     "label": "Singapore Airlines Cargo",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN"
+ },
+ "SIN - LHR": {
+  "body": {
+   "q": "SIN - LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN+-+LHR"
+ },
+ "SIN > LHR": {
+  "body": {
+   "q": "SIN > LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN+%3E+LHR"
+ },
+ "SIN LHR": {
+  "body": {
+   "q": "SIN LHR",
+   "results": [
+    {
+     "detail": "SIN → LHR · 48 flights",
+     "id": "BAW16",
+     "kind": "flight",
+     "label": "BAW16",
+     "score": 46.8
+    },
+    {
+     "detail": "SIN → LHR · 47 flights",
+     "id": "SIA306",
+     "kind": "flight",
+     "label": "SIA306",
+     "score": 46.7
+    },
+    {
+     "detail": "SIN → LHR · 42 flights",
+     "id": "QFA219",
+     "kind": "flight",
+     "label": "QFA219",
+     "score": 46.5
+    },
+    {
+     "detail": "SIN → LHR · 31 flights",
+     "id": "BAW12",
+     "kind": "flight",
+     "label": "BAW12",
+     "score": 46.0
+    },
+    {
+     "detail": "SIN → LHR · 26 flights",
+     "id": "QFA1",
+     "kind": "flight",
+     "label": "QFA1",
+     "score": 45.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN+LHR"
+ },
+ "SIN to LHR": {
+  "body": {
+   "q": "SIN TO LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN+to+LHR"
+ },
+ "SIN — LHR": {
+  "body": {
+   "q": "SIN — LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN+%E2%80%94+LHR"
+ },
+ "SIN → LHR": {
+  "body": {
+   "q": "SIN → LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN+%E2%86%92+LHR"
+ },
+ "SIN->LHR": {
+  "body": {
+   "q": "SIN->LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN-%3ELHR"
+ },
+ "SIN-LHR": {
+  "body": {
+   "q": "SIN-LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN-LHR"
+ },
+ "SIN–LHR": {
+  "body": {
+   "q": "SIN–LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SIN%E2%80%93LHR"
+ },
+ "SQ": {
+  "body": {
+   "q": "SQ",
+   "results": [
+    {
+     "detail": "SIA · SQ",
+     "id": "SIA",
+     "kind": "airline",
+     "label": "Singapore Airlines",
+     "score": 102
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SQ"
+ },
+ "SQ 322": {
+  "body": {
+   "q": "SQ 322",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SQ+322"
+ },
+ "SQ 777": {
+  "body": {
+   "q": "SQ 777",
+   "results": [
+    {
+     "detail": "Boeing 777-200LR · Singapore Airlines",
+     "id": "769101",
+     "kind": "aircraft",
+     "label": "9V-DHA",
+     "score": 40
+    },
+    {
+     "detail": "Boeing 777-200LR · Singapore Airlines",
+     "id": "769102",
+     "kind": "aircraft",
+     "label": "9V-DHB",
+     "score": 40
+    },
+    {
+     "detail": "Boeing 777-200LR · Singapore Airlines",
+     "id": "769103",
+     "kind": "aircraft",
+     "label": "9V-DHC",
+     "score": 40
+    },
+    {
+     "detail": "Boeing 777-200LR · Singapore Airlines",
+     "id": "769104",
+     "kind": "aircraft",
+     "label": "9V-DHD",
+     "score": 40
+    },
+    {
+     "detail": "Boeing 777-200LR · Singapore Airlines",
+     "id": "769105",
+     "kind": "aircraft",
+     "label": "9V-DHE",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SQ+777"
+ },
+ "SQ32": {
+  "body": {
+   "q": "SQ32",
+   "results": [
+    {
+     "detail": "SIN → SFO · 8 flights",
+     "id": "SQ32",
+     "kind": "flight",
+     "label": "SQ32",
+     "score": 103.8
+    },
+    {
+     "detail": "2 legs · 49 flights",
+     "id": "SIA324",
+     "kind": "flight",
+     "label": "SIA324",
+     "score": 66.8
+    },
+    {
+     "detail": "SIN → MUC · 49 flights",
+     "id": "SIA328",
+     "kind": "flight",
+     "label": "SIA328",
+     "score": 66.8
+    },
+    {
+     "detail": "3 legs · 11 flights",
+     "id": "SQ324",
+     "kind": "flight",
+     "label": "SQ324",
+     "score": 64.3
+    },
+    {
+     "detail": "SIN → FRA · 8 flights",
+     "id": "SQ326",
+     "kind": "flight",
+     "label": "SQ326",
+     "score": 63.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SQ32"
+ },
+ "SQ322": {
+  "body": {
+   "q": "SQ322",
+   "results": [
+    {
+     "detail": "2 legs · 26 flights",
+     "id": "SIA322",
+     "kind": "flight",
+     "label": "SIA322",
+     "score": 105.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SQ322"
+ },
+ "SYD": {
+  "body": {
+   "q": "SYD",
+   "results": [
+    {
+     "detail": "Sydney (Mascot) · AU",
+     "id": "SYD",
+     "kind": "airport",
+     "label": "Sydney Kingsford Smith International Airport (SYD)",
+     "score": 118.7
+    },
+    {
+     "detail": "Sydney · AU",
+     "id": "BWU",
+     "kind": "airport",
+     "label": "Sydney Bankstown Airport (BWU)",
+     "score": 71.7
+    },
+    {
+     "detail": "Sydney · AU",
+     "id": "WSI",
+     "kind": "airport",
+     "label": "Western Sydney International (Nancy-Bird Walton) Airport (WSI)",
+     "score": 71.4
+    },
+    {
+     "detail": "Sydney · CA",
+     "id": "YQY",
+     "kind": "airport",
+     "label": "Sydney / J.A. Douglas McCurdy Airport (YQY)",
+     "score": 66.3
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=SYD"
+ },
+ "Sao Paulo": {
+  "body": {
+   "q": "SAO PAULO",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Sao+Paulo"
+ },
+ "Sao Paulo to Lisbon": {
+  "body": {
+   "q": "SAO PAULO TO LISBON",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Sao+Paulo+to+Lisbon"
+ },
+ "Schiphol": {
+  "body": {
+   "q": "SCHIPHOL",
+   "results": [
+    {
+     "detail": "Amsterdam · NL",
+     "id": "AMS",
+     "kind": "airport",
+     "label": "Amsterdam Airport Schiphol (AMS)",
+     "score": 59.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Schiphol"
+ },
+ "Schipol": {
+  "body": {
+   "q": "SCHIPOL",
+   "results": [
+    {
+     "detail": "Amsterdam · NL",
+     "id": "AMS",
+     "kind": "airport",
+     "label": "Amsterdam Airport Schiphol (AMS)",
+     "score": 39.8
+    },
+    {
+     "detail": "PSF",
+     "id": "PSF",
+     "kind": "airline",
+     "label": "Plymouth School of Flying",
+     "score": 20
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Schipol"
+ },
+ "Scoot": {
+  "body": {
+   "q": "SCOOT",
+   "results": [
+    {
+     "detail": "TGW · TR",
+     "id": "TGW",
+     "kind": "airline",
+     "label": "Scoot",
+     "score": 62
+    },
+    {
+     "detail": "Belleville · US",
+     "id": "BLV",
+     "kind": "airport",
+     "label": "Scott AFB/Midamerica Airport (BLV)",
+     "score": 32.3
+    },
+    {
+     "detail": "Columbus · US",
+     "id": "OSU",
+     "kind": "airport",
+     "label": "The Ohio State University Airport - Don Scott Field (OSU)",
+     "score": 32.2
+    },
+    {
+     "detail": "NZ",
+     "id": "MON",
+     "kind": "airport",
+     "label": "Mount Cook Airport (MON)",
+     "score": 22.0
+    },
+    {
+     "detail": "Showt · IR",
+     "id": "IMQ",
+     "kind": "airport",
+     "label": "Maku National Airport (IMQ)",
+     "score": 22.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Scoot"
+ },
+ "Scot": {
+  "body": {
+   "q": "SCOT",
+   "results": [
+    {
+     "detail": "Belleville · US",
+     "id": "BLV",
+     "kind": "airport",
+     "label": "Scott AFB/Midamerica Airport (BLV)",
+     "score": 72.3
+    },
+    {
+     "detail": "Scottsbluff · US",
+     "id": "BFF",
+     "kind": "airport",
+     "label": "Western Neb. Rgnl/William B. Heilig Airport (BFF)",
+     "score": 62.0
+    },
+    {
+     "detail": "Columbus · US",
+     "id": "OSU",
+     "kind": "airport",
+     "label": "The Ohio State University Airport - Don Scott Field (OSU)",
+     "score": 52.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Scot"
+ },
+ "Seoul": {
+  "body": {
+   "q": "SEOUL",
+   "results": [
+    {
+     "detail": "Seoul · KR",
+     "id": "ICN",
+     "kind": "airport",
+     "label": "Incheon International Airport (ICN)",
+     "score": 78.5
+    },
+    {
+     "detail": "Seoul · KR",
+     "id": "GMP",
+     "kind": "airport",
+     "label": "Seoul Gimpo International Airport (GMP)",
+     "score": 74.9
+    },
+    {
+     "detail": "Seongnam · KR",
+     "id": "SSN",
+     "kind": "airport",
+     "label": "Seoul Air Base (K-16) (SSN)",
+     "score": 65.4
+    },
+    {
+     "detail": "ASV · RS",
+     "id": "ASV",
+     "kind": "airline",
+     "label": "Air Seoul",
+     "score": 42
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Seoul"
+ },
+ "Singapore": {
+  "body": {
+   "q": "SINGAPORE",
+   "results": [
+    {
+     "detail": "Singapore · SG",
+     "id": "SIN",
+     "kind": "airport",
+     "label": "Singapore Changi Airport (SIN)",
+     "score": 78.0
+    },
+    {
+     "detail": "Singapore · SG",
+     "id": "WSAC",
+     "kind": "airport",
+     "label": "Changi Air Base (East) (WSAC)",
+     "score": 69.8
+    },
+    {
+     "detail": "SIA · SQ",
+     "id": "SIA",
+     "kind": "airline",
+     "label": "Singapore Airlines",
+     "score": 62
+    },
+    {
+     "detail": "SQC",
+     "id": "SQC",
+     "kind": "airline",
+     "label": "Singapore Airlines Cargo",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Singapore"
+ },
+ "Singapore - London": {
+  "body": {
+   "q": "SINGAPORE - LONDON",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Singapore+-+London"
+ },
+ "Singapore A350": {
+  "body": {
+   "q": "SINGAPORE A350",
+   "results": [
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce1",
+     "kind": "aircraft",
+     "label": "9V-SGA",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce2",
+     "kind": "aircraft",
+     "label": "9V-SGB",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce3",
+     "kind": "aircraft",
+     "label": "9V-SGC",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce4",
+     "kind": "aircraft",
+     "label": "9V-SGD",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce5",
+     "kind": "aircraft",
+     "label": "9V-SGE",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Singapore+A350"
+ },
+ "Singapore Airlines": {
+  "body": {
+   "q": "SINGAPORE AIRLINES",
+   "results": [
+    {
+     "detail": "SIA · SQ",
+     "id": "SIA",
+     "kind": "airline",
+     "label": "Singapore Airlines",
+     "score": 62
+    },
+    {
+     "detail": "SQC",
+     "id": "SQC",
+     "kind": "airline",
+     "label": "Singapore Airlines Cargo",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Singapore+Airlines"
+ },
+ "Singapore London": {
+  "body": {
+   "q": "SINGAPORE LONDON",
+   "results": [
+    {
+     "detail": "SIN → LHR · 48 flights",
+     "id": "BAW16",
+     "kind": "flight",
+     "label": "BAW16",
+     "score": 46.8
+    },
+    {
+     "detail": "SIN → LHR · 47 flights",
+     "id": "SIA306",
+     "kind": "flight",
+     "label": "SIA306",
+     "score": 46.7
+    },
+    {
+     "detail": "SIN → LHR · 42 flights",
+     "id": "QFA219",
+     "kind": "flight",
+     "label": "QFA219",
+     "score": 46.5
+    },
+    {
+     "detail": "SIN → LHR · 31 flights",
+     "id": "BAW12",
+     "kind": "flight",
+     "label": "BAW12",
+     "score": 46.0
+    },
+    {
+     "detail": "SIN → LHR · 26 flights",
+     "id": "QFA1",
+     "kind": "flight",
+     "label": "QFA1",
+     "score": 45.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Singapore+London"
+ },
+ "Singapore to London": {
+  "body": {
+   "q": "SINGAPORE TO LONDON",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Singapore+to+London"
+ },
+ "Singapore → London": {
+  "body": {
+   "q": "SINGAPORE → LONDON",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Singapore+%E2%86%92+London"
+ },
+ "Soekarno": {
+  "body": {
+   "q": "SOEKARNO",
+   "results": [
+    {
+     "detail": "Jakarta · ID",
+     "id": "CGK",
+     "kind": "airport",
+     "label": "Soekarno-Hatta International Airport (CGK)",
+     "score": 76.0
+    },
+    {
+     "detail": "Bengkulu · ID",
+     "id": "BKS",
+     "kind": "airport",
+     "label": "Fatmawati Soekarno Airport (BKS)",
+     "score": 42.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Soekarno"
+ },
+ "Suvarnabhumi": {
+  "body": {
+   "q": "SUVARNABHUMI",
+   "results": [
+    {
+     "detail": "Bangkok · TH",
+     "id": "BKK",
+     "kind": "airport",
+     "label": "Suvarnabhumi Airport (BKK)",
+     "score": 77.6
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Suvarnabhumi"
+ },
+ "Swiss": {
+  "body": {
+   "q": "SWISS",
+   "results": [
+    {
+     "detail": "SWR · LX",
+     "id": "SWR",
+     "kind": "airline",
+     "label": "Swiss",
+     "score": 62
+    },
+    {
+     "detail": "SWW",
+     "id": "SWW",
+     "kind": "airline",
+     "label": "Swiss Private Jet",
+     "score": 60
+    },
+    {
+     "detail": "Saïss · MA",
+     "id": "FEZ",
+     "kind": "airport",
+     "label": "Fes Saïss International Airport (FEZ)",
+     "score": 26.3
+    },
+    {
+     "detail": "Swift Current · CA",
+     "id": "YYN",
+     "kind": "airport",
+     "label": "Swift Current Airport (YYN)",
+     "score": 22.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Swiss"
+ },
+ "Sydney": {
+  "body": {
+   "q": "SYDNEY",
+   "results": [
+    {
+     "detail": "Sydney (Mascot) · AU",
+     "id": "SYD",
+     "kind": "airport",
+     "label": "Sydney Kingsford Smith International Airport (SYD)",
+     "score": 78.7
+    },
+    {
+     "detail": "Sydney · AU",
+     "id": "BWU",
+     "kind": "airport",
+     "label": "Sydney Bankstown Airport (BWU)",
+     "score": 71.7
+    },
+    {
+     "detail": "Sydney · AU",
+     "id": "WSI",
+     "kind": "airport",
+     "label": "Western Sydney International (Nancy-Bird Walton) Airport (WSI)",
+     "score": 71.4
+    },
+    {
+     "detail": "Sydney · CA",
+     "id": "YQY",
+     "kind": "airport",
+     "label": "Sydney / J.A. Douglas McCurdy Airport (YQY)",
+     "score": 66.3
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Sydney"
+ },
+ "Sydney to Singapore": {
+  "body": {
+   "q": "SYDNEY TO SINGAPORE",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Sydney+to+Singapore"
+ },
+ "São Paulo": {
+  "body": {
+   "q": "SÃO PAULO",
+   "results": [
+    {
+     "detail": "São Paulo · BR",
+     "id": "GRU",
+     "kind": "airport",
+     "label": "São Paulo/Guarulhos–Governor André Franco Montoro International Airport (GRU)",
+     "score": 76.8
+    },
+    {
+     "detail": "São Paulo · BR",
+     "id": "CGH",
+     "kind": "airport",
+     "label": "Congonhas–Deputado Freitas Nobre Airport (CGH)",
+     "score": 76.1
+    },
+    {
+     "detail": "São Roque · BR",
+     "id": "JHF",
+     "kind": "airport",
+     "label": "São Paulo Catarina Executive Airport (JHF)",
+     "score": 70.9
+    },
+    {
+     "detail": "São Paulo · BR",
+     "id": "RTE",
+     "kind": "airport",
+     "label": "Campo de Marte Airport (RTE)",
+     "score": 70.1
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=S%C3%A3o+Paulo"
+ },
+ "TG 910": {
+  "body": {
+   "q": "TG 910",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=TG+910"
+ },
+ "TG910": {
+  "body": {
+   "q": "TG910",
+   "results": [
+    {
+     "detail": "BKK → LHR · 51 flights",
+     "id": "THA910",
+     "kind": "flight",
+     "label": "THA910",
+     "score": 106.9
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=TG910"
+ },
+ "TGW": {
+  "body": {
+   "q": "TGW",
+   "results": [
+    {
+     "detail": "TGW · TR",
+     "id": "TGW",
+     "kind": "airline",
+     "label": "Scoot",
+     "score": 102
+    },
+    {
+     "detail": "2 legs · 60 flights",
+     "id": "TGW610",
+     "kind": "flight",
+     "label": "TGW610",
+     "score": 67.1
+    },
+    {
+     "detail": "2 legs · 54 flights",
+     "id": "TGW867",
+     "kind": "flight",
+     "label": "TGW867",
+     "score": 67.0
+    },
+    {
+     "detail": "2 legs · 52 flights",
+     "id": "TGW638",
+     "kind": "flight",
+     "label": "TGW638",
+     "score": 66.9
+    },
+    {
+     "detail": "2 legs · 51 flights",
+     "id": "TGW624",
+     "kind": "flight",
+     "label": "TGW624",
+     "score": 66.9
+    },
+    {
+     "detail": "3 legs · 50 flights",
+     "id": "TGW866",
+     "kind": "flight",
+     "label": "TGW866",
+     "score": 66.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=TGW"
+ },
+ "TGW12": {
+  "body": {
+   "q": "TGW12",
+   "results": [
+    {
+     "detail": "43 flights, last 2026-02-26",
+     "id": "TGW12",
+     "kind": "flight",
+     "label": "TGW12",
+     "score": 105.6
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=TGW12"
+ },
+ "TK1": {
+  "body": {
+   "q": "TK1",
+   "results": [
+    {
+     "detail": "2 legs · 5 flights",
+     "id": "TK168",
+     "kind": "flight",
+     "label": "TK168",
+     "score": 63.1
+    },
+    {
+     "detail": "HKG → IST · 5 flights",
+     "id": "TK171",
+     "kind": "flight",
+     "label": "TK171",
+     "score": 63.1
+    },
+    {
+     "detail": "VIE → IST · 4 flights",
+     "id": "TK1884",
+     "kind": "flight",
+     "label": "TK1884",
+     "score": 62.8
+    },
+    {
+     "detail": "3 legs · 4 flights",
+     "id": "TK1954",
+     "kind": "flight",
+     "label": "TK1954",
+     "score": 62.8
+    },
+    {
+     "detail": "4 legs · 4 flights",
+     "id": "TK1955",
+     "kind": "flight",
+     "label": "TK1955",
+     "score": 62.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=TK1"
+ },
+ "TR": {
+  "body": {
+   "q": "TR",
+   "results": [
+    {
+     "detail": "TGW · TR",
+     "id": "TGW",
+     "kind": "airline",
+     "label": "Scoot",
+     "score": 102
+    },
+    {
+     "detail": "Trondheim · NO",
+     "id": "TRD",
+     "kind": "airport",
+     "label": "Trondheim Airport, Værnes (TRD)",
+     "score": 76.1
+    },
+    {
+     "detail": "Tromsø · NO",
+     "id": "TOS",
+     "kind": "airport",
+     "label": "Tromsø Airport (TOS)",
+     "score": 75.3
+    },
+    {
+     "detail": "Pasco · US",
+     "id": "PSC",
+     "kind": "airport",
+     "label": "Tri Cities Airport (PSC)",
+     "score": 74.6
+    },
+    {
+     "detail": "Treviso (TV) · IT",
+     "id": "TSF",
+     "kind": "airport",
+     "label": "Treviso Airport (TSF)",
+     "score": 74.3
+    },
+    {
+     "detail": "Blountville · US",
+     "id": "TRI",
+     "kind": "airport",
+     "label": "Tri-Cities Regional TN/VA Airport (TRI)",
+     "score": 74.3
+    },
+    {
+     "detail": "TRA · HV",
+     "id": "TRA",
+     "kind": "airline",
+     "label": "Transavia",
+     "score": 62
+    },
+    {
+     "detail": "TVF · TO",
+     "id": "TVF",
+     "kind": "airline",
+     "label": "Transavia France",
+     "score": 62
+    },
+    {
+     "detail": "Challenger 600",
+     "id": "4b82ea",
+     "kind": "aircraft",
+     "label": "TR010",
+     "score": 60
+    },
+    {
+     "detail": "C560",
+     "id": "355316",
+     "kind": "aircraft",
+     "label": "TR.20-01",
+     "score": 60
+    },
+    {
+     "detail": "C560",
+     "id": "355315",
+     "kind": "aircraft",
+     "label": "TR.20-02",
+     "score": 60
+    },
+    {
+     "detail": "C560 · Continental Oil",
+     "id": "353344",
+     "kind": "aircraft",
+     "label": "TR.20-03",
+     "score": 60
+    },
+    {
+     "detail": "ATR 72-600",
+     "id": "03e019",
+     "kind": "aircraft",
+     "label": "TR-ABJ",
+     "score": 60
+    },
+    {
+     "detail": "TDR",
+     "id": "TDR",
+     "kind": "airline",
+     "label": "Trade Air",
+     "score": 60
+    },
+    {
+     "detail": "GPD",
+     "id": "GPD",
+     "kind": "airline",
+     "label": "Tradewind Aviation",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=TR"
+ },
+ "Thai": {
+  "body": {
+   "q": "THAI",
+   "results": [
+    {
+     "detail": "AIQ · FD",
+     "id": "AIQ",
+     "kind": "airline",
+     "label": "Thai AirAsia",
+     "score": 62
+    },
+    {
+     "detail": "TAX · XJ",
+     "id": "TAX",
+     "kind": "airline",
+     "label": "Thai AirAsia X",
+     "score": 62
+    },
+    {
+     "detail": "THA · TG",
+     "id": "THA",
+     "kind": "airline",
+     "label": "Thai Airways",
+     "score": 62
+    },
+    {
+     "detail": "TLM",
+     "id": "TLM",
+     "kind": "airline",
+     "label": "Thai Lion Air",
+     "score": 60
+    },
+    {
+     "detail": "TVJ",
+     "id": "TVJ",
+     "kind": "airline",
+     "label": "Thai Vietjet Air",
+     "score": 60
+    },
+    {
+     "detail": "Takhli · TH",
+     "id": "TKH",
+     "kind": "airport",
+     "label": "Takhli Royal Thai Air Force Base (TKH)",
+     "score": 42.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Thai"
+ },
+ "Tokyo": {
+  "body": {
+   "q": "TOKYO",
+   "results": [
+    {
+     "detail": "Tokyo · JP",
+     "id": "HND",
+     "kind": "airport",
+     "label": "Tokyo Haneda International Airport (HND)",
+     "score": 78.9
+    },
+    {
+     "detail": "TZP · ZG",
+     "id": "TZP",
+     "kind": "airline",
+     "label": "ZIPAIR Tokyo",
+     "score": 42
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Tokyo"
+ },
+ "Tokyo Haneda": {
+  "body": {
+   "q": "TOKYO HANEDA",
+   "results": [
+    {
+     "detail": "Tokyo · JP",
+     "id": "HND",
+     "kind": "airport",
+     "label": "Tokyo Haneda International Airport (HND)",
+     "score": 78.9
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Tokyo+Haneda"
+ },
+ "Toronto": {
+  "body": {
+   "q": "TORONTO",
+   "results": [
+    {
+     "detail": "Toronto · CA",
+     "id": "YYZ",
+     "kind": "airport",
+     "label": "Toronto Pearson International Airport (YYZ)",
+     "score": 79.5
+    },
+    {
+     "detail": "Toronto · CA",
+     "id": "YTZ",
+     "kind": "airport",
+     "label": "Billy Bishop Toronto City Airport (YTZ)",
+     "score": 75.9
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Toronto"
+ },
+ "Toronto Pearson": {
+  "body": {
+   "q": "TORONTO PEARSON",
+   "results": [
+    {
+     "detail": "Toronto · CA",
+     "id": "YYZ",
+     "kind": "airport",
+     "label": "Toronto Pearson International Airport (YYZ)",
+     "score": 79.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Toronto+Pearson"
+ },
+ "Turkish": {
+  "body": {
+   "q": "TURKISH",
+   "results": [
+    {
+     "detail": "THY · TK",
+     "id": "THY",
+     "kind": "airline",
+     "label": "Turkish Airlines",
+     "score": 62
+    },
+    {
+     "detail": "TUR",
+     "id": "TUR",
+     "kind": "airline",
+     "label": "Turkish Airlines",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Turkish"
+ },
+ "UA1": {
+  "body": {
+   "q": "UA1",
+   "results": [
+    {
+     "detail": "2 legs · 5 flights",
+     "id": "UA142",
+     "kind": "flight",
+     "label": "UA142",
+     "score": 63.1
+    },
+    {
+     "detail": "2 legs · 5 flights",
+     "id": "UA153",
+     "kind": "flight",
+     "label": "UA153",
+     "score": 63.1
+    },
+    {
+     "detail": "MUC → IAH · 5 flights",
+     "id": "UA160",
+     "kind": "flight",
+     "label": "UA160",
+     "score": 63.1
+    },
+    {
+     "detail": "IAD → PUJ · 5 flights",
+     "id": "UA1661",
+     "kind": "flight",
+     "label": "UA1661",
+     "score": 63.1
+    },
+    {
+     "detail": "3 legs · 5 flights",
+     "id": "UA1770",
+     "kind": "flight",
+     "label": "UA1770",
+     "score": 63.1
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=UA1"
+ },
+ "UAE1": {
+  "body": {
+   "q": "UAE1",
+   "results": [
+    {
+     "detail": "3 legs · 55 flights",
+     "id": "UAE110",
+     "kind": "flight",
+     "label": "UAE110",
+     "score": 67.0
+    },
+    {
+     "detail": "4 legs · 55 flights",
+     "id": "UAE17K",
+     "kind": "flight",
+     "label": "UAE17K",
+     "score": 67.0
+    },
+    {
+     "detail": "DXB → MAN · 53 flights",
+     "id": "UAE19",
+     "kind": "flight",
+     "label": "UAE19",
+     "score": 66.9
+    },
+    {
+     "detail": "DXB → ZRH · 51 flights",
+     "id": "UAE11M",
+     "kind": "flight",
+     "label": "UAE11M",
+     "score": 66.9
+    },
+    {
+     "detail": "DXB → BCN · 51 flights",
+     "id": "UAE185",
+     "kind": "flight",
+     "label": "UAE185",
+     "score": 66.9
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=UAE1"
+ },
+ "UAL1": {
+  "body": {
+   "q": "UAL1",
+   "results": [
+    {
+     "detail": "6 legs · 158 flights",
+     "id": "UAL1799",
+     "kind": "flight",
+     "label": "UAL1799",
+     "score": 68.8
+    },
+    {
+     "detail": "3 legs · 157 flights",
+     "id": "UAL1524",
+     "kind": "flight",
+     "label": "UAL1524",
+     "score": 68.8
+    },
+    {
+     "detail": "4 legs · 150 flights",
+     "id": "UAL1195",
+     "kind": "flight",
+     "label": "UAL1195",
+     "score": 68.7
+    },
+    {
+     "detail": "4 legs · 148 flights",
+     "id": "UAL1010",
+     "kind": "flight",
+     "label": "UAL1010",
+     "score": 68.7
+    },
+    {
+     "detail": "3 legs · 146 flights",
+     "id": "UAL1535",
+     "kind": "flight",
+     "label": "UAL1535",
+     "score": 68.7
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=UAL1"
+ },
+ "United": {
+  "body": {
+   "q": "UNITED",
+   "results": [
+    {
+     "detail": "UAL · UA",
+     "id": "UAL",
+     "kind": "airline",
+     "label": "United",
+     "score": 62
+    },
+    {
+     "detail": "CGX",
+     "id": "CGX",
+     "kind": "airline",
+     "label": "United States Coast Guard Auxiliary",
+     "score": 60
+    },
+    {
+     "detail": "CNV",
+     "id": "CNV",
+     "kind": "airline",
+     "label": "United States Navy",
+     "score": 60
+    },
+    {
+     "detail": "CMB",
+     "id": "CMB",
+     "kind": "airline",
+     "label": "United States Transportation Command",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=United"
+ },
+ "VH-OQA": {
+  "body": {
+   "q": "VH-OQA",
+   "results": [
+    {
+     "detail": "Airbus A380-800 · Qantas",
+     "id": "7c4920",
+     "kind": "aircraft",
+     "label": "VH-OQA",
+     "score": 100
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=VH-OQA"
+ },
+ "Vietnam Airlines": {
+  "body": {
+   "q": "VIETNAM AIRLINES",
+   "results": [
+    {
+     "detail": "HVN · VN",
+     "id": "HVN",
+     "kind": "airline",
+     "label": "Vietnam Airlines",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Vietnam+Airlines"
+ },
+ "WSSS": {
+  "body": {
+   "q": "WSSS",
+   "results": [
+    {
+     "detail": "Singapore · SG",
+     "id": "SIN",
+     "kind": "airport",
+     "label": "Singapore Changi Airport (SIN)",
+     "score": 118.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=WSSS"
+ },
+ "WSSS EGLL": {
+  "body": {
+   "q": "WSSS EGLL",
+   "results": [
+    {
+     "detail": "SIN → LHR · 48 flights",
+     "id": "BAW16",
+     "kind": "flight",
+     "label": "BAW16",
+     "score": 46.8
+    },
+    {
+     "detail": "SIN → LHR · 47 flights",
+     "id": "SIA306",
+     "kind": "flight",
+     "label": "SIA306",
+     "score": 46.7
+    },
+    {
+     "detail": "SIN → LHR · 42 flights",
+     "id": "QFA219",
+     "kind": "flight",
+     "label": "QFA219",
+     "score": 46.5
+    },
+    {
+     "detail": "SIN → LHR · 31 flights",
+     "id": "BAW12",
+     "kind": "flight",
+     "label": "BAW12",
+     "score": 46.0
+    },
+    {
+     "detail": "SIN → LHR · 27 flights",
+     "id": "QFA1",
+     "kind": "flight",
+     "label": "QFA1",
+     "score": 45.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=WSSS+EGLL"
+ },
+ "Washington": {
+  "body": {
+   "q": "WASHINGTON",
+   "results": [
+    {
+     "detail": "Washington · US",
+     "id": "DCA",
+     "kind": "airport",
+     "label": "Ronald Reagan Washington National Airport (DCA)",
+     "score": 79.3
+    },
+    {
+     "detail": "Dulles · US",
+     "id": "IAD",
+     "kind": "airport",
+     "label": "Washington Dulles International Airport (IAD)",
+     "score": 79.2
+    },
+    {
+     "detail": "Manassas · US",
+     "id": "MNZ",
+     "kind": "airport",
+     "label": "Washington Manassas Harry P. Davis Field (MNZ)",
+     "score": 72.3
+    },
+    {
+     "detail": "Kelso · US",
+     "id": "KLS",
+     "kind": "airport",
+     "label": "Southwest Washington Regional Airport (KLS)",
+     "score": 46.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Washington"
+ },
+ "Wideroe": {
+  "body": {
+   "q": "WIDEROE",
+   "results": [
+    {
+     "detail": "WIF · WF",
+     "id": "WIF",
+     "kind": "airline",
+     "label": "Widerøe",
+     "score": 22
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Wideroe"
+ },
+ "Winston": {
+  "body": {
+   "q": "WINSTON",
+   "results": [
+    {
+     "detail": "Winston Salem · US",
+     "id": "INT",
+     "kind": "airport",
+     "label": "Smith Reynolds Airport (INT)",
+     "score": 70.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Winston"
+ },
+ "ZRH": {
+  "body": {
+   "q": "ZRH",
+   "results": [
+    {
+     "detail": "Zurich · CH",
+     "id": "ZRH",
+     "kind": "airport",
+     "label": "Zürich Airport (ZRH)",
+     "score": 118.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=ZRH"
+ },
+ "Zurich": {
+  "body": {
+   "q": "ZURICH",
+   "results": [
+    {
+     "detail": "Zurich · CH",
+     "id": "ZRH",
+     "kind": "airport",
+     "label": "Zürich Airport (ZRH)",
+     "score": 78.8
+    },
+    {
+     "detail": "Zurich · CH",
+     "id": "LSMD",
+     "kind": "airport",
+     "label": "Dübendorf Air Base (LSMD)",
+     "score": 64.2
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Zurich"
+ },
+ "Zürich": {
+  "body": {
+   "q": "ZÜRICH",
+   "results": [
+    {
+     "detail": "Zurich · CH",
+     "id": "ZRH",
+     "kind": "airport",
+     "label": "Zürich Airport (ZRH)",
+     "score": 78.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=Z%C3%BCrich"
+ },
+ "_recorded": {
+  "at": "2026-09-26 05:35 UTC",
+  "base": "https://data.flightportrait.com"
+ },
+ "changi airport": {
+  "body": {
+   "q": "CHANGI AIRPORT",
+   "results": [
+    {
+     "detail": "Singapore · SG",
+     "id": "SIN",
+     "kind": "airport",
+     "label": "Singapore Changi Airport (SIN)",
+     "score": 58.0
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=changi+airport"
+ },
+ "easyJet": {
+  "body": {
+   "q": "EASYJET",
+   "results": [
+    {
+     "detail": "EZY · U2",
+     "id": "EZY",
+     "kind": "airline",
+     "label": "easyJet",
+     "score": 62
+    },
+    {
+     "detail": "EJU · EC",
+     "id": "EJU",
+     "kind": "airline",
+     "label": "easyJet Europe",
+     "score": 62
+    },
+    {
+     "detail": "EZS · DS",
+     "id": "EZS",
+     "kind": "airline",
+     "label": "easyJet Switzerland",
+     "score": 62
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=easyJet"
+ },
+ "flights from Singapore to London": {
+  "body": {
+   "q": "FLIGHTS FROM SINGAPORE TO LONDON",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=flights+from+Singapore+to+London"
+ },
+ "flights to London from Singapore": {
+  "body": {
+   "q": "FLIGHTS TO LONDON FROM SINGAPORE",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=flights+to+London+from+Singapore"
+ },
+ "from SIN to LHR": {
+  "body": {
+   "q": "FROM SIN TO LHR",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=from+SIN+to+LHR"
+ },
+ "from Singapore to London": {
+  "body": {
+   "q": "FROM SINGAPORE TO LONDON",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=from+Singapore+to+London"
+ },
+ "lhr": {
+  "body": {
+   "q": "LHR",
+   "results": [
+    {
+     "detail": "London · GB",
+     "id": "LHR",
+     "kind": "airport",
+     "label": "London Heathrow Airport (LHR)",
+     "score": 119.5
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=lhr"
+ },
+ "new york": {
+  "body": {
+   "q": "NEW YORK",
+   "results": [
+    {
+     "detail": "New York · US",
+     "id": "LGA",
+     "kind": "airport",
+     "label": "LaGuardia Airport (LGA)",
+     "score": 79.5
+    },
+    {
+     "detail": "New York · US",
+     "id": "JFK",
+     "kind": "airport",
+     "label": "John F. Kennedy International Airport (JFK)",
+     "score": 79.5
+    },
+    {
+     "detail": "Newburgh · US",
+     "id": "SWF",
+     "kind": "airport",
+     "label": "New York Stewart International Airport (SWF)",
+     "score": 72.8
+    },
+    {
+     "detail": "GRY",
+     "id": "GRY",
+     "kind": "airline",
+     "label": "New York State Police",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=new+york"
+ },
+ "sin": {
+  "body": {
+   "q": "SIN",
+   "results": [
+    {
+     "detail": "Singapore · SG",
+     "id": "SIN",
+     "kind": "airport",
+     "label": "Singapore Changi Airport (SIN)",
+     "score": 118.0
+    },
+    {
+     "detail": "Singapore · SG",
+     "id": "WSAC",
+     "kind": "airport",
+     "label": "Changi Air Base (East) (WSAC)",
+     "score": 69.8
+    },
+    {
+     "detail": "Sint Maarten · SX",
+     "id": "SXM",
+     "kind": "airport",
+     "label": "Princess Juliana International Airport (SXM)",
+     "score": 65.1
+    },
+    {
+     "detail": "Sindal · DK",
+     "id": "CNL",
+     "kind": "airport",
+     "label": "Sindal Airport (CNL)",
+     "score": 63.2
+    },
+    {
+     "detail": "Chipi · IN",
+     "id": "SDW",
+     "kind": "airport",
+     "label": "Sindhudurg Airport (SDW)",
+     "score": 63.2
+    },
+    {
+     "detail": "SIA · SQ",
+     "id": "SIA",
+     "kind": "airline",
+     "label": "Singapore Airlines",
+     "score": 62
+    },
+    {
+     "detail": "SQC",
+     "id": "SQC",
+     "kind": "airline",
+     "label": "Singapore Airlines Cargo",
+     "score": 60
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=sin"
+ },
+ "sin lhr": {
+  "body": {
+   "q": "SIN LHR",
+   "results": [
+    {
+     "detail": "SIN → LHR · 48 flights",
+     "id": "BAW16",
+     "kind": "flight",
+     "label": "BAW16",
+     "score": 46.8
+    },
+    {
+     "detail": "SIN → LHR · 47 flights",
+     "id": "SIA306",
+     "kind": "flight",
+     "label": "SIA306",
+     "score": 46.7
+    },
+    {
+     "detail": "SIN → LHR · 42 flights",
+     "id": "QFA219",
+     "kind": "flight",
+     "label": "QFA219",
+     "score": 46.5
+    },
+    {
+     "detail": "SIN → LHR · 31 flights",
+     "id": "BAW12",
+     "kind": "flight",
+     "label": "BAW12",
+     "score": 46.0
+    },
+    {
+     "detail": "SIN → LHR · 27 flights",
+     "id": "QFA1",
+     "kind": "flight",
+     "label": "QFA1",
+     "score": 45.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=sin+lhr"
+ },
+ "singapore air": {
+  "body": {
+   "q": "SINGAPORE AIR",
+   "results": [
+    {
+     "detail": "SIA · SQ",
+     "id": "SIA",
+     "kind": "airline",
+     "label": "Singapore Airlines",
+     "score": 62
+    },
+    {
+     "detail": "SQC",
+     "id": "SQC",
+     "kind": "airline",
+     "label": "Singapore Airlines Cargo",
+     "score": 60
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce1",
+     "kind": "aircraft",
+     "label": "9V-SGA",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce2",
+     "kind": "aircraft",
+     "label": "9V-SGB",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce3",
+     "kind": "aircraft",
+     "label": "9V-SGC",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce4",
+     "kind": "aircraft",
+     "label": "9V-SGD",
+     "score": 40
+    },
+    {
+     "detail": "Airbus A350-900 · Singapore Airlines",
+     "id": "76cce5",
+     "kind": "aircraft",
+     "label": "9V-SGE",
+     "score": 40
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=singapore+air"
+ },
+ "sq 322": {
+  "body": {
+   "q": "SQ 322",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=sq+322"
+ },
+ "sq322": {
+  "body": {
+   "q": "SQ322",
+   "results": [
+    {
+     "detail": "2 legs · 27 flights",
+     "id": "SIA322",
+     "kind": "flight",
+     "label": "SIA322",
+     "score": 105.8
+    }
+   ]
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=sq322"
+ },
+ "to LHR from SIN": {
+  "body": {
+   "q": "TO LHR FROM SIN",
+   "results": []
+  },
+  "status": 200,
+  "url": "https://data.flightportrait.com/v1/search?q=to+LHR+from+SIN"
+ }
+}

@@ -1,0 +1,102 @@
+search eval: https://data.flightportrait.com, 215 queries (2026-09-26 05:35 UTC, replayed)
+
+tag                 pass  known gaps (passing)
+accent           12/18    1 (0)
+airline          42/46    3 (0)
+airport          47/52    1 (0)
+case              5/5     1 (0)
+cities            3/16    
+city             19/19    3 (0)
+code             23/23    1 (0)
+codes             4/13    
+connector         0/10    
+fleet             6/6     1 (0)
+flight           13/33    
+guard             5/5     
+hex               4/4     
+iata              8/17    
+icao              4/7     
+legs              1/1     
+name             42/45    
+noise             0/1     
+prefix            2/2     
+rank              0/1     
+registration     10/10    2 (0)
+route             7/31    
+space             0/8     1 (0)
+type              6/6     5 (0)
+typo             10/11    2 (0)
+words             0/14    
+
+overall: 148/201 = 73.6% (known gaps excluded)
+
+failing:
+  'BA16'                             #1 not flight/BAW16; got flight/BA1611, flight/BA1606, flight/BA1608
+  'BA15'                             #1 not flight/BAW15; got flight/BA1513, flight/BA1519, flight/BA1552
+  'EK1'                              flight/UAE1 not in top 5; got flight/EK147, flight/EK101, flight/EK103
+  'QR1'                              flight/QTR1 not in top 5; got flight/QR1003, flight/QR1007, flight/QR1015
+  'UA1'                              flight/UAL1 not in top 5; got flight/UA142, flight/UA153, flight/UA160
+  'DL1'                              flight/DAL1 not in top 5; got flight/DL109, flight/DL127, flight/DL129
+  'TK1'                              flight/THY1 not in top 5; got flight/TK168, flight/TK171, flight/TK1884
+  'QF1'                              flight/QFA1 not in top 5; got flight/QF1, flight/QF128, flight/QF151
+  'MH1'                              flight/MAS1 not in top 5; got flight/MAS128, flight/MH146, flight/MH199
+  'UAE1'                             #1 not flight/UAE1; got flight/UAE110, flight/UAE17K, flight/UAE19
+  'QTR1'                             #1 not flight/QTR1; got flight/QTR1063, flight/QTR1007, flight/QTR1120
+  'UAL1'                             #1 not flight/UAL1; got flight/UAL1799, flight/UAL1524, flight/UAL1195
+  'SQ 322'                           #1 not flight/SIA322; got nothing
+  'BA 16'                            #1 not flight/BAW16; got nothing
+  'SIA 322'                          #1 not flight/SIA322; got nothing
+  'sq 322'                           #1 not flight/SIA322; got nothing
+  'CX 251'                           #1 not flight/CPA251; got nothing
+  'TG 910'                           #1 not flight/THA910; got nothing
+  'AA 100'                           #1 not flight/AAL100; got nothing
+  'BA 12'                            #1 not flight/BAW12; got nothing
+  'SIN-LHR'                          #1 not flight/SIN → LHR; got nothing
+  'SIN - LHR'                        #1 not flight/SIN → LHR; got nothing
+  'SIN–LHR'                          #1 not flight/SIN → LHR; got nothing
+  'SIN — LHR'                        #1 not flight/SIN → LHR; got nothing
+  'SIN → LHR'                        #1 not flight/SIN → LHR; got nothing
+  'SIN > LHR'                        #1 not flight/SIN → LHR; got nothing
+  'SIN->LHR'                         #1 not flight/SIN → LHR; got nothing
+  'SIN to LHR'                       #1 not flight/SIN → LHR; got nothing
+  'from SIN to LHR'                  #1 not flight/SIN → LHR; got nothing
+  'to LHR from SIN'                  #1 not flight/SIN → LHR; got nothing
+  'Singapore to London'              #1 not flight/SIN → LHR; got nothing
+  'from Singapore to London'         #1 not flight/SIN → LHR; got nothing
+  'flights from Singapore to London' #1 not flight/SIN → LHR; got nothing
+  'flights to London from Singapore' #1 not flight/SIN → LHR; got nothing
+  'Singapore - London'               #1 not flight/SIN → LHR; got nothing
+  'Singapore → London'               #1 not flight/SIN → LHR; got nothing
+  'Changi to Heathrow'               #1 not flight/SIN → LHR; got nothing
+  'London to Singapore'              #1 not flight/LHR → SIN; got nothing
+  'Sydney to Singapore'              #1 not flight/SYD → SIN; got nothing
+  'Hong Kong to Singapore'           #1 not flight/HKG → SIN; got nothing
+  'Kuala Lumpur to Singapore'        #1 not flight/KUL → SIN; got nothing
+  'New York to London'               #1 not flight/JFK → LHR; got nothing
+  'JFK-LHR'                          #1 not flight/JFK → LHR; got nothing
+  'Sao Paulo to Lisbon'              #1 not flight/GRU → LIS; got nothing
+  'Scoot'                            airport/BLV in top 5; got airline/TGW, airport/BLV, airport/OSU
+  'Scot'                             airline/TGW not in top 5; got airport/BLV, airport/BFF, airport/OSU
+  'Air Caraibes'                     airline/FWI not in top 5; got nothing
+  'Malmo Aviation'                   airline/SCW not in top 5; got nothing
+  'Changi'                           #1 not airport/SIN; got airport/WSAC, airport/SIN
+  'Changi'                           #1 not airport/SIN; got airport/WSAC, airport/SIN
+  'Sao Paulo'                        airport/GRU not in top 5; got nothing
+  'Koln'                             airport/CGN not in top 5; got nothing
+  'Malmo'                            airport/MMX not in top 5; got airline/LOD, airport/PMI, airport/VCE
+
+known gaps (14, 0 now passing):
+  '6E'                               airline/IGO not in top 5; got nothing [an airline code with a digit is not looked up]
+  'Qantsa'                           airline/QFA not in top 5; got airport/SNA, airport/HEL, airport/SBA [airport near misses, lifted by traffic, crowd the airline out]
+  'Ryanar'                           airline/RYR not in top 5; got airport/MQN, airport/BTI, airport/NTX [airport near misses, lifted by traffic, crowd the airline out]
+  'Tokyo'                            airport/NRT not in top 5; got airport/HND, airline/TZP [a city: Narita's city is Narita]
+  'New York'                         #1 not airport/JFK; airport/EWR not in top 5; got airport/LGA, airport/JFK, airport/SWF [a city: LGA departs more often than JFK; EWR is Newark]
+  'new york'                         #1 not airport/JFK; got airport/LGA, airport/JFK, airport/SWF [a city: LGA departs more often than JFK]
+  'München'                          airport/MUC not in top 5; got airport/CER, airport/GFR [the endonym; the data says Munich]
+  'GXLEA'                            #1 not aircraft/G-XLEA; got airport/ELG, airport/GAL, airport/GLI [without the dash, letters only: kept out so a city is not a tail]
+  '9V SMA'                           #1 not aircraft/9V-SMA; got nothing [a registration typed with a space]
+  'BA A380'                          #1 not aircraft; got nothing [a two-letter code loses to airline names that start with it]
+  'A350'                             #1 not type/A359; got aircraft/a35097, aircraft/a350b0, aircraft/a350b3 [no type results yet]
+  'Boeing 777'                       #1 not type/B77W; got aircraft/a1955b, aircraft/a1958c, aircraft/aa4cba [no type results yet]
+  'A380'                             #1 not type/A388; got aircraft/7cfa18, aircraft/7cfa19, aircraft/7cfa1a [no type results yet]
+  '787'                              #1 not type/B789; got aircraft/7a42a7, aircraft/4781c7 [no type results yet]
