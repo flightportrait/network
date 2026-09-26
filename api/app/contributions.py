@@ -594,6 +594,17 @@ def pull(session, book, fetch, now=None, routes=None, legs=None):
     counts["pending"] = session.execute(
         select(func.count()).select_from(Claim)
         .where(Claim.status == "pending")).scalar_one()
+    # the backlog a person owes: claims someone stood behind, not the
+    # answers the network filed itself (evidence, timetable)
+    counts["pending_people"] = session.execute(
+        select(func.count()).select_from(Claim)
+        .where(Claim.status == "pending",
+               or_(Claim.anonymous_count > 0,
+                   Claim.id.in_(select(Endorsement.claim_id).where(
+                       or_(Endorsement.key_name.is_(None),
+                           Endorsement.key_name.not_in(
+                               ("evidence", TIMETABLE_KEY)))))))
+    ).scalar_one()
     session.commit()
     return counts
 
@@ -978,10 +989,10 @@ def main(argv=None):
                 after), routes=RouteBook(settings.routes_path),
                 legs=LegBook(settings.legs_path))
             print("pull: " + ", ".join("%s %d" % kv for kv in counts.items()))
-            if counts["pending"] > settings.contribute_pending_alert \
+            if counts["pending_people"] > settings.contribute_pending_alert \
                     or counts["received"] > settings.contribute_received_alert:
-                sys.exit("contributions: pending %d, received %d"
-                         % (counts["pending"], counts["received"]))
+                sys.exit("contributions: pending %d from people, received %d"
+                         % (counts["pending_people"], counts["received"]))
         elif args.cmd == "list":
             if args.approved:
                 rows = session.execute(

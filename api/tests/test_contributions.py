@@ -739,3 +739,18 @@ def test_recheck_reopens_a_timetable_answer_the_clock_disputes(ctx, tmp_path):
         session.close()
     assert client.get("/v1/flights/SIA826").status_code == 404
     assert client.get("/v1/gaps").json()["total"] == 1
+
+
+def test_the_backlog_alert_counts_only_what_people_stand_behind(ctx, tmp_path):
+    """A held timetable answer is pending, but it is not a person's
+    backlog: the alert reads pending_people."""
+    client, app, sm = _timetable(ctx, tmp_path, [("SQ826", "PEK", 60)],
+                                 seen_local_min=420)
+    session = sm()
+    try:
+        contributions.propose(session, app.state.gaps, app.state.routes,
+                              legs=app.state.legs)
+    finally:
+        session.close()
+    counts = _pull(sm, app, [_sub(1, "SIA826", dest="NRT", key_name="alice")])
+    assert counts["pending"] == 2 and counts["pending_people"] == 1
