@@ -951,20 +951,27 @@ def _local_min(ts, tzname, cache):
 
 
 SCHEDULE_WINDOW_DAYS = 60
+# How the departure is read (schedule_pick). Chosen by schedule_backtest
+# on fp-data, 14 days to 2026-09-25, 600k legs each predicted from the
+# days before it: within 45 min "mode" (the original) 77.1 %, this 79.5 %,
+# median error 13 -> 10 min. The weekday layer (81.9 %) needs a column.
+SCHEDULE_METHOD = "recent+kernel"
 
 
 def ingest_schedule(session, path):
     """Infer the CURRENT timetable from legs.db: per flight number and
-    leg, the typical local departure and arrival. Two rules keep it
+    leg, the typical local departure and arrival. Three rules keep it
     honest against a deep archive:
 
     - Recency: only the last SCHEDULE_WINDOW_DAYS of legs feed it. A
       year of observation is depth for logs and stats; a timetable
       claims "now", and a year of seasonal renumbering read as noise.
     - Paired arrivals: the arrival is the MEDIAN arrival of the legs
-      that departed in the flight's modal slot. Moding departures and
+      that departed in the flight's slot. Moding departures and
       arrivals independently once mixed populations into physically
       impossible pairs.
+    - Newer sightings weigh more and a cluster beats one lucky slot
+      (SCHEDULE_METHOD), so a retimed flight moves within a week.
 
     Times are converted to each airport's LOCAL clock before
     clustering, so daylight saving folds into one slot. The work is
@@ -978,29 +985,32 @@ def ingest_schedule(session, path):
         if iata:
             tz_by_code.setdefault(iata, tz)
 
+    import itertools
     import os
     import tempfile
+    from .schedule_pick import KERNEL_MIN, circ_diff, pick
     fd, tmp = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
     src = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
     hi = src.execute("SELECT MAX(date) FROM legs").fetchone()[0]
     try:
-        cutoff = (datetime.date.fromisoformat(hi)
-                  - datetime.timedelta(days=SCHEDULE_WINDOW_DAYS)
+        asof = datetime.date.fromisoformat(hi)
+        cutoff = (asof - datetime.timedelta(days=SCHEDULE_WINDOW_DAYS)
                   ).isoformat()
+        asof = asof.toordinal()
     except (TypeError, ValueError):
-        cutoff = "0000"
+        cutoff, asof = "0000", 0
     work = sqlite3.connect("file:%s" % tmp, uri=True)
     try:
         work.execute("PRAGMA temp_store=FILE")
         work.execute("PRAGMA cache_size=-16000")
         work.execute("CREATE TABLE s (callsign TEXT, org TEXT, dst TEXT,"
-                     " dep5 INT, arr5 INT, type TEXT)")
+                     " day INT, dep INT, arr INT, type TEXT)")
         zones, batch = {}, []
 
         def rows():
-            for cs, org, dst, dep_ts, dep_arr, typ in src.execute(
-                    "SELECT callsign, org, dst, dep_ts, arr_ts, type"
+            for cs, org, dst, date, dep_ts, dep_arr, typ in src.execute(
+                    "SELECT callsign, org, dst, date, dep_ts, arr_ts, type"
                     " FROM legs WHERE callsign IS NOT NULL AND callsign <> ''"
                     " AND org IS NOT NULL AND dst IS NOT NULL AND org <> dst"
                     " AND length(org) BETWEEN 3 AND 4"
@@ -1008,73 +1018,57 @@ def ingest_schedule(session, path):
                     " AND date >= ?"
                     " AND (dep_ts IS NULL OR arr_ts IS NULL"
                     "      OR arr_ts - dep_ts >= 600)", (cutoff,)):
-                m = _local_min(dep_ts, tz_by_code.get(org), zones)
-                am = _local_min(dep_arr, tz_by_code.get(dst), zones)
-                yield (cs.strip().upper(), org, dst,
-                       (m // 5) * 5 if m is not None else None,
-                       (am // 5) * 5 if am is not None else None, typ)
+                try:
+                    day = datetime.date.fromisoformat(date).toordinal()
+                except (TypeError, ValueError):
+                    day = asof
+                yield (cs.strip().upper(), org, dst, day,
+                       _local_min(dep_ts, tz_by_code.get(org), zones),
+                       _local_min(dep_arr, tz_by_code.get(dst), zones), typ)
 
         for r in rows():
             batch.append(r)
             if len(batch) >= CHUNK:
-                work.executemany("INSERT INTO s VALUES (?,?,?,?,?,?)", batch)
+                work.executemany("INSERT INTO s VALUES (?,?,?,?,?,?,?)", batch)
                 batch = []
         if batch:
-            work.executemany("INSERT INTO s VALUES (?,?,?,?,?,?)", batch)
+            work.executemany("INSERT INTO s VALUES (?,?,?,?,?,?,?)", batch)
         work.commit()
         work.execute("CREATE INDEX ix ON s (callsign, org, dst)")
 
-        # Everything joins inside SQLite; Python holds one insert batch,
-        # never a per-leg dict — memory stays flat however deep the
-        # artifact grows. Mode = the most-seen 5-minute slot, ties to
-        # the earliest, deterministically.
+        # One service at a time, in key order: Python holds one flight's
+        # sightings, never the window — memory stays flat however deep
+        # the artifact grows. The departure is read with SCHEDULE_METHOD
+        # (schedule_pick); the arrival is the median arrival of the legs
+        # that left in that slot, so the pair is one that flew; the type
+        # the most-flown, ties alphabetical.
         session.execute(delete(RefSchedule))
         session.flush()
         rows_written, out = 0, []
-        final = work.execute("""
-            WITH base AS (
-              SELECT callsign, org, dst, count(*) n
-              FROM s GROUP BY callsign, org, dst),
-            depm AS (
-              SELECT callsign, org, dst, dep5, ROW_NUMBER() OVER (
-                PARTITION BY callsign, org, dst
-                ORDER BY count(*) DESC, dep5) rn
-              FROM s WHERE dep5 IS NOT NULL
-              GROUP BY callsign, org, dst, dep5),
-            arrm AS (
-              SELECT s.callsign, s.org, s.dst, s.arr5,
-                ROW_NUMBER() OVER (
-                  PARTITION BY s.callsign, s.org, s.dst
-                  ORDER BY s.arr5) rn,
-                COUNT(*) OVER (
-                  PARTITION BY s.callsign, s.org, s.dst) cnt
-              FROM s JOIN depm dm
-                ON dm.callsign = s.callsign AND dm.org = s.org
-               AND dm.dst = s.dst AND dm.rn = 1
-              WHERE s.arr5 IS NOT NULL AND s.dep5 IS NOT NULL
-                AND abs(s.dep5 - dm.dep5) <= 10),
-            typem AS (
-              SELECT callsign, org, dst, type, ROW_NUMBER() OVER (
-                PARTITION BY callsign, org, dst
-                ORDER BY count(*) DESC, type) rn
-              FROM s WHERE type IS NOT NULL AND type <> ''
-              GROUP BY callsign, org, dst, type)
-            SELECT b.callsign, b.org, b.dst, b.n, d.dep5, a.arr5, t.type
-            FROM base b
-            LEFT JOIN depm d ON d.callsign = b.callsign AND d.org = b.org
-              AND d.dst = b.dst AND d.rn = 1
-            LEFT JOIN arrm a ON a.callsign = b.callsign AND a.org = b.org
-              AND a.dst = b.dst AND a.rn = (a.cnt + 1) / 2
-            LEFT JOIN typem t ON t.callsign = b.callsign AND t.org = b.org
-              AND t.dst = b.dst AND t.rn = 1
-        """)
-        for cs, org, dst, n, dep5, arr5, typ in final:
+        legs = work.execute("SELECT callsign, org, dst, day, dep, arr, type"
+                            " FROM s ORDER BY callsign, org, dst")
+        for (cs, org, dst), group in itertools.groupby(
+                legs, key=lambda r: (r[0], r[1], r[2])):
+            group = list(group)
+            dep = pick([(r[3], r[4]) for r in group if r[4] is not None],
+                       asof, SCHEDULE_METHOD)
+            arr = None
+            if dep is not None:
+                arrs = sorted((r[5] // 5) * 5 for r in group
+                              if r[5] is not None and r[4] is not None
+                              and circ_diff(r[4], dep) <= KERNEL_MIN)
+                arr = arrs[(len(arrs) - 1) // 2] if arrs else None
+            types = {}
+            for r in group:
+                if r[6]:
+                    types[r[6]] = types.get(r[6], 0) + 1
+            typ = min(types, key=lambda t: (-types[t], t)) if types else None
             prefix = cs[:3]
             out.append({
                 "callsign": cs[:12], "org": org, "dst": dst,
                 "airline_icao": prefix if prefix.isalpha() else "",
-                "dep_min": dep5, "arr_min": arr5,
-                "type_code": typ, "n_flights": n})
+                "dep_min": dep, "arr_min": arr,
+                "type_code": typ, "n_flights": len(group)})
             if len(out) >= CHUNK:
                 session.execute(insert(RefSchedule), out)
                 rows_written += len(out)

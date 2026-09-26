@@ -5,7 +5,7 @@ import json
 import pytest
 
 from app import refdata_ingest
-from app.refdata_models import (RefAirframe, RefAirlineCountry,
+from app.refdata_models import (RefSchedule, RefAirframe, RefAirlineCountry,
                                 RefAllianceMembership, RefAirport, RefRoute)
 
 TAR1090_LINES = (
@@ -313,6 +313,48 @@ def test_schedule(ctx, tmp_path):
     assert dep["dep"] == "09:30"             # local mode, DST-correct
     assert dep["type"] == "A359"             # 2 of 3 legs
     assert dep["n_flights"] == 3
+
+
+def test_schedule_follows_a_retimed_flight(ctx, tmp_path):
+    """SIA322 left at 09:30 for five weeks, then 11:00 for the last ten
+    days: the schedule has moved, and the arrival is the one that goes
+    with the new departure."""
+    import datetime as dt
+    import sqlite3
+    client, app, sm, settings, readsb = ctx
+    _seed_all(sm, tmp_path)
+    session = sm()
+    try:
+        session.get(RefAirport, "WSSS").tz = "Asia/Singapore"
+        session.commit()
+    finally:
+        session.close()
+    sgt = dt.timezone(dt.timedelta(hours=8))
+    last = dt.date(2026, 9, 20)
+    rows = []
+    for back in range(45):
+        day = last - dt.timedelta(days=back)
+        hhmm = (11, 0) if back < 10 else (9, 30)
+        dep = dt.datetime(day.year, day.month, day.day, *hhmm, tzinfo=sgt)
+        rows.append(("76cd01", "9V-SHA", "A359", "SIA322", day.isoformat(),
+                     "SIN", "SYD", int(dep.timestamp()),
+                     int(dep.timestamp()) + 27000, 40000))
+    path = tmp_path / "retimed.db"
+    conn = sqlite3.connect(str(path))
+    conn.execute("CREATE TABLE legs (hex TEXT, reg TEXT, type TEXT, "
+                 "callsign TEXT, date TEXT, org TEXT, dst TEXT, dep_ts INT, "
+                 "arr_ts INT, max_alt INT)")
+    conn.executemany("INSERT INTO legs VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+    conn.commit()
+    conn.close()
+    session = sm()
+    try:
+        assert refdata_ingest.ingest_schedule(session, str(path)) == 1
+        row = session.query(RefSchedule).one()
+        assert row.dep_min == 11 * 60
+        assert row.n_flights == 45
+    finally:
+        session.close()
 
 
 def test_lookup_endpoints(ctx, tmp_path):

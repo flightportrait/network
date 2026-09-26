@@ -13,8 +13,9 @@ derive takes one:
 - kernel: the slot with the most sightings within KERNEL_MIN of it,
   then the median of those sightings: take-off times scatter across
   neighbouring slots, and one lucky bin should not beat a cluster.
-- weekday: when the flight has enough sightings on the asked weekday,
-  that weekday's own time (some numbers keep a different slot on
+- weekday: when the flight has enough sightings on the asked weekday
+  and they sit in another slot (more than WEEKDAY_APART_MIN from the
+  pooled time), that weekday's own time (some numbers keep a different slot on
   Fridays or weekends).
 
 A method is a "+"-joined set of these: "recent+kernel+weekday".
@@ -24,6 +25,7 @@ Sightings are (day ordinal, local minute of day); minutes are circular.
 HALF_LIFE_DAYS = 7.0
 KERNEL_MIN = 15
 WEEKDAY_MIN_SEEN = 3
+WEEKDAY_APART_MIN = 30
 SLOT = 5
 
 METHODS = ("mode", "recent", "kernel", "recent+kernel", "weekday",
@@ -73,10 +75,15 @@ def pick(seen, asof, method="mode", weekday=None):
         return None
     flags = set(method.split("+"))
     recent, kernel = "recent" in flags, "kernel" in flags
+    pooled = _pick(seen, asof, recent, kernel)
     if "weekday" in flags and weekday is not None:
         same = [s for s in seen if (s[0] - 1) % 7 == weekday]
         # date.toordinal(): day 1 is a Monday, so (ordinal - 1) % 7 is
         # Python's weekday()
         if len(same) >= WEEKDAY_MIN_SEEN:
-            return _pick(same, asof, recent, kernel)
-    return _pick(seen, asof, recent, kernel)
+            own = _pick(same, asof, recent, kernel)
+            # a weekday's few sightings are noisier than the pool: its
+            # own time wins only when it is a different slot altogether
+            if circ_diff(own, pooled) > WEEKDAY_APART_MIN:
+                return own
+    return pooled
