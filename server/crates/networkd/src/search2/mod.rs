@@ -14,6 +14,7 @@ pub mod build;
 mod engine;
 mod intent;
 mod lexicon;
+mod readonly;
 mod schema;
 mod text;
 

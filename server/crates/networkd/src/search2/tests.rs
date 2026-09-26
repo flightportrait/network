@@ -366,6 +366,27 @@ async fn canonical_spellings_redirect() {
 }
 
 #[tokio::test]
+async fn serves_a_generation_it_cannot_write() {
+    let d = built("readonly");
+    let g = d.join("search").join("20260926T024000Z");
+    for e in std::fs::read_dir(&g).unwrap() {
+        let p = e.unwrap().path();
+        if p.file_name().unwrap().to_string_lossy().ends_with(".lock") {
+            std::fs::remove_file(&p).unwrap();
+        }
+    }
+    let ro = |p: &Path, on: bool| {
+        let mut perm = std::fs::metadata(p).unwrap().permissions();
+        perm.set_readonly(on);
+        std::fs::set_permissions(p, perm).unwrap();
+    };
+    ro(&g, true);
+    let mut r = crate::router(app(&d));
+    assert_eq!(ids(&mut r, "SIN").await[0], "airport/SIN");
+    ro(&g, false);
+}
+
+#[tokio::test]
 async fn no_index_is_503_not_another_answer() {
     let d = dir("none");
     let mut r = crate::router(app(&d));

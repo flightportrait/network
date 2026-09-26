@@ -70,7 +70,7 @@ fn lift(pop: u64, weight: f64) -> f64 {
 
 impl Engine {
     pub fn open(dir: &Path) -> anyhow::Result<Engine> {
-        let index = Index::open_in_dir(dir)?;
+        let index = Index::open(super::readonly::ReadOnly::open(dir)?)?;
         let f = fields(&index.schema())?;
         let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into()?;
         let lex: Lexicon = serde_json::from_slice(&std::fs::read(dir.join("lexicon.json"))?)?;
