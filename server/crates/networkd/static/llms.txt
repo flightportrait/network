@@ -1,0 +1,23 @@
+# FlightPortrait network API
+
+> Free, open flight data from the FlightPortrait receiver network: aircraft in the air now, aircraft near a point, flights with their routes and usual times, airports, airlines, airframes, and search across all of them. No API key needed. JSON over HTTPS at https://data.flightportrait.com. Data (c) FlightPortrait network feeders and credited sources, ODbL 1.0.
+
+## Start here
+
+- [API reference](https://docs.flightportrait.com/api/reference.md): every endpoint, its parameters, rate limits and cache times.
+- [Full reference in one file](https://docs.flightportrait.com/llms-full.txt): the whole API documentation for LLMs.
+- [OpenAPI](https://data.flightportrait.com/openapi.json): the machine-readable contract, with examples.
+
+## The calls most questions need
+
+- [Aircraft near a point](https://docs.flightportrait.com/api-reference/live/point.md): GET /v2/point/{lat}/{lon}/{radius_nm}, what is flying over a place right now.
+- [Search](https://data.flightportrait.com/openapi.json): GET /v2/search?q= finds flights (by number or route, e.g. "SQ322", "Singapore to London"), airlines, airports, cities, aircraft types and registrations, with typed results.
+- [One flight](https://docs.flightportrait.com/api-reference/history/flight.md): GET /v1/flights/{callsign}, route, usual local times, aircraft type, recent days flown.
+- [One airport](https://docs.flightportrait.com/api-reference/history/airport.md): GET /v1/airports/{code}, traffic and inferred boards in local time.
+- [One aircraft](https://docs.flightportrait.com/api-reference/history/airframe.md): GET /v1/airframes/{hex}, identity and flight log.
+
+## Terms
+
+- [Data and licensing](https://docs.flightportrait.com/network/data.md): ODbL 1.0; credit "FlightPortrait network" and link back.
+- [Terms](https://flightportrait.com/network/terms): fair use; be kind to the rate limits.
+- [Source](https://github.com/flightportrait/network): this service is open source.

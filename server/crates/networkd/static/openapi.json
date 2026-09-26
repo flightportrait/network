@@ -6621,6 +6621,10 @@
                       "type": "string",
                       "description": "Human documentation."
                     },
+                    "llms": {
+                      "type": "string",
+                      "description": "An llms.txt for language models and agents."
+                    },
                     "openapi": {
                       "type": "string",
                       "description": "Machine-readable spec path."
@@ -6663,6 +6667,7 @@
                 "example": {
                   "name": "FlightPortrait network API",
                   "docs": "https://docs.flightportrait.com/api/reference",
+                  "llms": "/llms.txt",
                   "openapi": "/openapi.json",
                   "swagger": "/docs",
                   "source": "https://github.com/flightportrait/network",

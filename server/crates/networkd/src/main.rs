@@ -167,6 +167,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/healthz", get(live::healthz))
         .route("/openapi.json", get(docs::openapi))
         .route("/docs", get(docs::swagger))
+        .route("/llms.txt", get(docs::llms))
         .route("/docs/oauth2-redirect", get(docs::oauth2_redirect))
         .route("/redoc", get(docs::redoc))
         .route("/v1/now", get(live::now))

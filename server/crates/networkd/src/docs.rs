@@ -39,6 +39,11 @@ pub async fn oauth2_redirect() -> Response {
     page(include_bytes!("../static/oauth2-redirect.html"), "text/html; charset=utf-8")
 }
 
+/// GET /llms.txt, for language models and agents (llmstxt.org).
+pub async fn llms() -> Response {
+    page(include_bytes!("../static/llms.txt"), "text/plain; charset=utf-8")
+}
+
 pub async fn redoc() -> Response {
     page(include_bytes!("../static/redoc.html"), "text/html; charset=utf-8")
 }

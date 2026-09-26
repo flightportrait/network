@@ -834,6 +834,7 @@ EX_ALLIANCES = {"alliances": [{
 SCH_INDEX = _obj({
     "name": _t("string"),
     "docs": _t("string", "Human documentation."),
+    "llms": _t("string", "An llms.txt for language models and agents."),
     "openapi": _t("string", "Machine-readable spec path."),
     "swagger": _t("string", "Interactive spec UI path."),
     "source": _t("string", "Public repository (map client and API service)."),
@@ -851,6 +852,7 @@ SCH_HEALTHZ = _obj({"ok": _t("boolean")}, required=["ok"])
 EX_INDEX = {
     "name": "FlightPortrait network API",
     "docs": "https://docs.flightportrait.com/api/reference",
+    "llms": "/llms.txt",
     "openapi": "/openapi.json",
     "swagger": "/docs",
     "source": "https://github.com/flightportrait/network",

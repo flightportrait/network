@@ -197,6 +197,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
         return {
             "name": "FlightPortrait network API",
             "docs": "https://docs.flightportrait.com/api/reference",
+            "llms": "/llms.txt",
             "openapi": "/openapi.json",
             "swagger": "/docs",
             "source": settings.source_url,
@@ -205,6 +206,12 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
             "credits": settings.credits_url,
             "feed": "feed.flightportrait.com:30004 (beast_reduce_plus_out)",
         }
+
+    @app.get("/llms.txt", include_in_schema=False)
+    def llms_txt():
+        from fastapi.responses import PlainTextResponse
+        from .llms import LLMS_TXT
+        return PlainTextResponse(LLMS_TXT)
 
     # operations only networkd serves (/v2/search), documented in the one
     # document it serves, each after its /v1 sibling

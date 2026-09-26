@@ -30,7 +30,7 @@ def build_spec() -> dict:
 
 
 PAGES = {"docs.html": "/docs", "oauth2-redirect.html": "/docs/oauth2-redirect",
-         "redoc.html": "/redoc"}
+         "redoc.html": "/redoc", "llms.txt": "/llms.txt"}
 
 
 def served() -> dict:

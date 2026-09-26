@@ -208,6 +208,7 @@ pub async fn index(State(app): State<Arc<App>>) -> Response {
     let mut o = Obj::new(&mut out);
     o.str("name", "FlightPortrait network API")
         .str("docs", "https://docs.flightportrait.com/api/reference")
+        .str("llms", "/llms.txt")
         .str("openapi", "/openapi.json")
         .str("swagger", "/docs")
         .str("source", &s.source_url)
