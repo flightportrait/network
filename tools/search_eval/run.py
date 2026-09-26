@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The golden set for /v1/search: what a person types, and what they
-expect to see first. Runs every query against a server and reports
+"""The golden set for /v1/search and /v2/search: what a person types,
+and what they expect to see first. Runs every query against a server and reports
 pass/fail per tag, an overall score, and the known gaps apart (queries
 the search does not answer yet; they fail without failing the run).
 
@@ -8,6 +8,7 @@ the search does not answer yet; they fail without failing the run).
     python3 tools/search_eval/run.py --base https://data.flightportrait.com
     python3 tools/search_eval/run.py --record out.json    # keep the answers
     python3 tools/search_eval/run.py --replay out.json    # score them again
+    python3 tools/search_eval/run.py --api v2             # the same set on /v2
 
 Queries go out as typed and redirects are followed, so the canonical
 form (/v1/search answers any other spelling with a redirect to it) is
@@ -19,8 +20,11 @@ Each line of golden.jsonl:
     {"q": "SQ 322", "expect_top": [{"kind": "flight", "id": "SIA322"}],
      "expect_in_top_k": [...], "expect_not_in_top_k": [...], "k": 5,
      "tags": ["flight", "space"], "known_gap": false, "note": "..."}
-A matcher holds any of kind, id, detail_prefix, label_contains; all it
-holds must match. expect_top[i] must match the i-th result;
+A matcher holds any of kind, id, id_prefix, detail_prefix,
+label_contains; all it holds must match. /v2 answers typed results; --api v2 reads each as the
+/v1 line it stands for (a flight's id is its callsign, its detail the
+route "SIN → LHR"; an aircraft's label its registration), so one set
+scores both. Entries with "api": "v2" are asked of /v2 only. expect_top[i] must match the i-th result;
 expect_in_top_k each some result among the first k (default 5);
 expect_not_in_top_k none of them.
 
@@ -56,15 +60,17 @@ def load(path):
     return entries
 
 
-def fetch(base, q, timeout=30):
-    url = base.rstrip("/") + "/v1/search?" + urllib.parse.urlencode({"q": q})
+def fetch(base, q, api="v1", timeout=30):
+    url = base.rstrip("/") + "/%s/search?" % api + urllib.parse.urlencode({"q": q})
     req = urllib.request.Request(url, headers={"User-Agent": UA,
                                                "Accept": "application/json"})
     for attempt in range(3):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
-                return {"status": r.status, "url": r.geturl(),
-                        "body": json.loads(r.read().decode("utf-8"))}
+                body = json.loads(r.read().decode("utf-8"))
+                if api == "v2":
+                    body = as_v1(body)
+                return {"status": r.status, "url": r.geturl(), "body": body}
         except urllib.error.HTTPError as e:
             if e.code == 429 and attempt < 2:
                 time.sleep(float(e.headers.get("Retry-After") or 30))
@@ -77,10 +83,43 @@ def fetch(base, q, timeout=30):
     raise RuntimeError("unreachable")
 
 
+def as_v1(body):
+    """A /v2 answer read as /v1 results (kind, id, label, detail), the
+    typed result kept beside them."""
+    out = []
+    for r in body.get("results") or []:
+        k = r.get("kind")
+        label, detail = r.get("id"), None
+        if k == "flight":
+            route = r.get("route") or []
+            label = r.get("flight") or r.get("callsign")
+            detail = " → ".join(route) + " · %s flights" % r.get("flights")
+        elif k == "aircraft":
+            label = r.get("reg") or (r.get("hex") or "").upper()
+            detail = " · ".join(x for x in (r.get("type_name") or r.get("type"),
+                                            r.get("operator")) if x) or None
+        elif k == "airport":
+            label = "%s (%s)" % (r.get("name") or r["id"], r["id"])
+            detail = " · ".join(x for x in (r.get("city"), r.get("country"))
+                                if x) or None
+        elif k == "airline":
+            label = r.get("name")
+            detail = " · ".join(x for x in (r.get("icao"), r.get("iata")) if x)
+        elif k == "type":
+            label = "%s (%s)" % (r.get("name") or r["id"], r["id"])
+            detail = r.get("manufacturer")
+        out.append({"kind": k, "id": r.get("id"), "label": label,
+                    "detail": detail, "score": r.get("score"), "v2": r})
+    return {"q": body.get("q"), "intent": body.get("intent"),
+            "results": out}
+
+
 def matches(m, r):
     if "kind" in m and r.get("kind") != m["kind"]:
         return False
     if "id" in m and r.get("id") != m["id"]:
+        return False
+    if "id_prefix" in m and not (r.get("id") or "").startswith(m["id_prefix"]):
         return False
     if "detail_prefix" in m and not (r.get("detail") or "").startswith(
             m["detail_prefix"]):
@@ -112,8 +151,9 @@ def judge(e, answer):
 
 
 def show(m):
-    return "/".join(str(m[f]) for f in ("kind", "id", "detail_prefix",
-                                        "label_contains") if f in m)
+    return "/".join(str(m[f]) for f in ("kind", "id", "id_prefix",
+                                        "detail_prefix", "label_contains")
+                    if f in m)
 
 
 def got(answer, n=3):
@@ -125,6 +165,7 @@ def got(answer, n=3):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--base", default="http://127.0.0.1:8092")
+    ap.add_argument("--api", choices=("v1", "v2"), default="v1")
     ap.add_argument("--golden", default=os.path.join(HERE, "golden.jsonl"))
     ap.add_argument("--pace", type=float, default=None,
                     help="seconds between requests (at least 1 off-box)")
@@ -135,7 +176,8 @@ def main():
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
 
-    entries = load(args.golden)
+    entries = [e for e in load(args.golden)
+               if e.get("api", args.api) == args.api]
     if args.tag:
         entries = [e for e in entries if set(e.get("tags", [])) & set(args.tag)]
     host = urllib.parse.urlparse(args.base).hostname or ""
@@ -162,14 +204,14 @@ def main():
         if asked and pace:
             time.sleep(pace)
         try:
-            answers[q] = kept[q] = fetch(args.base, q)
+            answers[q] = kept[q] = fetch(args.base, q, args.api)
         except (urllib.error.URLError, OSError, ValueError) as err:
             print("request failed for %r: %s" % (q, err), file=sys.stderr)
             return 2
         asked += 1
     if args.record:
         if asked:
-            kept[META] = {"base": args.base,
+            kept[META] = {"base": args.base, "api": args.api,
                           "at": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())}
         with open(args.record, "w", encoding="utf-8") as fh:
             json.dump(kept, fh, ensure_ascii=False, indent=1, sort_keys=True)
@@ -200,10 +242,11 @@ def main():
                                     e["q"], got(answers[e["q"]])))
 
     meta = kept.get(META) if (args.replay or not asked) else None
-    meta = meta or {"base": args.base,
+    meta = meta or {"base": args.base, "api": args.api,
                     "at": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())}
-    print("search eval: %s, %d queries (%s%s)" % (
-        meta["base"], len(entries), meta["at"],
+    api = meta.get("api", "v1")
+    print("search eval: %s%s, %d queries (%s%s)" % (
+        meta["base"], "" if api == "v1" else " /" + api, len(entries), meta["at"],
         ", replayed" if args.replay else ""))
     print()
     print("%-14s %9s  %s" % ("tag", "pass", "known gaps (passing)"))

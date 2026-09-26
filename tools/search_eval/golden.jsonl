@@ -213,3 +213,14 @@
 {"q": "Doha", "expect_top": [{"kind": "airport", "id": "DOH"}], "expect_not_in_top_k": [{"kind": "aircraft"}], "tags": ["city", "guard"]}
 {"q": "Porto", "expect_top": [{"kind": "airport", "id": "OPO"}], "tags": ["city", "guard"]}
 {"q": "Winston", "expect_in_top_k": [{"kind": "airport", "id": "INT"}], "tags": ["city", "guard"]}
+{"q": "Singapore Airlines London", "expect_top": [{"kind": "flight", "id_prefix": "SIA"}], "tags": ["airline_place"], "api": "v2", "note": "an airline and a city: its flights there"}
+{"q": "Scoot Singapore", "expect_top": [{"kind": "flight", "id_prefix": "TGW"}], "tags": ["airline_place"], "api": "v2"}
+{"q": "Cathay Hong Kong", "expect_top": [{"kind": "flight", "id_prefix": "CPA"}], "tags": ["airline_place"], "api": "v2"}
+{"q": "Munich to Singapore", "expect_top": [{"kind": "flight", "detail_prefix": "MUC → SIN"}], "tags": ["route", "words", "cities"], "api": "v2"}
+{"q": "Los Angeles", "expect_top": [{"kind": "airport", "id": "LAX"}], "tags": ["city", "guard"], "api": "v2", "note": "two words, one city: not a route from Lagos"}
+{"q": "London Heathrow", "expect_top": [{"kind": "airport", "id": "LHR"}], "tags": ["airport", "guard"], "api": "v2"}
+{"q": "Boeing 787", "expect_top": [{"kind": "type", "id": "B789"}], "tags": ["type"], "api": "v2"}
+{"q": "Dreamliner", "expect_in_top_k": [{"kind": "type", "id": "B789"}], "tags": ["type"], "api": "v2"}
+{"q": "A350-900", "expect_top": [{"kind": "type", "id": "A359"}], "tags": ["type"], "api": "v2"}
+{"q": "777-300ER", "expect_top": [{"kind": "type", "id": "B77W"}], "tags": ["type"], "api": "v2"}
+{"q": "Emirates A380", "expect_top": [{"kind": "aircraft"}], "expect_not_in_top_k": [{"kind": "flight"}], "k": 3, "tags": ["fleet", "type"], "api": "v2"}
