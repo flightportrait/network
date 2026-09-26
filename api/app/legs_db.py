@@ -232,6 +232,24 @@ class LegBook:
         return [{"callsign": r[0], "flights": r[1], "last": r[2]}
                 for r in rows]
 
+    def times_at(self, callsign: str, airport: str, end: str,
+                 limit: int = 30) -> list[int]:
+        """When a callsign was seen leaving (end="org") or reaching
+        (end="dst") one airport, newest first, as UTC epochs. One-sided
+        legs count: a flight whose other end nobody heard still left on
+        time, and that clock is what a published time is checked against."""
+        col, ts = ("org", "dep_ts") if end == "org" else ("dst", "arr_ts")
+        with self._lock:
+            self._connect()
+            if self._conn is None:
+                return []
+            rows = self._conn.execute(
+                "SELECT %s FROM legs WHERE callsign = ? AND %s = ?"
+                " AND %s IS NOT NULL ORDER BY date DESC LIMIT ?"
+                % (ts, col, ts),
+                (callsign.strip().upper(), airport, limit)).fetchall()
+        return [r[0] for r in rows]
+
     def meta(self) -> dict:
         with self._lock:
             self._connect()

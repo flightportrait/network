@@ -33,8 +33,8 @@ from . import openapi as spec
 from . import ratelimit
 from .db import get_session, make_sessionmaker
 from .errors import ApiError
-from .refdata_models import Claim, Endorsement, PullState, RefAirport, \
-    RouteCatalog
+from .refdata_models import Claim, Endorsement, PullState, RefAirline, \
+    RefAirport, RefSchedule, RouteCatalog
 
 router = APIRouter()
 CACHE = "public, s-maxage=600"
@@ -47,6 +47,11 @@ SUGGESTIONS = 3
 MAX_CLAIMS_PER_QUESTION = 3
 PURGE_AFTER_DAYS = 90
 PULL_PAGE = 500
+# The key a claim filed from an airport's published timetable carries,
+# and how far the published time may sit from the observed one.
+TIMETABLE_KEY = "timetable"
+CLOCK_TOLERANCE_MIN = 45
+CLOCK_MIN_SEEN = 3
 FLIGHT_NUMBER = re.compile(r"^([A-Z]{3})0*(\d+)[A-Z]{0,2}$")
 
 # Still-air range, km, by ICAO type designator: a claim beyond it is wrong.
@@ -182,6 +187,75 @@ def candidates(session, airports, network, gap, callsign, limit=SUGGESTIONS):
     return [code for _, _, code in out[:limit]]
 
 
+class Timetable:
+    """The schedule rows airports publish, indexed by flight number and
+    airport, so a gap can be asked of them. A board writes the marketed
+    number (SQ830) and the aircraft its callsign (SIA830): the digits
+    and the airline, folded through our registry, join the two. Loaded
+    once per process, like AirportIndex."""
+
+    def __init__(self):
+        self.index = None
+
+    def load(self, session):
+        if self.index is None:
+            from .refdata_ingest import _airline_of
+            iata_icao = {a.iata: a.icao for a in session.execute(
+                select(RefAirline).where(RefAirline.iata.is_not(None))
+            ).scalars()}
+            index = {}
+            for r in session.execute(
+                    select(RefSchedule).where(
+                        RefSchedule.flight.is_not(None),
+                        RefSchedule.source.in_(("published", "both")))
+            ).scalars():
+                number = "".join(ch for ch in r.flight
+                                 if ch.isdigit()).lstrip("0")
+                if not number:
+                    continue
+                prefix, icao = _airline_of(r.flight, iata_icao)
+                index.setdefault((number, r.org, "org"), []).append(
+                    (prefix, icao, r.dst, r.dep_min))
+                index.setdefault((number, r.dst, "dst"), []).append(
+                    (prefix, icao, r.org, r.arr_min))
+            self.index = index
+        return self.index
+
+    def answers(self, session, gap, callsign):
+        """{airport: published local minute at the known end, or None}
+        for the missing end: what the known airport's timetable lists
+        under this airline and number. Empty when it lists nothing."""
+        from .refdata_ingest import _same_carrier
+        m = FLIGHT_NUMBER.match(callsign)
+        if not m:
+            return {}
+        airline, number = m.group(1), m.group(2)
+        end = "org" if gap["side"] == "dest" else "dst"
+        exclude = {gap["known"], *(gap.get("chain") or [])}
+        out = {}
+        for prefix, icao, other, minute in self.load(session).get(
+                (number, gap["known"], end), ()):
+            if other in exclude or not _same_carrier(icao, prefix, airline,
+                                                     True):
+                continue
+            if out.get(other) is None:
+                out[other] = minute
+        return out
+
+
+def _local_minutes(epochs, tzname):
+    from zoneinfo import ZoneInfo
+    try:
+        zone = ZoneInfo(tzname)
+    except Exception:                       # noqa: BLE001
+        return []
+    out = []
+    for ts in epochs:
+        local = datetime.datetime.fromtimestamp(int(ts), zone)
+        out.append(local.hour * 60 + local.minute)
+    return out
+
+
 def unique_candidate(session, airports, network, gap, callsign):
     """The one airport the airline is known to fly to that fits every
     filter, or None when there is none or more than one."""
@@ -194,7 +268,7 @@ def unique_candidate(session, airports, network, gap, callsign):
 # ---- checks -------------------------------------------------------------
 
 def check_claim(session, book, claim, airports=None, network=None,
-                legs=None):
+                legs=None, timetable=None):
     """Every test the evidence allows, as {name: pass | fail | skip} plus
     the counts of people behind the claim. verdict() reads the set."""
     gap = book.get(claim.callsign)
@@ -272,6 +346,24 @@ def check_claim(session, book, claim, airports=None, network=None,
         elif elsewhere >= LOG_ELSEWHERE_FLIGHTS:
             checks["log"] = "fail"
 
+    checks["timetable"] = checks["clock"] = "skip"
+    told = timetable.answers(session, gap, claim.callsign) \
+        if timetable is not None else {}
+    if told:
+        checks["timetable"] = "pass" if claimed in told else "fail"
+        published = told.get(claimed)
+        end = "org" if side == "dest" else "dst"
+        if (published is not None and known is not None and known.tz
+                and legs is not None and legs.available()):
+            seen = _local_minutes(legs.times_at(claim.callsign, gap["known"],
+                                                end), known.tz)
+            near = sum(1 for m in seen if abs((m - published + 720) % 1440
+                                              - 720) <= CLOCK_TOLERANCE_MIN)
+            if seen and 2 * near >= len(seen):
+                checks["clock"] = "pass"
+            elif len(seen) >= CLOCK_MIN_SEEN and near == 0:
+                checks["clock"] = "fail"
+
     checks["unique"] = "skip"
     if airports is not None and network is not None:
         sole = unique_candidate(session, airports, network, gap, claim.callsign)
@@ -298,7 +390,8 @@ def check_claim(session, book, claim, airports=None, network=None,
 HARD = ("asked", "known_end", "not_same", "airport", "type")
 # Evidence that can agree or disagree; a disagreement is a reason for a
 # person to look, never a rejection on its own.
-SOFT = ("corridor", "rotation", "mirror", "observation", "unique", "log")
+SOFT = ("corridor", "rotation", "mirror", "observation", "unique", "log",
+        "timetable", "clock")
 LOG_MIN_FLIGHTS = 2
 LOG_ELSEWHERE_FLIGHTS = 10
 LOG_RECENT_DAYS = 90
@@ -387,12 +480,13 @@ def file_submission(session, book, sub, now=None):
 
 
 def evaluate(session, book, claim, now=None, airports=None, network=None,
-             legs=None):
+             legs=None, timetable=None):
     """Run the checks, record the verdict, act when the evidence is
     decisive. Pending claims are evaluated on every pull, since the
     artifact behind the checks refreshes nightly."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
-    claim.checks = check_claim(session, book, claim, airports, network, legs)
+    claim.checks = check_claim(session, book, claim, airports, network, legs,
+                               timetable)
     if claim.status != "pending" or claim.verdict == "contested":
         return claim.status
     claim.verdict = verdict(claim.checks)
@@ -413,12 +507,17 @@ def _approve(session, book, claim, now, by, valid_from=None, note=None):
             via, dest = chain[:-1], chain[-1]
         else:
             origin, via = chain[0], chain[1:]
+    endorsements = session.execute(
+        select(Endorsement).where(Endorsement.claim_id == claim.id)
+    ).scalars().all()
     start = valid_from
     if start is None:
-        starts = [e.valid_from for e in session.execute(
-            select(Endorsement).where(Endorsement.claim_id == claim.id)
-        ).scalars() if e.valid_from]
+        starts = [e.valid_from for e in endorsements if e.valid_from]
         start = min(starts) if starts else now.date()
+    # an answer an airport's own timetable gave is published, not a
+    # contribution, and the catalog row says so
+    source = ("published" if any(e.key_name == TIMETABLE_KEY
+                                 for e in endorsements) else "community")
     for old in session.execute(
             select(RouteCatalog).where(RouteCatalog.callsign == claim.callsign,
                                        RouteCatalog.valid_to.is_(None))
@@ -427,7 +526,7 @@ def _approve(session, book, claim, now, by, valid_from=None, note=None):
         old.closed_reason = "superseded"
     session.add(RouteCatalog(
         callsign=claim.callsign, origin=origin, dest=dest, via=via or None,
-        valid_from=start, source="community", claim_id=claim.id,
+        valid_from=start, source=source, claim_id=claim.id,
         approved_at=now))
     claim.status, claim.reviewed_at, claim.reviewed_by = "approved", now, by
     claim.review_note = note
@@ -450,6 +549,7 @@ def pull(session, book, fetch, now=None, routes=None, legs=None):
     now = now or datetime.datetime.now(datetime.timezone.utc)
     airports = AirportIndex()
     network = routes.by_airline() if routes is not None else {}
+    timetable = Timetable()
     state = session.get(PullState, 1)
     if state is None:
         state = PullState(id=1, cursor=0)
@@ -472,7 +572,8 @@ def pull(session, book, fetch, now=None, routes=None, legs=None):
     counts.update({"approved": 0, "rejected": 0})
     for claim in session.execute(
             select(Claim).where(Claim.status == "pending")).scalars().all():
-        status = evaluate(session, book, claim, now, airports, network, legs)
+        status = evaluate(session, book, claim, now, airports, network, legs,
+                          timetable)
         if status in ("approved", "rejected"):
             counts[status] += 1
     cutoff = now - datetime.timedelta(days=PURGE_AFTER_DAYS)
@@ -493,32 +594,43 @@ def pull(session, book, fetch, now=None, routes=None, legs=None):
 
 
 def propose(session, book, routes, now=None, legs=None):
-    """Where the evidence leaves exactly one airport the airline flies
-    to, file that as a claim and judge it like any other. Returns
-    (filed, approved). Questions with an open or approved claim, or too
-    few rotations, are left alone."""
+    """File what the evidence points at and judge it like any other
+    claim. First the known airport's published timetable, when it lists
+    exactly one other end for this airline and number; otherwise, with
+    enough rotations, the one airport the airline flies to at this
+    distance and heading. Returns (filed, approved). Questions with an
+    open or approved claim are left alone."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
     airports = AirportIndex()
     network = routes.by_airline()
+    timetable = Timetable()
     taken = {cs for (cs,) in session.execute(
         select(Claim.callsign).where(Claim.status != "rejected"))}
     filed = approved = 0
     for callsign, gap in book.page(0, book.count())[0]:
-        if callsign in taken or (gap.get("n_rot") or 0) < PROPOSE_ROTATIONS:
+        if callsign in taken:
             continue
-        code = unique_candidate(session, airports, network, gap, callsign)
+        told = timetable.answers(session, gap, callsign)
+        if len(told) == 1:
+            code = next(iter(told))
+            sub = {"callsign": callsign, "key_name": TIMETABLE_KEY,
+                   "note": "the airport's published timetable"}
+        elif (gap.get("n_rot") or 0) >= PROPOSE_ROTATIONS:
+            code = unique_candidate(session, airports, network, gap, callsign)
+            sub = {"callsign": callsign, "key_name": "evidence",
+                   "note": "the one airport the airline flies to at this "
+                           "distance and heading"}
+        else:
+            code = None
         if code is None:
             continue
-        sub = {"callsign": callsign, "key_name": "evidence",
-               "note": "the one airport the airline flies to at this "
-                       "distance and heading"}
         sub["dest" if gap["side"] == "dest" else "origin"] = code
         claim = file_submission(session, book, sub, now)
         if claim is None:
             continue
         filed += 1
         if evaluate(session, book, claim, now, airports, network,
-                    legs) == "approved":
+                    legs, timetable) == "approved":
             approved += 1
         if filed % 200 == 0:
             session.commit()

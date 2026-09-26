@@ -8,7 +8,8 @@ import sqlite3
 from app import contributions, refdata_ingest
 from app.gaps_db import GapBook
 from app.legs_db import LegBook
-from app.refdata_models import Claim, Endorsement, RefAirport, RouteCatalog
+from app.refdata_models import Claim, Endorsement, RefAirline, RefAirport, \
+    RefSchedule, RouteCatalog
 from app.routes_db import RouteBook
 
 AIRPORTS_CSV = (
@@ -560,3 +561,108 @@ def test_bulk_approve_takes_only_clean_claims(ctx, tmp_path):
     finally:
         session.close()
     assert client.get("/v1/flights/QFA9").json()["route"] == ["PER", "SIN"]
+
+
+# SIA826 leaves Changi at 01:05 and nobody hears it land. Changi's
+# departures board lists SQ826 to Beijing at 01:00: the marketed number
+# folds to the callsign through the registry, and the clock agrees.
+TIMETABLE_GAP = {"side": "dest", "known": "SIN", "hint": None, "type": None,
+                 "n_recent": 40, "last_seen": RECENT, "last_lat": None,
+                 "last_lon": None, "last_trk": None, "est_km": None,
+                 "n_rot": 0}
+
+
+def _timetable(ctx, tmp_path, board, seen_local_min):
+    """The gaps artifact with SIA826 asked, Changi on Singapore time,
+    board rows in the schedule, and SIA826 seen leaving Changi on each
+    of the last days at seen_local_min (never landing)."""
+    client, app, sm = _setup(ctx, tmp_path)
+    _write_gz(tmp_path / "gaps.json.gz", {"SIA826": TIMETABLE_GAP})
+    app.state.gaps = GapBook(str(tmp_path / "gaps.json.gz"))
+    session = sm()
+    try:
+        session.query(RefAirport).filter(RefAirport.iata == "SIN").one() \
+            .tz = "Asia/Singapore"
+        session.add_all([RefAirline(icao="SIA", iata="SQ", name="Singapore Airlines"),
+                         RefAirline(icao="MAS", iata="MH", name="Malaysia Airlines")])
+        for flight, dst, dep in board:
+            session.add(RefSchedule(callsign=flight, org="SIN", dst=dst,
+                                    airline_icao="", dep_min=dep, flight=flight,
+                                    source="published", n_flights=4))
+        session.commit()
+    finally:
+        session.close()
+    sgt = datetime.timezone(datetime.timedelta(hours=8))
+    rows = []
+    for back in range(1, 5):
+        day = datetime.date.today() - datetime.timedelta(days=back)
+        dep = datetime.datetime.combine(day, datetime.time(), sgt) \
+            + datetime.timedelta(minutes=seen_local_min)
+        rows.append(("76cd%02x" % back, None, "A359", "SIA826", day.isoformat(),
+                     "SIN", None, int(dep.timestamp()), None, 38000))
+    _legs_file(tmp_path / "legs.db", rows)
+    app.state.legs = LegBook(str(tmp_path / "legs.db"))
+    return client, app, sm
+
+
+def test_a_published_timetable_answers_a_gap(ctx, tmp_path):
+    client, app, sm = _timetable(ctx, tmp_path, [("SQ826", "PEK", 60),
+                                                 ("MH826", "CTU", 65)],
+                                 seen_local_min=65)
+    session = sm()
+    try:
+        assert contributions.propose(session, app.state.gaps, app.state.routes,
+                                     legs=app.state.legs) == (1, 1)
+        claim = session.query(Claim).one()
+        assert (claim.origin, claim.dest, claim.status) == ("SIN", "PEK",
+                                                            "approved")
+        assert claim.checks["timetable"] == "pass"
+        assert claim.checks["clock"] == "pass"
+        assert session.query(Endorsement).one().key_name == "timetable"
+        assert session.query(RouteCatalog).one().source == "published"
+    finally:
+        session.close()
+    assert client.get("/v1/flights/SIA826").json()["route"] == ["SIN", "PEK"]
+    assert client.get("/v1/contributors").json()["contributors"] == []
+
+
+def test_a_timetable_the_clock_disagrees_with_waits_for_a_person(ctx, tmp_path):
+    """The board says 01:00, the aircraft leaves at 07:00 every day:
+    same digits, likely another service. Filed, held, not served."""
+    client, app, sm = _timetable(ctx, tmp_path, [("SQ826", "PEK", 60)],
+                                 seen_local_min=420)
+    session = sm()
+    try:
+        assert contributions.propose(session, app.state.gaps, app.state.routes,
+                                     legs=app.state.legs) == (1, 0)
+        claim = session.query(Claim).one()
+        assert claim.checks["clock"] == "fail"
+        assert (claim.status, claim.verdict) == ("pending", "unverified")
+    finally:
+        session.close()
+    assert client.get("/v1/flights/SIA826").status_code == 404
+
+
+def test_another_airlines_number_answers_nothing(ctx, tmp_path):
+    client, app, sm = _timetable(ctx, tmp_path, [("MH826", "CTU", 65)],
+                                 seen_local_min=65)
+    session = sm()
+    try:
+        assert contributions.propose(session, app.state.gaps, app.state.routes,
+                                     legs=app.state.legs) == (0, 0)
+    finally:
+        session.close()
+
+
+def test_a_timetable_that_names_another_airport_holds_a_claim(ctx, tmp_path):
+    client, app, sm = _timetable(ctx, tmp_path, [("SQ826", "PEK", 60)],
+                                 seen_local_min=65)
+    counts = _pull(sm, app, [_sub(1, "SIA826", dest="NRT", key_name="alice")])
+    assert counts["filed"] == 1 and counts["approved"] == 0
+    session = sm()
+    try:
+        claim = session.query(Claim).one()
+        assert claim.checks["timetable"] == "fail"
+        assert claim.status == "pending"
+    finally:
+        session.close()

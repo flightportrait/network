@@ -43,6 +43,8 @@ seen flying there. Pick one, or type another.
 | observation | agrees with the rare sighting of that end, when there was one |
 | log | the airframe log has seen this pair under this flight number |
 | unique | the one airport the airline flies to that fits every filter |
+| timetable | the known airport's published timetable lists this pair under the airline and number |
+| clock | the published time agrees with when the flight was seen at the known end |
 | network | the airline is seen flying there elsewhere |
 | keyed | distinct key holders who said the same |
 
@@ -52,9 +54,13 @@ closed on its own. A claim with two agreeing signals and none
 disagreeing enters the catalog on its own. Everything else, including
 any claim some evidence disagrees with, waits for a person.
 
-When the filters leave exactly one airport the airline flies to, the
-network files that answer itself each night and judges it like any
-other; such claims carry the endorser `evidence`.
+When the known airport's published timetable lists exactly one other
+end for the airline and number (the marketed SQ826 answers the callsign
+SIA826), the network files that answer itself each night, with the
+endorser `timetable`; the catalog row it becomes is marked published.
+Otherwise, when the filters leave exactly one airport the airline flies
+to, it files that, with the endorser `evidence`. Both are judged like
+any other claim.
 
 A claim with no failing check and two corroborating signals enters the
 catalog on its own. A claim that fails a check is closed. Anything in
