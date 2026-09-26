@@ -369,12 +369,7 @@ async fn canonical_spellings_redirect() {
 async fn serves_a_generation_it_cannot_write() {
     let d = built("readonly");
     let g = d.join("search").join("20260926T024000Z");
-    for e in std::fs::read_dir(&g).unwrap() {
-        let p = e.unwrap().path();
-        if p.file_name().unwrap().to_string_lossy().ends_with(".lock") {
-            std::fs::remove_file(&p).unwrap();
-        }
-    }
+    assert!(std::fs::read_dir(&g).unwrap().all(|e| !e.unwrap().file_name().to_string_lossy().ends_with(".lock")));
     let ro = |p: &Path, on: bool| {
         let mut perm = std::fs::metadata(p).unwrap().permissions();
         perm.set_readonly(on);

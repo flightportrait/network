@@ -26,7 +26,7 @@ use super::schema::{schema, Fields};
 use super::text::{compact, phrase, words};
 
 const USAGE: &str = "usage: networkd search-index build --refdata <refdata.sqlite> [--legs <legs.db>] --out <dir> [--keep N] [--force]";
-const HEAP: usize = 256 << 20;
+const HEAP: usize = 128 << 20;
 
 pub struct Options {
     pub refdata: PathBuf,
@@ -131,8 +131,9 @@ fn prune(out: &Path, current: &str, keep: usize) -> std::io::Result<()> {
         let e = e?;
         let name = e.file_name().to_string_lossy().to_string();
         if name.starts_with(".build-") {
-            // another build may be writing it; only ours are stale
-            if name.ends_with(&format!("-{}", std::process::id())) {
+            // another build may be writing one; a day old, it was left
+            let old = e.metadata()?.modified()?.elapsed().is_ok_and(|a| a.as_secs() > 86_400);
+            if old || name.ends_with(&format!("-{}", std::process::id())) {
                 std::fs::remove_dir_all(e.path())?;
             }
             continue;
@@ -324,9 +325,19 @@ fn write(c: &Connection, legs_db: Option<&Path>, dir: &Path, generation: &str, a
     let day = chrono::NaiveDate::parse_from_str(&as_of[..10], "%Y-%m-%d")?;
 
     // ---- the flight log: last seen, and callsigns only it knows ------
+    // kept only for the callsigns the index holds: the schedule's, and
+    // an airline's numbered callsigns the schedule lacks
+    let scheduled: HashSet<String> =
+        c.prepare("SELECT DISTINCT callsign FROM ref_schedule")?.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+    let designators: HashSet<String> =
+        c.prepare("SELECT icao FROM ref_airlines")?.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+    let numbered = |cs: &str| {
+        cs.len() > 3 && cs.is_char_boundary(3) && designators.contains(&cs[..3]) && cs[3..].starts_with(|c: char| c.is_ascii_digit())
+    };
     let mut seen: HashMap<String, (i64, Option<String>)> = HashMap::new();
     let mut window_days = None;
-    let mut log_legs: HashMap<String, Vec<(String, String, i64)>> = HashMap::new();
+    // callsign -> its most flown leg (org, dst, flights)
+    let mut log_legs: HashMap<String, (String, String, i64)> = HashMap::new();
     if let Some(p) = legs_db {
         let l = Connection::open_with_flags(p, OpenFlags::SQLITE_OPEN_READ_ONLY).with_context(|| format!("open {}", p.display()))?;
         window_days = l
@@ -338,6 +349,10 @@ fn write(c: &Connection, legs_db: Option<&Path>, dir: &Path, generation: &str, a
         let mut rows = stmt.query([])?;
         while let Some(r) = rows.next()? {
             let cs: String = r.get(0)?;
+            let known = scheduled.contains(&cs);
+            if !known && !numbered(&cs) {
+                continue;
+            }
             let (org, dst): (Option<String>, Option<String>) = (r.get(1)?, r.get(2)?);
             let n: i64 = r.get(3)?;
             let last: Option<String> = r.get(4)?;
@@ -346,8 +361,11 @@ fn write(c: &Connection, legs_db: Option<&Path>, dir: &Path, generation: &str, a
             if last > e.1 {
                 e.1 = last;
             }
-            if let (Some(o), Some(d)) = (org, dst) {
-                log_legs.entry(cs).or_default().push((o, d, n));
+            if let (false, Some(o), Some(d)) = (known, org, dst) {
+                let best = log_legs.entry(cs).or_insert((o.clone(), d.clone(), 0));
+                if n > best.2 {
+                    *best = (o, d, n);
+                }
             }
         }
     }
@@ -538,7 +556,6 @@ fn write(c: &Connection, legs_db: Option<&Path>, dir: &Path, generation: &str, a
     let mut rows = stmt.query([])?;
     let mut group: Vec<Leg> = vec![];
     let mut current: Option<(String, Option<String>)> = None;
-    let mut scheduled: HashSet<String> = HashSet::new();
     let emit = |w: &mut Writer, cs: &str, airline: Option<&str>, legs: Vec<Leg>| -> anyhow::Result<()> {
         let flights: i64 = legs.iter().map(|l| l.n).sum();
         let al = airline.and_then(|a| airline_at.get(a)).map(|&k| &airlines[k]);
@@ -591,7 +608,6 @@ fn write(c: &Connection, legs_db: Option<&Path>, dir: &Path, generation: &str, a
         if current.as_ref().map(|c| &c.0) != Some(&cs) {
             if let Some((prev, al)) = current.take() {
                 emit(&mut w, &prev, al.as_deref(), std::mem::take(&mut group))?;
-                scheduled.insert(prev);
             }
             current = Some((cs.clone(), airline));
         }
@@ -608,22 +624,18 @@ fn write(c: &Connection, legs_db: Option<&Path>, dir: &Path, generation: &str, a
     }
     if let Some((prev, al)) = current.take() {
         emit(&mut w, &prev, al.as_deref(), std::mem::take(&mut group))?;
-        scheduled.insert(prev);
     }
     // flights only the log knows: an airline's callsign seen at least
     // twice, on its most flown leg
-    let mut only: Vec<(&String, &Vec<(String, String, i64)>)> = log_legs.iter().filter(|(cs, _)| !scheduled.contains(*cs)).collect();
+    let mut only: Vec<(&String, &(String, String, i64))> = log_legs.iter().filter(|(cs, _)| !scheduled.contains(*cs)).collect();
     only.sort_by(|a, b| a.0.cmp(b.0));
-    for (cs, legs) in only {
-        let prefix = cs.get(..3).unwrap_or("");
-        let numbered = cs.len() > 3 && cs[3..].starts_with(|c: char| c.is_ascii_digit());
-        let total: i64 = legs.iter().map(|l| l.2).sum();
-        if !numbered || total < 2 || !airline_at.contains_key(prefix) {
+    for (cs, (org, dst, _)) in only {
+        let total = seen.get(cs).map_or(0, |s| s.0);
+        if total < 2 {
             continue;
         }
-        let top = legs.iter().max_by(|a, b| a.2.cmp(&b.2).then(b.0.cmp(&a.0))).unwrap();
-        let leg = Leg { org: top.0.clone(), dst: top.1.clone(), dep: None, arr: None, type_code: None, flight: None, source: Some("observed".into()), n: 0 };
-        emit(&mut w, cs, Some(prefix), vec![leg])?;
+        let leg = Leg { org: org.clone(), dst: dst.clone(), dep: None, arr: None, type_code: None, flight: None, source: Some("observed".into()), n: 0 };
+        emit(&mut w, cs, Some(&cs[..3]), vec![leg])?;
     }
 
     // ---- airframes ---------------------------------------------------
@@ -660,6 +672,13 @@ fn write(c: &Connection, legs_db: Option<&Path>, dir: &Path, generation: &str, a
         iw.merge(&ids).wait()?;
     }
     iw.wait_merging_threads()?;
+    // the writer's lock files: nothing writes a generation again
+    for e in std::fs::read_dir(dir)? {
+        let p = e?.path();
+        if p.file_name().is_some_and(|n| n.to_string_lossy().ends_with(".lock")) {
+            std::fs::remove_file(p)?;
+        }
+    }
     let lexicon = Lexicon {
         generation: generation.to_string(),
         as_of: as_of.to_string(),
