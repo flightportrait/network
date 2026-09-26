@@ -219,7 +219,8 @@ class RefSchedule(Base):
     # The weekdays this flight keeps another slot altogether (more than
     # WEEKDAY_APART_MIN from dep_min): {"4": [dep_min, arr_min]}, 0 =
     # Monday, local minutes as above; null when every day is the same.
-    weekdays: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    weekdays: Mapped[dict | None] = mapped_column(JSON(none_as_null=True),
+                                                  nullable=True)
     # Dominant aircraft type on this flight number.
     type_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
     # The marketed flight number (SK907) when a published board row was
