@@ -829,12 +829,14 @@ def approve_clean(session, book, contributor, note=None):
     that no check disagrees with. Returns the claims approved."""
     now = datetime.datetime.now(datetime.timezone.utc)
     done = []
+    # a subquery, not DISTINCT: Postgres cannot compare the json checks
     for claim in session.execute(
-            select(Claim).join(Endorsement, Endorsement.claim_id == Claim.id)
-            .where(Claim.status == "pending",
-                   or_(Endorsement.key_name == contributor,
-                       Endorsement.handle == contributor))
-            .distinct()).scalars().all():
+            select(Claim).where(
+                Claim.status == "pending",
+                Claim.id.in_(select(Endorsement.claim_id).where(
+                    or_(Endorsement.key_name == contributor,
+                        Endorsement.handle == contributor))))
+            .order_by(Claim.id)).scalars().all():
         if claim.verdict == "contested" or disagrees(claim.checks):
             continue
         _approve(session, book, claim, now, by="operator", note=note)
