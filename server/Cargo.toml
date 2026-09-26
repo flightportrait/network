@@ -25,6 +25,8 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 sha1 = "0.11"
 sha2 = "0.11"
+# the /v2 search index (pinned: the index format is read by what built it)
+tantivy = { version = "=0.26.2", default-features = false, features = ["mmap", "lz4-compression"] }
 base64 = "0.23"
 clap = { version = "4", features = ["derive"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
