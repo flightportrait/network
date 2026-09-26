@@ -1,8 +1,10 @@
 /* One search box for every page. Airports and airlines answer from two
    small files already in the browser; registrations, flight numbers,
-   routes and fleets come from /v1/search. The query is normalised before
-   it leaves, so every spelling of a prefix shares one cache entry at the
-   edge. Attach with fpSearch(inputElement, listElement, opts). */
+   routes and fleets come from /v1/search. The query leaves in the API's
+   canonical form (trimmed, one space between words, uppercase): any other
+   spelling costs a redirect to it, and every spelling of a prefix shares
+   one cache entry at the edge. Attach with fpSearch(inputElement,
+   listElement, opts). */
 (function () {
   "use strict";
   var API = window.FP_API || "https://data.flightportrait.com";

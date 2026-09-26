@@ -139,6 +139,14 @@ R429 = {429: {
         "schema": ERROR_SCHEMA,
         "example": {"error": "rate_limited", "detail": "slow down"}}},
 }}
+R301_SEARCH = {301: {
+    "description": "The query in another spelling than its canonical one "
+                   "(trimmed, one space between words, uppercase): "
+                   "Location is this URL with q canonical, every other "
+                   "parameter kept. Cached like the answer.",
+    "headers": {"Location": {"schema": {"type": "string"},
+                             "example": "/v1/search?q=SQ%20322"}},
+}}
 R404 = {404: {"description": "Not found or not observed.",
               "content": _ERR_CONTENT}}
 R422 = {422: {"description": "Malformed input.", "content": _ERR_CONTENT}}

@@ -15,7 +15,9 @@
 //! What is typed is read first: a flight number typed with a space is
 //! one number, two places joined by "to", "from", a dash or an arrow are
 //! a route, and names compare without their accents (the table below,
-//! the one Python folds with through Postgres's translate()).
+//! the one Python folds with through Postgres's translate()). Any
+//! spelling of the query other than its canonical one is answered with a
+//! redirect to it, so the edge caches one answer per query.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
@@ -899,6 +901,46 @@ fn run(c: &Conn, app: &App, q: &str) -> rusqlite::Result<String> {
     Ok(out)
 }
 
+/// Python's `urllib.parse.quote(s, safe="")`.
+fn quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 3);
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b"_.-~".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// This request with q in its canonical spelling, every other parameter
+/// as it came: 301, cached like the answer.
+fn redirect(uri: &axum::http::Uri, q: &str) -> Response {
+    let mut parts: Vec<String> = vec![];
+    let mut placed = false;
+    for piece in uri.query().unwrap_or("").split('&').filter(|p| !p.is_empty()) {
+        let key = piece.split('=').next().unwrap_or("");
+        if form_urlencoded::parse(key.as_bytes()).next().is_some_and(|(k, _)| k == "q") {
+            if !placed {
+                parts.push(format!("q={}", quote(q)));
+                placed = true;
+            }
+            continue;
+        }
+        parts.push(piece.to_string());
+    }
+    let location = format!("{}?{}", uri.path(), parts.join("&"));
+    let mut r = Response::new(axum::body::Body::empty());
+    *r.status_mut() = axum::http::StatusCode::MOVED_PERMANENTLY;
+    let h = r.headers_mut();
+    if let Ok(v) = axum::http::HeaderValue::from_str(&location) {
+        h.insert(axum::http::header::LOCATION, v);
+    }
+    h.insert(axum::http::header::CACHE_CONTROL, axum::http::HeaderValue::from_static(CACHE));
+    r
+}
+
 pub async fn search(State(app): State<Arc<App>>, req: Request) -> Response {
     if !app.refdb.has(NEEDS) {
         return crate::proxy::forward(State(app), req).await;
@@ -921,6 +963,9 @@ pub async fn search(State(app): State<Arc<App>>, req: Request) -> Response {
     let q = norm(&raw);
     if q.chars().count() < 2 {
         return ApiError::new(422, "invalid_request", "type at least two characters").into_response();
+    }
+    if raw != q {
+        return redirect(req.uri(), &q);
     }
     let stamp = crate::boards::mtime(&app.settings.legs_path).map(|t| format!("{t:?}")).unwrap_or_default();
     let key = format!("search:{stamp}:{q}");
@@ -1023,6 +1068,31 @@ mod tests {
         ] {
             assert_eq!(places(q), None, "{q}");
         }
+    }
+
+    #[test]
+    fn quote_as_python() {
+        assert_eq!(quote("SQ 322"), "SQ%20322");
+        assert_eq!(quote("SÃO PAULO"), "S%C3%83O%20PAULO");
+        assert_eq!(quote("A-B_C.D~E/F&G=H+%"), "A-B_C.D~E%2FF%26G%3DH%2B%25");
+    }
+
+    #[test]
+    fn shapes() {
+        let s = shape("SQ322");
+        assert!(s.flight && s.aircraft && !s.airport && !s.pair);
+        let s = shape("SIN LHR");
+        assert!(s.pair && !s.flight);
+        let s = shape("SINGAPORE");
+        assert!(s.airport && s.airline && !s.aircraft);
+        assert_eq!(norm("  sin   lhr "), "SIN LHR");
+        assert_eq!(norm("straße"), "STRASSE");
+    }
+
+    #[test]
+    fn scores_keep_python_types() {
+        assert_eq!(Score::Int(100).plus_int(2).rounded(), Score::Int(102));
+        assert_eq!(Score::Int(60).plus(lift(999)).rounded(), Score::Float(72.0));
     }
 
     // ---- the route over a snapshot -------------------------------------
@@ -1128,8 +1198,7 @@ mod tests {
     }
 
     async fn ids(r: &mut axum::Router, q: &str) -> Vec<String> {
-        let path = format!("/v1/search?{}", form_urlencoded::Serializer::new(String::new()).append_pair("q", q).finish());
-        let (status, _, v) = get(r, &path).await;
+        let (status, _, v) = get(r, &format!("/v1/search?q={}", quote(q))).await;
         assert_eq!(status, 200, "{q}");
         v["results"].as_array().unwrap().iter().map(|h| h["id"].as_str().unwrap().to_string()).collect()
     }
@@ -1179,5 +1248,27 @@ mod tests {
         assert!(got.contains(&"TGW".to_string()) && got.contains(&"VSV".to_string()), "{got:?}");
         assert_eq!(ids(&mut r, "CHNAGI").await, ["SIN", "WSAC"]);
         assert_eq!(ids(&mut r, "EMIRATS").await, ["UAE"]);
+    }
+
+    #[tokio::test]
+    async fn other_spellings_redirect_to_the_canonical_query() {
+        let mut r = crate::router(app("redirect"));
+        for (path, want) in [
+            ("/v1/search?q=singapore", "/v1/search?q=SINGAPORE"),
+            ("/v1/search?q=%20%20sq%20%20%20322%20", "/v1/search?q=SQ%20322"),
+            ("/v1/search?q=S%C3%A3o+Paulo", "/v1/search?q=S%C3%83O%20PAULO"),
+            ("/v1/search?x=1&q=sin&y=a+b", "/v1/search?x=1&q=SIN&y=a+b"),
+            ("/v1/search?q=a&q=sin", "/v1/search?q=SIN"),
+        ] {
+            let (status, h, _) = get(&mut r, path).await;
+            assert_eq!(status, 301, "{path}");
+            assert_eq!(h["location"], want, "{path}");
+            assert_eq!(h["cache-control"], CACHE);
+        }
+        let (status, h, v) = get(&mut r, "/v1/search?q=SQ%20322").await;
+        assert_eq!((status, h["cache-control"].to_str().unwrap()), (200, CACHE));
+        assert_eq!(v["q"], "SQ 322");
+        let (status, _, _) = get(&mut r, "/v1/search?q=s").await;
+        assert_eq!(status, 422);
     }
 }

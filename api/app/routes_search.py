@@ -11,9 +11,15 @@ a space ("SQ 322") is one flight number, and two places joined by "to",
 "from", a dash or an arrow ("Singapore to London", "SIN-LHR") are a
 route. Names and cities compare without their accents ("Sao Paulo"
 finds São Paulo); labels keep them.
+
+The query has one canonical spelling, the one `q` echoes (trimmed, one
+space between words, uppercase); any other is answered with a redirect
+to it, so the edge keeps one cached answer per query, not one per
+spelling.
 """
 import math
 import re
+from urllib.parse import quote, unquote_plus
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import String, and_, case, func, or_, select, text
@@ -139,6 +145,21 @@ def _places(q: str):
         a, b = side(tokens[:1]), side(tokens[1:])
     return (a, b) if a and b else None
 
+
+def _canonical_url(request: Request, q: str) -> str:
+    """This request with q in its canonical spelling, every other
+    parameter as it came."""
+    parts, placed = [], False
+    for piece in request.url.query.split("&"):
+        if not piece:
+            continue
+        if unquote_plus(piece.split("=", 1)[0]) == "q":
+            if not placed:
+                parts.append("q=" + quote(q, safe=""))
+                placed = True
+            continue
+        parts.append(piece)
+    return request.url.path + "?" + "&".join(parts)
 
 
 def _lift(n) -> float:
@@ -452,10 +473,13 @@ def _airline_item(a, score):
                 "and a type), airports and airlines; names compare without "
                 "accents. One ranked list: exact codes, then prefixes, then "
                 "word starts, then near misses (only when nothing matched "
-                "a whole code or word), traffic as the tie-breaker. "
+                "a whole code or word), traffic as the tie-breaker. The "
+                "canonical query is trimmed, one space between words, "
+                "uppercase; any other spelling is answered 301 to it. "
                 "Rate: 600 per 600 s (bucket `search`). Cache: 12 h edge.",
     operation_id="search",
-    responses=spec.ok(spec.EX_SEARCH, spec.R429, schema=spec.SCH_SEARCH),
+    responses=spec.ok(spec.EX_SEARCH, spec.R301_SEARCH, spec.R429,
+                      schema=spec.SCH_SEARCH),
     openapi_extra=spec.MAP_TIER,
 )
 def search(request: Request, response: Response,
@@ -465,9 +489,12 @@ def search(request: Request, response: Response,
     settings = request.app.state.settings
     ratelimit.throttle(request, settings.search_rate_limit,
                        settings.rate_window_s, bucket="search")
-    q = _norm(q)
+    raw, q = q, _norm(q)
     if len(q) < 2:
         raise ApiError(422, "invalid_request", "type at least two characters")
+    if raw != q:
+        return Response(status_code=301, headers={
+            "Location": _canonical_url(request, q), "Cache-Control": CACHE})
     term = _compact_flight(q)
     shape = _shape(term)
     places = _places(term)

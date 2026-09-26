@@ -4398,7 +4398,7 @@
           "Reference"
         ],
         "summary": "Search",
-        "description": "One box over registrations, hexes, flight numbers (\"SQ322\", \"SQ 322\"), routes (two places: \"SIN LHR\", \"SIN-LHR\", \"Singapore to London\"), fleets (an operator and a type), airports and airlines; names compare without accents. One ranked list: exact codes, then prefixes, then word starts, then near misses (only when nothing matched a whole code or word), traffic as the tie-breaker. Rate: 600 per 600 s (bucket `search`). Cache: 12 h edge.",
+        "description": "One box over registrations, hexes, flight numbers (\"SQ322\", \"SQ 322\"), routes (two places: \"SIN LHR\", \"SIN-LHR\", \"Singapore to London\"), fleets (an operator and a type), airports and airlines; names compare without accents. One ranked list: exact codes, then prefixes, then word starts, then near misses (only when nothing matched a whole code or word), traffic as the tie-breaker. The canonical query is trimmed, one space between words, uppercase; any other spelling is answered 301 to it. Rate: 600 per 600 s (bucket `search`). Cache: 12 h edge.",
         "operationId": "search",
         "parameters": [
           {
@@ -4490,6 +4490,17 @@
                     }
                   ]
                 }
+              }
+            }
+          },
+          "301": {
+            "description": "The query in another spelling than its canonical one (trimmed, one space between words, uppercase): Location is this URL with q canonical, every other parameter kept. Cached like the answer.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "/v1/search?q=SQ%20322"
               }
             }
           },

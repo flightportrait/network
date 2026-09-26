@@ -302,6 +302,28 @@ def test_a_busy_airport_outranks_an_air_base_named_first(ctx, tmp_path):
     assert body["results"][0]["id"] == "WSAC"
 
 
+def test_other_spellings_redirect_to_the_canonical_query(ctx, tmp_path):
+    client, _ = _ready(ctx, tmp_path)
+    for raw, where in (
+            ("singapore", "/v1/search?q=SINGAPORE"),
+            ("  sq   322 ", "/v1/search?q=SQ%20322"),
+            ("São Paulo", "/v1/search?q=S%C3%83O%20PAULO"),
+            ("sin-lhr", "/v1/search?q=SIN-LHR")):
+        resp = client.get("/v1/search", params={"q": raw},
+                          follow_redirects=False)
+        assert resp.status_code == 301, raw
+        assert resp.headers["Location"] == where
+        assert resp.headers["Cache-Control"] == "public, s-maxage=43200"
+    # other parameters stay, in their order
+    resp = client.get("/v1/search?x=1&q=sin&y=a+b", follow_redirects=False)
+    assert resp.headers["Location"] == "/v1/search?x=1&q=SIN&y=a+b"
+    # the canonical form answers as it is
+    resp = client.get("/v1/search", params={"q": "SQ 322"},
+                      follow_redirects=False)
+    assert resp.status_code == 200
+    assert client.get("/v1/search", params={"q": "s"}).status_code == 422
+
+
 def test_the_fold_table_is_networkds():
     """networkd folds with the same table, or the two answer apart."""
     import os
