@@ -153,7 +153,7 @@ OPENAPI_PATHS = {
     "/v1/alliances/{slug}",
     "/v1/alliances/{slug}/routes",
     "/v1/types/{designator}",
-    "/v1/search",
+    "/v1/search", "/v2/search",
 }
 
 
@@ -162,6 +162,9 @@ def test_openapi_paths_exact(ctx):
     spec = client.get("/openapi.json").json()
     assert set(spec["paths"]) == OPENAPI_PATHS
 
+
+# served by networkd only, documented in the same document
+CANDIDATE_PATHS = {"/v2/search"}
 
 STABLE_PATHS = {
     "/", "/healthz", "/v1/now", "/v1/aircraft", "/v1/trace/{hex}",
@@ -187,7 +190,8 @@ def test_openapi_metadata(ctx):
         assert op.get("description"), path
         assert op.get("tags"), path
         ids.append(op["operationId"])
-        expected = "stable" if path in STABLE_PATHS else "map"
+        expected = "stable" if path in STABLE_PATHS else \
+            "candidate" if path in CANDIDATE_PATHS else "map"
         assert op.get("x-stability") == expected, path
         if path in ("/", "/healthz"):
             assert op.get("x-hidden") is True

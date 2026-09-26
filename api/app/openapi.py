@@ -27,7 +27,9 @@ DESCRIPTION = (
     "\n"
     "**Stability.** Operations marked `x-stability: stable` only ever gain "
     "fields; names and types are frozen. Operations marked `x-stability: "
-    "map` exist for the first-party map and can change with it.\n"
+    "map` exist for the first-party map and can change with it. "
+    "Operations marked `x-stability: candidate` are proposed for the "
+    "stable tier: their shape may still change before it is frozen.\n"
     "\n"
     "**Field dialects.** `/v1/aircraft` and `/v2/point` pass readsb's wire "
     "fields through unchanged (`hex`, `t`, `r`, `gs`, ...) so ecosystem "
@@ -946,3 +948,414 @@ EX_CONTRIBUTORS = {
     "contributors": [{"handle": "spotter_sg", "answers": 23,
                       "latest": "2026-09-14"}],
 }
+
+
+# ---- /v2/search (served by networkd only) ----------------------------
+# networkd answers /v2/search from its own search index; this service
+# does not. The operation is documented here so the one OpenAPI
+# document (which networkd serves) describes it; main.py adds it to the
+# generated paths.
+
+CANDIDATE = {"x-stability": "candidate"}
+
+_SITE = "https://flightportrait.com/network/"
+
+_V2_AIRLINE_REF = _obj({
+    "icao": _t("string", "ICAO designator, e.g. SIA."),
+    "iata": _t("string", "IATA code, e.g. SQ.", nullable=True),
+    "name": _t("string", "Airline name."),
+}, required=["icao", "iata", "name"])
+
+_V2_LEG = _obj({
+    "org": _t("string", "Origin airport code (IATA, else ICAO)."),
+    "dst": _t("string", "Destination airport code (IATA, else ICAO)."),
+    "dep": _t("string", "Usual departure, HH:MM local time at org (the "
+                        "zone in dep_tz).", nullable=True),
+    "arr": _t("string", "Usual arrival, HH:MM local time at dst (the zone "
+                        "in arr_tz).", nullable=True),
+    "dep_tz": _t("string", "IANA time zone of org, e.g. Asia/Singapore.",
+                 nullable=True),
+    "arr_tz": _t("string", "IANA time zone of dst, e.g. Europe/London.",
+                 nullable=True),
+    "block_min": _t("integer", "Minutes from dep to arr, both zones "
+                               "applied (on the index's date).",
+                    nullable=True),
+    "type": _t("string", "Usual aircraft type (ICAO designator).",
+               nullable=True),
+    "times": _t("string", "Where dep and arr come from: observed (the "
+                          "network watched it fly), published (an "
+                          "airport's timetable), or both.", nullable=True),
+    "flights": _t("integer", "Times this leg was flown in the flight "
+                             "log's window (window_days)."),
+}, required=["org", "dst", "dep", "arr", "dep_tz", "arr_tz", "block_min",
+             "type", "times", "flights"])
+
+_V2_SCORE = _t("number", "Rank, highest first: 1000 and up an exact code; "
+                         "about 900 what the query was read as (its intent), "
+                         "40 less for each further reading; 600 names "
+                         "matched whole, 500 a word still being typed, "
+                         "470 or 380 a typo (one or two edits), lower for "
+                         "part of the words. Popularity (flights, "
+                         "departures, airframes) orders within a class and "
+                         "never lifts a result into the one above. Compare "
+                         "scores within one answer only.")
+
+_V2_URL = _t("string", "The result's page on the network site, to cite or "
+                       "link.", format="uri")
+
+SCH_V2_FLIGHT = _obj({
+    "kind": _t("string", "flight", enum=["flight"]),
+    "id": _t("string", "Stable id: the ATC callsign (ICAO), e.g. SIA322. "
+                       "Opens /v1/flights/{callsign}."),
+    "callsign": _t("string", "The ATC callsign, e.g. SIA322."),
+    "flight": _t("string", "The marketed flight number (IATA), e.g. SQ322: "
+                           "the one a timetable named, else the airline's "
+                           "IATA code before the callsign's number.",
+                 nullable=True),
+    "airline": {"description": "The operating airline.",
+                "oneOf": [_V2_AIRLINE_REF, {"type": "null"}]},
+    "route": _arr(_t("string"), "Airport codes in flying order, origin "
+                                "first."),
+    "cities": _arr(_t("string", nullable=True), "The city of each code in "
+                                                "route, same order."),
+    "legs": _arr(_V2_LEG, "Each leg, in flying order."),
+    "flights": _t("integer", "Times the flight was flown in the window "
+                             "(all legs)."),
+    "window_days": _t("integer", "Days of flight log behind flights and "
+                                 "last_seen.", nullable=True),
+    "last_seen": _t("string", "Date it was last seen, YYYY-MM-DD (UTC).",
+                    nullable=True),
+    "url": _V2_URL,
+    "score": _V2_SCORE,
+}, required=["kind", "id", "callsign", "flight", "airline", "route",
+             "cities", "legs", "flights", "window_days", "last_seen", "url",
+             "score"], description="A flight number and what the network "
+                                   "knows of how it usually flies.")
+
+SCH_V2_AIRLINE = _obj({
+    "kind": _t("string", "airline", enum=["airline"]),
+    "id": _t("string", "Stable id: the ICAO designator. Opens "
+                       "/v1/airlines/{icao}."),
+    "icao": _t("string", "ICAO designator."),
+    "iata": _t("string", "IATA code.", nullable=True),
+    "name": _t("string", "Name."),
+    "flights": _t("integer", "Flights of its schedule in the flight log's "
+                             "window: how active it is here."),
+    "url": _V2_URL,
+    "score": _V2_SCORE,
+}, required=["kind", "id", "icao", "iata", "name", "flights", "url", "score"])
+
+SCH_V2_AIRPORT = _obj({
+    "kind": _t("string", "airport", enum=["airport"]),
+    "id": _t("string", "Stable id: the IATA code, else the ICAO/registry "
+                       "ident. Opens /v1/airports/{code}."),
+    "iata": _t("string", "IATA code.", nullable=True),
+    "icao": _t("string", "ICAO code (the registry's ident)."),
+    "name": _t("string", "Name.", nullable=True),
+    "city": _t("string", "The municipality the registry gives.",
+               nullable=True),
+    "country": _t("string", "ISO 3166-1 alpha-2.", nullable=True),
+    "tz": _t("string", "IANA time zone.", nullable=True),
+    "flights": _t("integer", "Scheduled departures seen in the flight log's "
+                             "window: how busy it is here."),
+    "url": _V2_URL,
+    "score": _V2_SCORE,
+}, required=["kind", "id", "iata", "icao", "name", "city", "country", "tz",
+             "flights", "url", "score"])
+
+SCH_V2_AIRCRAFT = _obj({
+    "kind": _t("string", "aircraft", enum=["aircraft"]),
+    "id": _t("string", "Stable id: the ICAO 24-bit address, 6 lowercase hex "
+                       "characters. Opens /v1/airframes/{hex}."),
+    "hex": _t("string", "ICAO 24-bit address, lowercase."),
+    "reg": _t("string", "Registration, e.g. 9V-SMA.", nullable=True),
+    "type": _t("string", "ICAO type designator.", nullable=True),
+    "type_name": _t("string", "Type name.", nullable=True),
+    "operator": _t("string", "The airline the network watched it fly for, "
+                             "else the registry's owner or operator.",
+                   nullable=True),
+    "operator_icao": _t("string", "That airline's ICAO designator, when "
+                                  "observed.", nullable=True),
+    "url": _V2_URL,
+    "score": _V2_SCORE,
+}, required=["kind", "id", "hex", "reg", "type", "type_name", "operator",
+             "operator_icao", "url", "score"])
+
+SCH_V2_TYPE = _obj({
+    "kind": _t("string", "type", enum=["type"]),
+    "id": _t("string", "Stable id: the ICAO type designator. Opens "
+                       "/v1/types/{designator}."),
+    "designator": _t("string", "ICAO type designator, e.g. A388."),
+    "name": _t("string", "Name, e.g. Airbus A380-800.", nullable=True),
+    "manufacturer": _t("string", "Manufacturer, from the name.",
+                       nullable=True),
+    "family": _t("string", "Family, e.g. A380, 787.", nullable=True),
+    "airframes": _t("integer", "Airframes of this type in the registry."),
+    "url": _t("string", "Null: the site has no page for a type yet.",
+              nullable=True),
+    "score": _V2_SCORE,
+}, required=["kind", "id", "designator", "name", "manufacturer", "family",
+             "airframes", "url", "score"])
+
+_V2_PLACE = _obj({
+    "text": _t("string", "The words as read (folded)."),
+    "airports": _arr(_t("string"), "The airports they stand for, the main "
+                                   "one first."),
+    "how": _t("string", "code (an airport code), city (a city: every "
+                        "airport serving it) or airport (an airport's "
+                        "name)."),
+}, required=["text", "airports", "how"])
+
+SCH_V2_INTENT = {
+    "description": "What the query was read as: the first reading that "
+                   "found something. kind is flight (a flight number), "
+                   "registration, route (two places), fleet (an airline and "
+                   "an aircraft family), airline_place (an airline and a "
+                   "place), type, city, code (a code of any kind, typed "
+                   "whole) or text (names only).",
+    "type": "object",
+    "properties": {
+        "kind": _t("string", enum=["flight", "registration", "route",
+                                   "fleet", "airline_place", "type", "city",
+                                   "code", "text"]),
+        "number": _t("string", "flight: the number as typed, compact."),
+        "callsigns": _arr(_t("string"), "flight: the callsigns and marketed "
+                                        "numbers looked up."),
+        "registration": _t("string", "registration: the mark without "
+                                     "spaces or dashes."),
+        "from": _V2_PLACE, "to": _V2_PLACE, "place": _V2_PLACE,
+        "airline": _t("string", "fleet, airline_place: ICAO designator."),
+        "family": _t("string", "fleet, type: the family or designator "
+                               "read."),
+        "types": _arr(_t("string"), "fleet, type: its designators, most "
+                                    "airframes first."),
+        "code": _t("string", "code: the code as looked up."),
+    },
+    "required": ["kind"],
+}
+
+SCH_V2_SEARCH = _obj({
+    "q": _t("string", "The query as searched: trimmed, one space between "
+                      "words, uppercase."),
+    "intent": SCH_V2_INTENT,
+    "as_of": _t("string", "When the data behind the index was taken, ISO "
+                          "8601 UTC.", format="date-time"),
+    "index": _t("string", "The index generation that answered, e.g. "
+                          "20260926T024000Z. Answers from one generation "
+                          "are consistent with each other."),
+    "results": _arr({"oneOf": [SCH_V2_FLIGHT, SCH_V2_AIRLINE, SCH_V2_AIRPORT,
+                               SCH_V2_AIRCRAFT, SCH_V2_TYPE],
+                     "discriminator": {"propertyName": "kind"}},
+                    "Typed results, best first."),
+}, required=["q", "intent", "as_of", "index", "results"])
+
+_EX_SIA = {"icao": "SIA", "iata": "SQ", "name": "Singapore Airlines"}
+
+
+def _ex_flight(cs, number, airline, legs, flights, last_seen, score, cities):
+    route = [legs[0]["org"]] + [l["dst"] for l in legs]
+    return {"kind": "flight", "id": cs, "callsign": cs, "flight": number,
+            "airline": airline, "route": route, "cities": cities,
+            "legs": legs, "flights": flights, "window_days": 400,
+            "last_seen": last_seen,
+            "url": _SITE + "flight.html?callsign=" + cs, "score": score}
+
+
+def _ex_leg(org, dst, dep, arr, dep_tz, arr_tz, block, type_, times, n):
+    return {"org": org, "dst": dst, "dep": dep, "arr": arr, "dep_tz": dep_tz,
+            "arr_tz": arr_tz, "block_min": block, "type": type_,
+            "times": times, "flights": n}
+
+
+_EX_SQ322 = _ex_flight(
+    "SIA322", "SQ322", _EX_SIA,
+    [_ex_leg("SIN", "LHR", "23:35", "06:25", "Asia/Singapore",
+             "Europe/London", 830, "A388", "both", 361)],
+    361, "2026-09-25", 1032.9, ["Singapore", "London"])
+_EX_SQ308 = _ex_flight(
+    "SIA308", "SQ308", _EX_SIA,
+    [_ex_leg("SIN", "LHR", "09:05", "15:55", "Asia/Singapore",
+             "Europe/London", 830, "A359", "observed", 352)],
+    352, "2026-09-25", 945.3, ["Singapore", "London"])
+_EX_BA12 = _ex_flight(
+    "BAW12", "BA12", {"icao": "BAW", "iata": "BA", "name": "British Airways"},
+    [_ex_leg("SIN", "LHR", "23:20", "05:40", "Asia/Singapore",
+             "Europe/London", 800, "A35K", "both", 355)],
+    355, "2026-09-25", 945.2, ["Singapore", "London"])
+_EX_SQ317 = _ex_flight(
+    "SIA317", "SQ317", _EX_SIA,
+    [_ex_leg("LHR", "SIN", "11:05", "07:25", "Europe/London",
+             "Asia/Singapore", 800, "A359", "observed", 340)],
+    340, "2026-09-24", 925.2, ["London", "Singapore"])
+
+EX_V2_SEARCH = {
+    "flight_number": {
+        "summary": "A flight number, typed with a space",
+        "description": "GET /v2/search?q=SQ%20322 — its IATA number finds "
+                       "the callsign that flies it; flights whose numbers "
+                       "start with it follow.",
+        "value": {"q": "SQ 322",
+                  "intent": {"kind": "flight", "number": "SQ322",
+                             "callsigns": ["SQ322", "SIA322"]},
+                  "as_of": "2026-09-26T02:40:00Z",
+                  "index": "20260926T024000Z",
+                  "results": [_EX_SQ322]}},
+    "route_in_words": {
+        "summary": "A route in words, cities for their airports",
+        "description": "GET /v2/search?q=SINGAPORE%20TO%20LONDON — a city "
+                       "stands for every airport serving it; nonstop "
+                       "flights first, then by how often they fly.",
+        "value": {"q": "SINGAPORE TO LONDON",
+                  "intent": {"kind": "route",
+                             "from": {"text": "singapore",
+                                      "airports": ["SIN"], "how": "city"},
+                             "to": {"text": "london",
+                                    "airports": ["LHR", "LGW", "STN", "LTN",
+                                                 "LCY", "SEN"],
+                                    "how": "city"}},
+                  "as_of": "2026-09-26T02:40:00Z",
+                  "index": "20260926T024000Z",
+                  "results": [dict(_EX_SQ322, score=939.9), _EX_SQ308,
+                              _EX_BA12]}},
+    "airline_and_place": {
+        "summary": "An airline and a place",
+        "description": "GET /v2/search?q=SINGAPORE%20AIRLINES%20LONDON — "
+                       "that airline's flights to and from the place.",
+        "value": {"q": "SINGAPORE AIRLINES LONDON",
+                  "intent": {"kind": "airline_place", "airline": "SIA",
+                             "place": {"text": "london",
+                                       "airports": ["LHR", "LGW", "STN",
+                                                    "LTN", "LCY", "SEN"],
+                                       "how": "city"}},
+                  "as_of": "2026-09-26T02:40:00Z",
+                  "index": "20260926T024000Z",
+                  "results": [dict(_EX_SQ322, score=935.3),
+                              dict(_EX_SQ308, score=935.2), _EX_SQ317]}},
+    "city": {
+        "summary": "A city: every airport serving it",
+        "description": "GET /v2/search?q=TOKYO&kinds=airport",
+        "value": {"q": "TOKYO",
+                  "intent": {"kind": "city",
+                             "place": {"text": "tokyo",
+                                       "airports": ["HND", "NRT"],
+                                       "how": "city"}},
+                  "as_of": "2026-09-26T02:40:00Z",
+                  "index": "20260926T024000Z",
+                  "results": [
+                      {"kind": "airport", "id": "HND", "iata": "HND",
+                       "icao": "RJTT",
+                       "name": "Tokyo Haneda International Airport",
+                       "city": "Tokyo", "country": "JP", "tz": "Asia/Tokyo",
+                       "flights": 50289,
+                       "url": _SITE + "?airport=HND", "score": 924.7},
+                      {"kind": "airport", "id": "NRT", "iata": "NRT",
+                       "icao": "RJAA", "name": "Narita International Airport",
+                       "city": "Narita", "country": "JP", "tz": "Asia/Tokyo",
+                       "flights": 12848,
+                       "url": _SITE + "?airport=NRT", "score": 921.1}]}},
+    "type": {
+        "summary": "An aircraft family",
+        "description": "GET /v2/search?q=A380",
+        "value": {"q": "A380",
+                  "intent": {"kind": "type", "family": "A380",
+                             "types": ["A388"]},
+                  "as_of": "2026-09-26T02:40:00Z",
+                  "index": "20260926T024000Z",
+                  "results": [
+                      {"kind": "type", "id": "A388", "designator": "A388",
+                       "name": "Airbus A380-800", "manufacturer": "Airbus",
+                       "family": "A380", "airframes": 261, "url": None,
+                       "score": 912.4}]}},
+    "registration": {
+        "summary": "A registration, however typed",
+        "description": "GET /v2/search?q=9V%20SMA",
+        "value": {"q": "9V SMA",
+                  "intent": {"kind": "registration",
+                             "registration": "9VSMA"},
+                  "as_of": "2026-09-26T02:40:00Z",
+                  "index": "20260926T024000Z",
+                  "results": [
+                      {"kind": "aircraft", "id": "76cda1", "hex": "76cda1",
+                       "reg": "9V-SMA", "type": "A359",
+                       "type_name": "Airbus A350-900",
+                       "operator": "Singapore Airlines",
+                       "operator_icao": "SIA",
+                       "url": _SITE + "plane.html?hex=76cda1",
+                       "score": 1030.0}]}},
+}
+
+R301_SEARCH_V2 = {301: {
+    "description": "A parameter in another spelling than its canonical "
+                   "one (q trimmed, one space between words, uppercase; "
+                   "kinds in the order flight, airline, airport, aircraft, "
+                   "type; limit as a plain number; near rounded to 0.25°): "
+                   "Location is this URL with them canonical, every other "
+                   "parameter kept. Cached like the answer.",
+    "headers": {"Location": {"schema": {"type": "string"},
+                             "example": "/v2/search?q=SQ%20322"}},
+}}
+
+R503_SEARCH_V2 = {503: {
+    "description": "The search index is not loaded "
+                   "(artifact_unavailable). Retry-After is set. Never "
+                   "answered from anything else.",
+    "content": {"application/json": {
+        "schema": ERROR_SCHEMA,
+        "example": {"error": "artifact_unavailable",
+                    "detail": "search index not loaded"}}},
+}}
+
+NETWORKD_PATHS = {"/v2/search": {"get": {
+    "tags": ["Reference"],
+    "summary": "Search (typed)",
+    "description": (
+        "One box over flights, airlines, airports, airframes and aircraft "
+        "types, read before it is searched: a flight number (\"SQ322\", "
+        "\"SQ 322\", \"SIA322\"), a route in words where a city stands for "
+        "all its airports (\"New York to London\", \"SIN-LHR\"), an airline "
+        "and a place (\"Singapore Airlines London\") or a family (\"SQ "
+        "777\", \"BA A380\"), a city (\"Tokyo\": HND and NRT), a type "
+        "(\"A380\", \"787\", \"Boeing 777\"), a registration however typed "
+        "(\"9V SMA\", \"9VSMA\"), a hex, any code. Then names, accents and "
+        "case aside, with the last word taken as still being typed; near "
+        "misses (one edit for 4-5 letters, two from 6) only when nothing "
+        "matched whole. Every result is typed (its fields depend on kind), "
+        "with a stable id, the page to link, and flight times in local "
+        "time with their zones.\n\n"
+        "The answer comes from a search index rebuilt nightly from the "
+        "reference snapshot; `index` and `as_of` say which. `near` "
+        "(a coarse position, rounded to 0.25° before anything reads it; "
+        "never stored or logged) may lift nearby airports.\n\n"
+        "Rate: 600 per 600 s (bucket `search_v2`). Cache: 12 h edge. "
+        "Stability: candidate for the stable tier."),
+    "operationId": "search_v2",
+    "parameters": [
+        {"name": "q", "in": "query", "required": True,
+         "description": "What was typed, 1-40 characters (at least 2 after "
+                        "trimming).",
+         "schema": {"type": "string", "minLength": 1, "maxLength": 40},
+         "examples": {"flight": {"value": "SQ 322"},
+                      "route": {"value": "SINGAPORE TO LONDON"},
+                      "airline_place": {"value": "SINGAPORE AIRLINES LONDON"}}},
+        {"name": "kinds", "in": "query", "required": False,
+         "description": "Only these kinds, comma-separated: flight, airline, "
+                        "airport, aircraft, type. Default: all.",
+         "schema": {"type": "string"}, "example": "flight,airport"},
+        {"name": "limit", "in": "query", "required": False,
+         "description": "At most this many results, 1-50. Default 10.",
+         "schema": {"type": "integer", "minimum": 1, "maximum": 50,
+                    "default": 10}},
+        {"name": "near", "in": "query", "required": False,
+         "description": "lat,lon in degrees: a coarse position to rank by, "
+                        "rounded to 0.25° (a spelling not rounded "
+                        "redirects to the rounded one).",
+         "schema": {"type": "string"}, "example": "1.25,103.75"},
+    ],
+    "responses": {
+        "200": {"description": "OK", "content": {"application/json": {
+            "schema": SCH_V2_SEARCH, "examples": EX_V2_SEARCH}}},
+        **{str(k): v for k, v in (R301_SEARCH_V2 | R422 | R429
+                                   | R503_SEARCH_V2).items()},
+    },
+    **CANDIDATE,
+}}}

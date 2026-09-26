@@ -206,6 +206,23 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
             "feed": "feed.flightportrait.com:30004 (beast_reduce_plus_out)",
         }
 
+    # operations only networkd serves (/v2/search), documented in the one
+    # document it serves, each after its /v1 sibling
+    generated = app.openapi
+
+    def openapi():
+        doc = generated()
+        if not all(p in doc["paths"] for p in spec.NETWORKD_PATHS):
+            paths = {}
+            for path, item in doc["paths"].items():
+                paths[path] = item
+                if path == "/v1/search":
+                    paths.update(spec.NETWORKD_PATHS)
+            paths.update(spec.NETWORKD_PATHS)
+            doc["paths"] = paths
+        return doc
+
+    app.openapi = openapi
     return app
 
 

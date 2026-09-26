@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "FlightPortrait network API",
-    "description": "Open data from the FlightPortrait receiver network. No API key.\n\n**Stability.** Operations marked `x-stability: stable` only ever gain fields; names and types are frozen. Operations marked `x-stability: map` exist for the first-party map and can change with it.\n\n**Field dialects.** `/v1/aircraft` and `/v2/point` pass readsb's wire fields through unchanged (`hex`, `t`, `r`, `gs`, ...) so ecosystem tooling works as-is. Every other resource uses full words: `reg`, `type`, `org`, `dst`. Airport codes in history resources are IATA; `/v1/airports/{code}` accepts IATA or ICAO. Event times are unix seconds UTC; registry timestamps are ISO 8601 UTC; board and schedule times are HH:MM in the origin airport's local time.\n\n**Data honesty.** History is observation, never an official registry. Gaps mean the network's sources did not hear it, nothing more. Responses carry `coverage: \"observed\"` as a reminder. The one exception is the airport departures board, whose rows may be inferred from published timetables \u2014 each board row carries its own `source` (observed / published / both); a published row is not a receiver observation. Likewise a flight's `route_source`: `observed` when both ends were seen, `observed+catalog` when the community supplied the end coverage never reached, `catalog` when it supplied both. Catalog answers are checked against observation and reviewed before they are served, and observation outranks them whenever it speaks. This API is read-only; answers go to the contribution door at contribute.flightportrait.com.\n\n**Errors.** Every non-200 body is `{\"error\": <code>, \"detail\": <human text>}` with `Cache-Control: no-store`. 404 `not_found` / `not_observed`, 422 `invalid_request`, 429 `rate_limited` (with `Retry-After` and `RateLimit-*` headers), 503 `stale_snapshot` (live snapshot older than 60 s) or `artifact_unavailable` (a history artifact is not loaded).\n\n**Rate limits.** Per IP, per bucket, over a 600 second window; each operation notes its bucket and default limit. 429 means wait for `Retry-After` seconds.\n\nData is ODbL 1.0. Credit \"FlightPortrait network feeders\" and link the credits page, which lists every source the data draws on and the credit each one asks for; republishing carries them too.\nCredits: https://flightportrait.com/network/credits.html\nTerms: https://flightportrait.com/network/terms",
+    "description": "Open data from the FlightPortrait receiver network. No API key.\n\n**Stability.** Operations marked `x-stability: stable` only ever gain fields; names and types are frozen. Operations marked `x-stability: map` exist for the first-party map and can change with it. Operations marked `x-stability: candidate` are proposed for the stable tier: their shape may still change before it is frozen.\n\n**Field dialects.** `/v1/aircraft` and `/v2/point` pass readsb's wire fields through unchanged (`hex`, `t`, `r`, `gs`, ...) so ecosystem tooling works as-is. Every other resource uses full words: `reg`, `type`, `org`, `dst`. Airport codes in history resources are IATA; `/v1/airports/{code}` accepts IATA or ICAO. Event times are unix seconds UTC; registry timestamps are ISO 8601 UTC; board and schedule times are HH:MM in the origin airport's local time.\n\n**Data honesty.** History is observation, never an official registry. Gaps mean the network's sources did not hear it, nothing more. Responses carry `coverage: \"observed\"` as a reminder. The one exception is the airport departures board, whose rows may be inferred from published timetables \u2014 each board row carries its own `source` (observed / published / both); a published row is not a receiver observation. Likewise a flight's `route_source`: `observed` when both ends were seen, `observed+catalog` when the community supplied the end coverage never reached, `catalog` when it supplied both. Catalog answers are checked against observation and reviewed before they are served, and observation outranks them whenever it speaks. This API is read-only; answers go to the contribution door at contribute.flightportrait.com.\n\n**Errors.** Every non-200 body is `{\"error\": <code>, \"detail\": <human text>}` with `Cache-Control: no-store`. 404 `not_found` / `not_observed`, 422 `invalid_request`, 429 `rate_limited` (with `Retry-After` and `RateLimit-*` headers), 503 `stale_snapshot` (live snapshot older than 60 s) or `artifact_unavailable` (a history artifact is not loaded).\n\n**Rate limits.** Per IP, per bucket, over a 600 second window; each operation notes its bucket and default limit. 429 means wait for `Retry-After` seconds.\n\nData is ODbL 1.0. Credit \"FlightPortrait network feeders\" and link the credits page, which lists every source the data draws on and the credit each one asks for; republishing carries them too.\nCredits: https://flightportrait.com/network/credits.html\nTerms: https://flightportrait.com/network/terms",
     "version": "1.0.0"
   },
   "servers": [
@@ -4625,6 +4625,1272 @@
           }
         },
         "x-stability": "map"
+      }
+    },
+    "/v2/search": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "Search (typed)",
+        "description": "One box over flights, airlines, airports, airframes and aircraft types, read before it is searched: a flight number (\"SQ322\", \"SQ 322\", \"SIA322\"), a route in words where a city stands for all its airports (\"New York to London\", \"SIN-LHR\"), an airline and a place (\"Singapore Airlines London\") or a family (\"SQ 777\", \"BA A380\"), a city (\"Tokyo\": HND and NRT), a type (\"A380\", \"787\", \"Boeing 777\"), a registration however typed (\"9V SMA\", \"9VSMA\"), a hex, any code. Then names, accents and case aside, with the last word taken as still being typed; near misses (one edit for 4-5 letters, two from 6) only when nothing matched whole. Every result is typed (its fields depend on kind), with a stable id, the page to link, and flight times in local time with their zones.\n\nThe answer comes from a search index rebuilt nightly from the reference snapshot; `index` and `as_of` say which. `near` (a coarse position, rounded to 0.25\u00b0 before anything reads it; never stored or logged) may lift nearby airports.\n\nRate: 600 per 600 s (bucket `search_v2`). Cache: 12 h edge. Stability: candidate for the stable tier.",
+        "operationId": "search_v2",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "What was typed, 1-40 characters (at least 2 after trimming).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "examples": {
+              "flight": {
+                "value": "SQ 322"
+              },
+              "route": {
+                "value": "SINGAPORE TO LONDON"
+              },
+              "airline_place": {
+                "value": "SINGAPORE AIRLINES LONDON"
+              }
+            }
+          },
+          {
+            "name": "kinds",
+            "in": "query",
+            "required": false,
+            "description": "Only these kinds, comma-separated: flight, airline, airport, aircraft, type. Default: all.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "flight,airport"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "At most this many results, 1-50. Default 10.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          },
+          {
+            "name": "near",
+            "in": "query",
+            "required": false,
+            "description": "lat,lon in degrees: a coarse position to rank by, rounded to 0.25\u00b0 (a spelling not rounded redirects to the rounded one).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "1.25,103.75"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "q": {
+                      "type": "string",
+                      "description": "The query as searched: trimmed, one space between words, uppercase."
+                    },
+                    "intent": {
+                      "description": "What the query was read as: the first reading that found something. kind is flight (a flight number), registration, route (two places), fleet (an airline and an aircraft family), airline_place (an airline and a place), type, city, code (a code of any kind, typed whole) or text (names only).",
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "flight",
+                            "registration",
+                            "route",
+                            "fleet",
+                            "airline_place",
+                            "type",
+                            "city",
+                            "code",
+                            "text"
+                          ]
+                        },
+                        "number": {
+                          "type": "string",
+                          "description": "flight: the number as typed, compact."
+                        },
+                        "callsigns": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "flight: the callsigns and marketed numbers looked up."
+                        },
+                        "registration": {
+                          "type": "string",
+                          "description": "registration: the mark without spaces or dashes."
+                        },
+                        "from": {
+                          "type": "object",
+                          "properties": {
+                            "text": {
+                              "type": "string",
+                              "description": "The words as read (folded)."
+                            },
+                            "airports": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "The airports they stand for, the main one first."
+                            },
+                            "how": {
+                              "type": "string",
+                              "description": "code (an airport code), city (a city: every airport serving it) or airport (an airport's name)."
+                            }
+                          },
+                          "required": [
+                            "text",
+                            "airports",
+                            "how"
+                          ]
+                        },
+                        "to": {
+                          "type": "object",
+                          "properties": {
+                            "text": {
+                              "type": "string",
+                              "description": "The words as read (folded)."
+                            },
+                            "airports": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "The airports they stand for, the main one first."
+                            },
+                            "how": {
+                              "type": "string",
+                              "description": "code (an airport code), city (a city: every airport serving it) or airport (an airport's name)."
+                            }
+                          },
+                          "required": [
+                            "text",
+                            "airports",
+                            "how"
+                          ]
+                        },
+                        "place": {
+                          "type": "object",
+                          "properties": {
+                            "text": {
+                              "type": "string",
+                              "description": "The words as read (folded)."
+                            },
+                            "airports": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "The airports they stand for, the main one first."
+                            },
+                            "how": {
+                              "type": "string",
+                              "description": "code (an airport code), city (a city: every airport serving it) or airport (an airport's name)."
+                            }
+                          },
+                          "required": [
+                            "text",
+                            "airports",
+                            "how"
+                          ]
+                        },
+                        "airline": {
+                          "type": "string",
+                          "description": "fleet, airline_place: ICAO designator."
+                        },
+                        "family": {
+                          "type": "string",
+                          "description": "fleet, type: the family or designator read."
+                        },
+                        "types": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "fleet, type: its designators, most airframes first."
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "code: the code as looked up."
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    "as_of": {
+                      "type": "string",
+                      "description": "When the data behind the index was taken, ISO 8601 UTC.",
+                      "format": "date-time"
+                    },
+                    "index": {
+                      "type": "string",
+                      "description": "The index generation that answered, e.g. 20260926T024000Z. Answers from one generation are consistent with each other."
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "description": "flight",
+                                "enum": [
+                                  "flight"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "description": "Stable id: the ATC callsign (ICAO), e.g. SIA322. Opens /v1/flights/{callsign}."
+                              },
+                              "callsign": {
+                                "type": "string",
+                                "description": "The ATC callsign, e.g. SIA322."
+                              },
+                              "flight": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The marketed flight number (IATA), e.g. SQ322: the one a timetable named, else the airline's IATA code before the callsign's number."
+                              },
+                              "airline": {
+                                "description": "The operating airline.",
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "icao": {
+                                        "type": "string",
+                                        "description": "ICAO designator, e.g. SIA."
+                                      },
+                                      "iata": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ],
+                                        "description": "IATA code, e.g. SQ."
+                                      },
+                                      "name": {
+                                        "type": "string",
+                                        "description": "Airline name."
+                                      }
+                                    },
+                                    "required": [
+                                      "icao",
+                                      "iata",
+                                      "name"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "route": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "Airport codes in flying order, origin first."
+                              },
+                              "cities": {
+                                "type": "array",
+                                "items": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "description": "The city of each code in route, same order."
+                              },
+                              "legs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "org": {
+                                      "type": "string",
+                                      "description": "Origin airport code (IATA, else ICAO)."
+                                    },
+                                    "dst": {
+                                      "type": "string",
+                                      "description": "Destination airport code (IATA, else ICAO)."
+                                    },
+                                    "dep": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "Usual departure, HH:MM local time at org (the zone in dep_tz)."
+                                    },
+                                    "arr": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "Usual arrival, HH:MM local time at dst (the zone in arr_tz)."
+                                    },
+                                    "dep_tz": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "IANA time zone of org, e.g. Asia/Singapore."
+                                    },
+                                    "arr_tz": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "IANA time zone of dst, e.g. Europe/London."
+                                    },
+                                    "block_min": {
+                                      "type": [
+                                        "integer",
+                                        "null"
+                                      ],
+                                      "description": "Minutes from dep to arr, both zones applied (on the index's date)."
+                                    },
+                                    "type": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "Usual aircraft type (ICAO designator)."
+                                    },
+                                    "times": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "Where dep and arr come from: observed (the network watched it fly), published (an airport's timetable), or both."
+                                    },
+                                    "flights": {
+                                      "type": "integer",
+                                      "description": "Times this leg was flown in the flight log's window (window_days)."
+                                    }
+                                  },
+                                  "required": [
+                                    "org",
+                                    "dst",
+                                    "dep",
+                                    "arr",
+                                    "dep_tz",
+                                    "arr_tz",
+                                    "block_min",
+                                    "type",
+                                    "times",
+                                    "flights"
+                                  ]
+                                },
+                                "description": "Each leg, in flying order."
+                              },
+                              "flights": {
+                                "type": "integer",
+                                "description": "Times the flight was flown in the window (all legs)."
+                              },
+                              "window_days": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "Days of flight log behind flights and last_seen."
+                              },
+                              "last_seen": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Date it was last seen, YYYY-MM-DD (UTC)."
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "The result's page on the network site, to cite or link.",
+                                "format": "uri"
+                              },
+                              "score": {
+                                "type": "number",
+                                "description": "Rank, highest first: 1000 and up an exact code; about 900 what the query was read as (its intent), 40 less for each further reading; 600 names matched whole, 500 a word still being typed, 470 or 380 a typo (one or two edits), lower for part of the words. Popularity (flights, departures, airframes) orders within a class and never lifts a result into the one above. Compare scores within one answer only."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "callsign",
+                              "flight",
+                              "airline",
+                              "route",
+                              "cities",
+                              "legs",
+                              "flights",
+                              "window_days",
+                              "last_seen",
+                              "url",
+                              "score"
+                            ],
+                            "description": "A flight number and what the network knows of how it usually flies."
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "description": "airline",
+                                "enum": [
+                                  "airline"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "description": "Stable id: the ICAO designator. Opens /v1/airlines/{icao}."
+                              },
+                              "icao": {
+                                "type": "string",
+                                "description": "ICAO designator."
+                              },
+                              "iata": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "IATA code."
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Name."
+                              },
+                              "flights": {
+                                "type": "integer",
+                                "description": "Flights of its schedule in the flight log's window: how active it is here."
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "The result's page on the network site, to cite or link.",
+                                "format": "uri"
+                              },
+                              "score": {
+                                "type": "number",
+                                "description": "Rank, highest first: 1000 and up an exact code; about 900 what the query was read as (its intent), 40 less for each further reading; 600 names matched whole, 500 a word still being typed, 470 or 380 a typo (one or two edits), lower for part of the words. Popularity (flights, departures, airframes) orders within a class and never lifts a result into the one above. Compare scores within one answer only."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "icao",
+                              "iata",
+                              "name",
+                              "flights",
+                              "url",
+                              "score"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "description": "airport",
+                                "enum": [
+                                  "airport"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "description": "Stable id: the IATA code, else the ICAO/registry ident. Opens /v1/airports/{code}."
+                              },
+                              "iata": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "IATA code."
+                              },
+                              "icao": {
+                                "type": "string",
+                                "description": "ICAO code (the registry's ident)."
+                              },
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Name."
+                              },
+                              "city": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The municipality the registry gives."
+                              },
+                              "country": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "ISO 3166-1 alpha-2."
+                              },
+                              "tz": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "IANA time zone."
+                              },
+                              "flights": {
+                                "type": "integer",
+                                "description": "Scheduled departures seen in the flight log's window: how busy it is here."
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "The result's page on the network site, to cite or link.",
+                                "format": "uri"
+                              },
+                              "score": {
+                                "type": "number",
+                                "description": "Rank, highest first: 1000 and up an exact code; about 900 what the query was read as (its intent), 40 less for each further reading; 600 names matched whole, 500 a word still being typed, 470 or 380 a typo (one or two edits), lower for part of the words. Popularity (flights, departures, airframes) orders within a class and never lifts a result into the one above. Compare scores within one answer only."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "iata",
+                              "icao",
+                              "name",
+                              "city",
+                              "country",
+                              "tz",
+                              "flights",
+                              "url",
+                              "score"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "description": "aircraft",
+                                "enum": [
+                                  "aircraft"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "description": "Stable id: the ICAO 24-bit address, 6 lowercase hex characters. Opens /v1/airframes/{hex}."
+                              },
+                              "hex": {
+                                "type": "string",
+                                "description": "ICAO 24-bit address, lowercase."
+                              },
+                              "reg": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Registration, e.g. 9V-SMA."
+                              },
+                              "type": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "ICAO type designator."
+                              },
+                              "type_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Type name."
+                              },
+                              "operator": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The airline the network watched it fly for, else the registry's owner or operator."
+                              },
+                              "operator_icao": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "That airline's ICAO designator, when observed."
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "The result's page on the network site, to cite or link.",
+                                "format": "uri"
+                              },
+                              "score": {
+                                "type": "number",
+                                "description": "Rank, highest first: 1000 and up an exact code; about 900 what the query was read as (its intent), 40 less for each further reading; 600 names matched whole, 500 a word still being typed, 470 or 380 a typo (one or two edits), lower for part of the words. Popularity (flights, departures, airframes) orders within a class and never lifts a result into the one above. Compare scores within one answer only."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "hex",
+                              "reg",
+                              "type",
+                              "type_name",
+                              "operator",
+                              "operator_icao",
+                              "url",
+                              "score"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "description": "type",
+                                "enum": [
+                                  "type"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "description": "Stable id: the ICAO type designator. Opens /v1/types/{designator}."
+                              },
+                              "designator": {
+                                "type": "string",
+                                "description": "ICAO type designator, e.g. A388."
+                              },
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Name, e.g. Airbus A380-800."
+                              },
+                              "manufacturer": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Manufacturer, from the name."
+                              },
+                              "family": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Family, e.g. A380, 787."
+                              },
+                              "airframes": {
+                                "type": "integer",
+                                "description": "Airframes of this type in the registry."
+                              },
+                              "url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Null: the site has no page for a type yet."
+                              },
+                              "score": {
+                                "type": "number",
+                                "description": "Rank, highest first: 1000 and up an exact code; about 900 what the query was read as (its intent), 40 less for each further reading; 600 names matched whole, 500 a word still being typed, 470 or 380 a typo (one or two edits), lower for part of the words. Popularity (flights, departures, airframes) orders within a class and never lifts a result into the one above. Compare scores within one answer only."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "designator",
+                              "name",
+                              "manufacturer",
+                              "family",
+                              "airframes",
+                              "url",
+                              "score"
+                            ]
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "kind"
+                        }
+                      },
+                      "description": "Typed results, best first."
+                    }
+                  },
+                  "required": [
+                    "q",
+                    "intent",
+                    "as_of",
+                    "index",
+                    "results"
+                  ]
+                },
+                "examples": {
+                  "flight_number": {
+                    "summary": "A flight number, typed with a space",
+                    "description": "GET /v2/search?q=SQ%20322 \u2014 its IATA number finds the callsign that flies it; flights whose numbers start with it follow.",
+                    "value": {
+                      "q": "SQ 322",
+                      "intent": {
+                        "kind": "flight",
+                        "number": "SQ322",
+                        "callsigns": [
+                          "SQ322",
+                          "SIA322"
+                        ]
+                      },
+                      "as_of": "2026-09-26T02:40:00Z",
+                      "index": "20260926T024000Z",
+                      "results": [
+                        {
+                          "kind": "flight",
+                          "id": "SIA322",
+                          "callsign": "SIA322",
+                          "flight": "SQ322",
+                          "airline": {
+                            "icao": "SIA",
+                            "iata": "SQ",
+                            "name": "Singapore Airlines"
+                          },
+                          "route": [
+                            "SIN",
+                            "LHR"
+                          ],
+                          "cities": [
+                            "Singapore",
+                            "London"
+                          ],
+                          "legs": [
+                            {
+                              "org": "SIN",
+                              "dst": "LHR",
+                              "dep": "23:35",
+                              "arr": "06:25",
+                              "dep_tz": "Asia/Singapore",
+                              "arr_tz": "Europe/London",
+                              "block_min": 830,
+                              "type": "A388",
+                              "times": "both",
+                              "flights": 361
+                            }
+                          ],
+                          "flights": 361,
+                          "window_days": 400,
+                          "last_seen": "2026-09-25",
+                          "url": "https://flightportrait.com/network/flight.html?callsign=SIA322",
+                          "score": 1032.9
+                        }
+                      ]
+                    }
+                  },
+                  "route_in_words": {
+                    "summary": "A route in words, cities for their airports",
+                    "description": "GET /v2/search?q=SINGAPORE%20TO%20LONDON \u2014 a city stands for every airport serving it; nonstop flights first, then by how often they fly.",
+                    "value": {
+                      "q": "SINGAPORE TO LONDON",
+                      "intent": {
+                        "kind": "route",
+                        "from": {
+                          "text": "singapore",
+                          "airports": [
+                            "SIN"
+                          ],
+                          "how": "city"
+                        },
+                        "to": {
+                          "text": "london",
+                          "airports": [
+                            "LHR",
+                            "LGW",
+                            "STN",
+                            "LTN",
+                            "LCY",
+                            "SEN"
+                          ],
+                          "how": "city"
+                        }
+                      },
+                      "as_of": "2026-09-26T02:40:00Z",
+                      "index": "20260926T024000Z",
+                      "results": [
+                        {
+                          "kind": "flight",
+                          "id": "SIA322",
+                          "callsign": "SIA322",
+                          "flight": "SQ322",
+                          "airline": {
+                            "icao": "SIA",
+                            "iata": "SQ",
+                            "name": "Singapore Airlines"
+                          },
+                          "route": [
+                            "SIN",
+                            "LHR"
+                          ],
+                          "cities": [
+                            "Singapore",
+                            "London"
+                          ],
+                          "legs": [
+                            {
+                              "org": "SIN",
+                              "dst": "LHR",
+                              "dep": "23:35",
+                              "arr": "06:25",
+                              "dep_tz": "Asia/Singapore",
+                              "arr_tz": "Europe/London",
+                              "block_min": 830,
+                              "type": "A388",
+                              "times": "both",
+                              "flights": 361
+                            }
+                          ],
+                          "flights": 361,
+                          "window_days": 400,
+                          "last_seen": "2026-09-25",
+                          "url": "https://flightportrait.com/network/flight.html?callsign=SIA322",
+                          "score": 939.9
+                        },
+                        {
+                          "kind": "flight",
+                          "id": "SIA308",
+                          "callsign": "SIA308",
+                          "flight": "SQ308",
+                          "airline": {
+                            "icao": "SIA",
+                            "iata": "SQ",
+                            "name": "Singapore Airlines"
+                          },
+                          "route": [
+                            "SIN",
+                            "LHR"
+                          ],
+                          "cities": [
+                            "Singapore",
+                            "London"
+                          ],
+                          "legs": [
+                            {
+                              "org": "SIN",
+                              "dst": "LHR",
+                              "dep": "09:05",
+                              "arr": "15:55",
+                              "dep_tz": "Asia/Singapore",
+                              "arr_tz": "Europe/London",
+                              "block_min": 830,
+                              "type": "A359",
+                              "times": "observed",
+                              "flights": 352
+                            }
+                          ],
+                          "flights": 352,
+                          "window_days": 400,
+                          "last_seen": "2026-09-25",
+                          "url": "https://flightportrait.com/network/flight.html?callsign=SIA308",
+                          "score": 945.3
+                        },
+                        {
+                          "kind": "flight",
+                          "id": "BAW12",
+                          "callsign": "BAW12",
+                          "flight": "BA12",
+                          "airline": {
+                            "icao": "BAW",
+                            "iata": "BA",
+                            "name": "British Airways"
+                          },
+                          "route": [
+                            "SIN",
+                            "LHR"
+                          ],
+                          "cities": [
+                            "Singapore",
+                            "London"
+                          ],
+                          "legs": [
+                            {
+                              "org": "SIN",
+                              "dst": "LHR",
+                              "dep": "23:20",
+                              "arr": "05:40",
+                              "dep_tz": "Asia/Singapore",
+                              "arr_tz": "Europe/London",
+                              "block_min": 800,
+                              "type": "A35K",
+                              "times": "both",
+                              "flights": 355
+                            }
+                          ],
+                          "flights": 355,
+                          "window_days": 400,
+                          "last_seen": "2026-09-25",
+                          "url": "https://flightportrait.com/network/flight.html?callsign=BAW12",
+                          "score": 945.2
+                        }
+                      ]
+                    }
+                  },
+                  "airline_and_place": {
+                    "summary": "An airline and a place",
+                    "description": "GET /v2/search?q=SINGAPORE%20AIRLINES%20LONDON \u2014 that airline's flights to and from the place.",
+                    "value": {
+                      "q": "SINGAPORE AIRLINES LONDON",
+                      "intent": {
+                        "kind": "airline_place",
+                        "airline": "SIA",
+                        "place": {
+                          "text": "london",
+                          "airports": [
+                            "LHR",
+                            "LGW",
+                            "STN",
+                            "LTN",
+                            "LCY",
+                            "SEN"
+                          ],
+                          "how": "city"
+                        }
+                      },
+                      "as_of": "2026-09-26T02:40:00Z",
+                      "index": "20260926T024000Z",
+                      "results": [
+                        {
+                          "kind": "flight",
+                          "id": "SIA322",
+                          "callsign": "SIA322",
+                          "flight": "SQ322",
+                          "airline": {
+                            "icao": "SIA",
+                            "iata": "SQ",
+                            "name": "Singapore Airlines"
+                          },
+                          "route": [
+                            "SIN",
+                            "LHR"
+                          ],
+                          "cities": [
+                            "Singapore",
+                            "London"
+                          ],
+                          "legs": [
+                            {
+                              "org": "SIN",
+                              "dst": "LHR",
+                              "dep": "23:35",
+                              "arr": "06:25",
+                              "dep_tz": "Asia/Singapore",
+                              "arr_tz": "Europe/London",
+                              "block_min": 830,
+                              "type": "A388",
+                              "times": "both",
+                              "flights": 361
+                            }
+                          ],
+                          "flights": 361,
+                          "window_days": 400,
+                          "last_seen": "2026-09-25",
+                          "url": "https://flightportrait.com/network/flight.html?callsign=SIA322",
+                          "score": 935.3
+                        },
+                        {
+                          "kind": "flight",
+                          "id": "SIA308",
+                          "callsign": "SIA308",
+                          "flight": "SQ308",
+                          "airline": {
+                            "icao": "SIA",
+                            "iata": "SQ",
+                            "name": "Singapore Airlines"
+                          },
+                          "route": [
+                            "SIN",
+                            "LHR"
+                          ],
+                          "cities": [
+                            "Singapore",
+                            "London"
+                          ],
+                          "legs": [
+                            {
+                              "org": "SIN",
+                              "dst": "LHR",
+                              "dep": "09:05",
+                              "arr": "15:55",
+                              "dep_tz": "Asia/Singapore",
+                              "arr_tz": "Europe/London",
+                              "block_min": 830,
+                              "type": "A359",
+                              "times": "observed",
+                              "flights": 352
+                            }
+                          ],
+                          "flights": 352,
+                          "window_days": 400,
+                          "last_seen": "2026-09-25",
+                          "url": "https://flightportrait.com/network/flight.html?callsign=SIA308",
+                          "score": 935.2
+                        },
+                        {
+                          "kind": "flight",
+                          "id": "SIA317",
+                          "callsign": "SIA317",
+                          "flight": "SQ317",
+                          "airline": {
+                            "icao": "SIA",
+                            "iata": "SQ",
+                            "name": "Singapore Airlines"
+                          },
+                          "route": [
+                            "LHR",
+                            "SIN"
+                          ],
+                          "cities": [
+                            "London",
+                            "Singapore"
+                          ],
+                          "legs": [
+                            {
+                              "org": "LHR",
+                              "dst": "SIN",
+                              "dep": "11:05",
+                              "arr": "07:25",
+                              "dep_tz": "Europe/London",
+                              "arr_tz": "Asia/Singapore",
+                              "block_min": 800,
+                              "type": "A359",
+                              "times": "observed",
+                              "flights": 340
+                            }
+                          ],
+                          "flights": 340,
+                          "window_days": 400,
+                          "last_seen": "2026-09-24",
+                          "url": "https://flightportrait.com/network/flight.html?callsign=SIA317",
+                          "score": 925.2
+                        }
+                      ]
+                    }
+                  },
+                  "city": {
+                    "summary": "A city: every airport serving it",
+                    "description": "GET /v2/search?q=TOKYO&kinds=airport",
+                    "value": {
+                      "q": "TOKYO",
+                      "intent": {
+                        "kind": "city",
+                        "place": {
+                          "text": "tokyo",
+                          "airports": [
+                            "HND",
+                            "NRT"
+                          ],
+                          "how": "city"
+                        }
+                      },
+                      "as_of": "2026-09-26T02:40:00Z",
+                      "index": "20260926T024000Z",
+                      "results": [
+                        {
+                          "kind": "airport",
+                          "id": "HND",
+                          "iata": "HND",
+                          "icao": "RJTT",
+                          "name": "Tokyo Haneda International Airport",
+                          "city": "Tokyo",
+                          "country": "JP",
+                          "tz": "Asia/Tokyo",
+                          "flights": 50289,
+                          "url": "https://flightportrait.com/network/?airport=HND",
+                          "score": 924.7
+                        },
+                        {
+                          "kind": "airport",
+                          "id": "NRT",
+                          "iata": "NRT",
+                          "icao": "RJAA",
+                          "name": "Narita International Airport",
+                          "city": "Narita",
+                          "country": "JP",
+                          "tz": "Asia/Tokyo",
+                          "flights": 12848,
+                          "url": "https://flightportrait.com/network/?airport=NRT",
+                          "score": 921.1
+                        }
+                      ]
+                    }
+                  },
+                  "type": {
+                    "summary": "An aircraft family",
+                    "description": "GET /v2/search?q=A380",
+                    "value": {
+                      "q": "A380",
+                      "intent": {
+                        "kind": "type",
+                        "family": "A380",
+                        "types": [
+                          "A388"
+                        ]
+                      },
+                      "as_of": "2026-09-26T02:40:00Z",
+                      "index": "20260926T024000Z",
+                      "results": [
+                        {
+                          "kind": "type",
+                          "id": "A388",
+                          "designator": "A388",
+                          "name": "Airbus A380-800",
+                          "manufacturer": "Airbus",
+                          "family": "A380",
+                          "airframes": 261,
+                          "url": null,
+                          "score": 912.4
+                        }
+                      ]
+                    }
+                  },
+                  "registration": {
+                    "summary": "A registration, however typed",
+                    "description": "GET /v2/search?q=9V%20SMA",
+                    "value": {
+                      "q": "9V SMA",
+                      "intent": {
+                        "kind": "registration",
+                        "registration": "9VSMA"
+                      },
+                      "as_of": "2026-09-26T02:40:00Z",
+                      "index": "20260926T024000Z",
+                      "results": [
+                        {
+                          "kind": "aircraft",
+                          "id": "76cda1",
+                          "hex": "76cda1",
+                          "reg": "9V-SMA",
+                          "type": "A359",
+                          "type_name": "Airbus A350-900",
+                          "operator": "Singapore Airlines",
+                          "operator_icao": "SIA",
+                          "url": "https://flightportrait.com/network/plane.html?hex=76cda1",
+                          "score": 1030.0
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "301": {
+            "description": "A parameter in another spelling than its canonical one (q trimmed, one space between words, uppercase; kinds in the order flight, airline, airport, aircraft, type; limit as a plain number; near rounded to 0.25\u00b0): Location is this URL with them canonical, every other parameter kept. Cached like the answer.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "/v2/search?q=SQ%20322"
+              }
+            }
+          },
+          "422": {
+            "description": "Malformed input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine code: not_found, not_observed, invalid_request, rate_limited, stale_snapshot, artifact_unavailable, upstream_unavailable."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable explanation."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited. Wait Retry-After seconds. Headers: Retry-After, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine code: not_found, not_observed, invalid_request, rate_limited, stale_snapshot, artifact_unavailable, upstream_unavailable."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable explanation."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                },
+                "example": {
+                  "error": "rate_limited",
+                  "detail": "slow down"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The search index is not loaded (artifact_unavailable). Retry-After is set. Never answered from anything else.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine code: not_found, not_observed, invalid_request, rate_limited, stale_snapshot, artifact_unavailable, upstream_unavailable."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable explanation."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                },
+                "example": {
+                  "error": "artifact_unavailable",
+                  "detail": "search index not loaded"
+                }
+              }
+            }
+          }
+        },
+        "x-stability": "candidate"
       }
     },
     "/v1/gaps": {
