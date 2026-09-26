@@ -19,7 +19,7 @@ from array import array
 
 from sqlalchemy import select
 
-from .refdata_ingest import _local_min
+from .refdata_ingest import _local_day_min
 from .refdata_models import RefAirport
 from .schedule_pick import METHODS, circ_diff, pick
 
@@ -29,7 +29,7 @@ SUPPORT = ((1, 1, "1 sighting"), (2, 4, "2-4"), (5, 10 ** 9, "5+"))
 
 def load(conn, tz, since):
     """{(callsign, org, dst): array of day*1440+minute} from `since` on,
-    minutes local to the origin. Compact: millions of legs, flat ints."""
+    day and minute local to the origin. Compact: millions of legs, flat ints."""
     out, zones = {}, {}
     for cs, org, dst, date, dep_ts in conn.execute(
             "SELECT callsign, org, dst, date, dep_ts FROM legs"
@@ -37,13 +37,10 @@ def load(conn, tz, since):
             " AND org IS NOT NULL AND dst IS NOT NULL AND org <> dst"
             " AND dep_ts IS NOT NULL"
             " AND (arr_ts IS NULL OR arr_ts - dep_ts >= 600)", (since,)):
-        minute = _local_min(dep_ts, tz.get(org), zones)
-        if minute is None:
+        local = _local_day_min(dep_ts, tz.get(org), zones)
+        if local is None:
             continue
-        try:
-            day = datetime.date.fromisoformat(date).toordinal()
-        except (TypeError, ValueError):
-            continue
+        day, minute = local                 # the origin's own calendar
         key = (cs.strip().upper(), org, dst)
         seen = out.get(key)
         if seen is None:

@@ -1629,6 +1629,33 @@
                                   "null"
                                 ],
                                 "description": "The marketed flight number when a board named it (e.g. LH996 for callsign DLH8AE)."
+                              },
+                              "weekdays": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "day": {
+                                      "type": "string",
+                                      "description": "Mon, Tue, Wed, Thu, Fri, Sat or Sun."
+                                    },
+                                    "dep": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "HH:MM, local at origin."
+                                    },
+                                    "arr": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "HH:MM, local at destination."
+                                    }
+                                  }
+                                },
+                                "description": "Present only when the flight keeps another slot altogether (more than 30 minutes from dep) on some weekdays, read on the origin's calendar: those days' own times, Monday first."
                               }
                             }
                           }
@@ -2149,6 +2176,33 @@
                           "source": {
                             "type": "string",
                             "description": "Provenance of THIS row: observed (from receivers), published (from a timetable), or both. Unlike the observed stats, a published row is not a receiver observation."
+                          },
+                          "weekdays": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "day": {
+                                  "type": "string",
+                                  "description": "Mon, Tue, Wed, Thu, Fri, Sat or Sun."
+                                },
+                                "dep": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "HH:MM, local at origin."
+                                },
+                                "arr": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "HH:MM, local at destination."
+                                }
+                              }
+                            },
+                            "description": "Present only when the flight keeps another slot altogether (more than 30 minutes from dep) on some weekdays, read on the origin's calendar: those days' own times, Monday first."
                           }
                         }
                       },
@@ -2197,6 +2251,33 @@
                           "source": {
                             "type": "string",
                             "description": "observed, published, or both."
+                          },
+                          "weekdays": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "day": {
+                                  "type": "string",
+                                  "description": "Mon, Tue, Wed, Thu, Fri, Sat or Sun."
+                                },
+                                "dep": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "HH:MM, local at origin."
+                                },
+                                "arr": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "HH:MM, local at destination."
+                                }
+                              }
+                            },
+                            "description": "Present only when the flight keeps another slot altogether (more than 30 minutes from dep) on some weekdays, read on the origin's calendar: those days' own times, Monday first."
                           }
                         }
                       },
@@ -3681,7 +3762,7 @@
           "Reference"
         ],
         "summary": "Airline schedule",
-        "description": "Inferred timetable for a route, both directions. Times are HH:MM local at each row's origin. Observation, not a published schedule. Rate: 300 per 600 s (bucket `refdata`). Cache: 1 h edge.",
+        "description": "Inferred timetable for a route, both directions. Times are HH:MM local at each row's origin; `weekdays`, when present, lists the days a flight keeps another slot. Observation, not a published schedule. Rate: 300 per 600 s (bucket `refdata`). Cache: 1 h edge.",
         "operationId": "airline_schedule",
         "parameters": [
           {

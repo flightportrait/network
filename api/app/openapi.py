@@ -107,6 +107,17 @@ def _obj(props, required=None, description=None):
     return schema
 
 
+def _weekdays():
+    return _arr(_obj({
+        "day": _t("string", "Mon, Tue, Wed, Thu, Fri, Sat or Sun."),
+        "dep": _t("string", "HH:MM, local at origin.", nullable=True),
+        "arr": _t("string", "HH:MM, local at destination.", nullable=True),
+    }), description="Present only when the flight keeps another slot "
+                    "altogether (more than 30 minutes from dep) on some "
+                    "weekdays, read on the origin's calendar: those "
+                    "days' own times, Monday first.")
+
+
 def _arr(items, description=None):
     schema = {"type": "array", "items": items}
     if description:
@@ -488,6 +499,7 @@ SCH_FLIGHT = _obj({
                                         "a board named it (e.g. LH996 "
                                         "for callsign DLH8AE).",
                               nullable=True),
+                 "weekdays": _weekdays(),
              })), {"type": "null"}]},
     "aircraft": {"description": "Airframes flying it, busiest first "
                                 "(top 8). Null = log artifact not loaded.",
@@ -590,6 +602,7 @@ SCH_AIRPORT = _obj({
                                "or both. Unlike the observed stats, a "
                                "published row is not a receiver "
                                "observation."),
+        "weekdays": _weekdays(),
     }), description="Inferred typical departures, local time, dep-sorted. "
                     "Rows are a mix of observation and published timetable "
                     "data; check each row's source."),
@@ -602,6 +615,7 @@ SCH_AIRPORT = _obj({
         "type": _t("string", nullable=True),
         "flights": _t("integer", "Observation count behind the row."),
         "source": _t("string", "observed, published, or both."),
+        "weekdays": _weekdays(),
     }), description="Inferred typical arrivals, this airport's local "
                     "time, arr-sorted. Same provenance rules as board."),
     "airlines": _arr(_obj({

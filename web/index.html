@@ -3406,13 +3406,14 @@
     // published times are scheduled; inferred ones are what the flight
     // usually keeps
     var sched = leg.times && leg.times !== "observed" ? "scheduled" : "usually";
+    var todays = onToday(leg, oa[5]);
     var left0 = depNear
       ? "<span class='t'>" + hhmm(new Date(dep.at * 1000), oa[5]) + "</span><span class='lbl'>departed</span>"
-      : "<span class='t'>" + (leg.dep || "–") + "</span><span class='lbl'>" + sched + "</span>";
+      : "<span class='t'>" + (todays.dep || "–") + "</span><span class='lbl'>" + sched + "</span>";
     var right0 = arrNear
       ? "<span class='lbl'>arrived</span><span class='t'>" + hhmm(new Date(arr.at * 1000), da[5]) + "</span>"
       : "<span class='lbl'>estimated</span><span class='t est'>" +
-        (etaDate ? hhmm(etaDate, da[5]) : (leg.arr || "–")) + "</span>";
+        (etaDate ? hhmm(etaDate, da[5]) : (todays.arr || "–")) + "</span>";
     var times = "<div class='leg-times'><div>" + left0 + "</div><div>" + right0 + "</div></div>";
     var dist = flown != null
       ? "<div class='leg-dist'><span>" + Math.round(flown) + " km</span><span>" +
@@ -6305,6 +6306,8 @@ window.__initAirlines = function () {
               return '<div class="sched-row" data-cs="' +
                 (x.callsign || "") + '"><span class="t">' +
                 (x.dep || "—") +
+                (x.weekdays && x.weekdays.length
+                  ? ' <span class="q">' + esc(otherDays(x)) + "</span>" : "") +
                 '</span><span class="fn">' + x.flight +
                 '</span><span class="ac">' + (x.type_name || x.type || "") +
                 "</span></div>";
@@ -7176,6 +7179,25 @@ window.__initJoin = function () {
         minute: "2-digit", hour12: false }).format(new Date());
     } catch (e) { return null; }
   }
+  // A schedule row's times today: its weekday's own slot when it keeps
+  // another one that day (row.weekdays, [{day: "Fri", dep, arr}]),
+  // read on the airport's calendar.
+  function onToday(row, tz) {
+    var day = null;
+    try {
+      day = new Intl.DateTimeFormat("en-GB", { timeZone: tz || "UTC",
+        weekday: "short" }).format(new Date());
+    } catch (e) {}
+    var w = (row.weekdays || []).filter(function (x) { return x.day === day; })[0];
+    return w ? { dep: w.dep || row.dep, arr: w.arr || row.arr }
+             : { dep: row.dep, arr: row.arr };
+  }
+  // the other days, for a timetable: "Fri 18:00"
+  function otherDays(row, arr) {
+    return (row.weekdays || []).map(function (w) {
+      return w.day + " " + ((arr ? w.arr : w.dep) || "–");
+    }).join(", ");
+  }
   var clockTimer = null;
   fetch("assets/airports.json").then(function (r) { return r.json(); })
     .then(function (d) { apts = d; }).catch(function () {});
@@ -7300,7 +7322,10 @@ window.__initJoin = function () {
     // typical board inferred from observation otherwise
     var today = d && d.today;
     var pool = today ? (dep ? today.departures : today.arrivals)
-                     : ((d && (dep ? d.board : d.arrivals)) || []);
+                     : ((d && (dep ? d.board : d.arrivals)) || []).map(function (b) {
+                         var t = onToday(b, d.tz);
+                         return Object.assign({}, b, { dep: t.dep, arr: t.arr });
+                       });
     el("apt-board-src").textContent = today ? "today \u00b7 published"
                                             : (d && (d.board || d.arrivals) ? "typical \u00b7 observed" : "");
     var rows = (pool || []).filter(function (b) {
@@ -7643,6 +7668,9 @@ window.__initJoin = function () {
         when += "<b>" + esc(top.dep) + "</b>" +
           (top.arr ? " &rarr; <b>" + esc(top.arr) + "</b>" : "") +
           " <span class='q'>local</span>";
+        if (top.weekdays && top.weekdays.length) {
+          when += " <span class='q'>&middot; " + esc(otherDays(top)) + "</span>";
+        }
       }
       var how = cadence(top, d.window_days);
       if (how) when += (when ? " <span class='q'>&middot;</span> " : "") + esc(how);

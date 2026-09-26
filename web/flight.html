@@ -295,10 +295,16 @@
     html += "<section class='block'><h2>Route</h2><div class='tablewrap'><table class='legs'>" +
       "<thead><tr><th>From</th><th>To</th><th>Typical departure</th><th>Typical arrival</th>" +
       "<th>Aircraft</th><th class='num'>Flights</th><th class='num'>Days</th><th>Last</th></tr></thead><tbody>";
+    // the weekdays a leg keeps another slot: "Fri 18:00", under the time
+    function days(l, arr) {
+      return (l.weekdays || []).map(function (w) {
+        return "<div class='tz'>" + esc(w.day + " " + ((arr ? w.arr : w.dep) || "–")) + "</div>";
+      }).join("");
+    }
     legs.forEach(function (l) {
       html += "<tr><td>" + place(l.org) + "</td><td>" + place(l.dst) + "</td>" +
-        "<td>" + (l.dep ? esc(l.dep) + "<span class='tz'>local</span>" : "") + "</td>" +
-        "<td>" + (l.arr ? esc(l.arr) + "<span class='tz'>local</span>" : "") + "</td>" +
+        "<td>" + (l.dep ? esc(l.dep) + "<span class='tz'>local</span>" : "") + days(l, false) + "</td>" +
+        "<td>" + (l.arr ? esc(l.arr) + "<span class='tz'>local</span>" : "") + days(l, true) + "</td>" +
         "<td>" + esc(typeName(l.type)) + "</td>" +
         "<td class='num'>" + (l.flights || "") + "</td><td class='num'>" + (l.days || "") + "</td>" +
         "<td>" + esc(l.last || "") + "</td></tr>";

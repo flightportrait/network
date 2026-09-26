@@ -92,3 +92,47 @@ mod tests {
         assert_eq!(sg.len(), 10);
     }
 }
+
+
+const DAY_NAMES: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/// ref_schedule.weekdays (JSON text, {"4": [dep_min, arr_min]}) as the
+/// API writes it: Monday first, [{"day": "Fri", "dep": "18:00", "arr":
+/// "23:10"}]. None when the row keeps one slot every day.
+pub fn weekday_times(text: Option<&str>) -> Option<serde_json::Value> {
+    use serde_json::{json, Value};
+    let map: serde_json::Map<String, Value> = serde_json::from_str(text?).ok()?;
+    let mut days: Vec<(usize, &Value)> = map
+        .iter()
+        .filter_map(|(k, v)| k.parse::<usize>().ok().filter(|d| *d < 7).map(|d| (d, v)))
+        .collect();
+    days.sort_by_key(|(d, _)| *d);
+    let at = |v: &Value, i: usize| v.get(i).and_then(Value::as_i64).map_or(Value::Null, |m| Value::String(hhmm(m)));
+    let out: Vec<Value> = days
+        .into_iter()
+        .map(|(d, v)| json!({"day": DAY_NAMES[d], "dep": at(v, 0), "arr": at(v, 1)}))
+        .collect();
+    (!out.is_empty()).then_some(Value::Array(out))
+}
+
+/// "weekdays" when the snapshot has the column, NULL otherwise, for a
+/// SELECT list over ref_schedule.
+pub fn weekdays_col(refdb: &crate::refdb::RefDb) -> &'static str {
+    if refdb.has(&["ref_schedule.weekdays"]) { "weekdays" } else { "NULL" }
+}
+
+#[cfg(test)]
+mod weekday_tests {
+    use super::*;
+
+    #[test]
+    fn weekday_times_monday_first() {
+        let v = weekday_times(Some(r#"{"6": [600, null], "4": [1080, 1390]}"#)).unwrap();
+        assert_eq!(
+            serde_json::to_string(&v).unwrap(),
+            r#"[{"day":"Fri","dep":"18:00","arr":"23:10"},{"day":"Sun","dep":"10:00","arr":null}]"#
+        );
+        assert!(weekday_times(None).is_none());
+        assert!(weekday_times(Some("{}")).is_none());
+    }
+}

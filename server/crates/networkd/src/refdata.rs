@@ -606,20 +606,21 @@ pub async fn airline_schedule(
     let code = icao.trim().to_uppercase();
     let (o1, d1) = (org.trim().to_uppercase(), dst.trim().to_uppercase());
     let min = app.settings.schedule_min_flights;
+    let wd = crate::boards::weekdays_col(&app.refdb);
     serve(app, req, &["ref_airlines", "ref_schedule", "ref_types"], format!("airline_schedule:{code}:{o1}:{d1}"), move |c| {
         let a = match airline_or_404(c, &code)? {
             Ok(a) => a,
             Err(e) => return Ok(Err(e)),
         };
-        type Row = (String, Option<String>, String, String, String, Option<i64>, Option<i64>, Option<String>, i64);
+        type Row = (String, Option<String>, String, String, String, Option<i64>, Option<i64>, Option<String>, i64, Option<String>);
         let rows: Vec<Row> = c
-            .prepare_cached(
-                "SELECT callsign, flight, source, org, dst, dep_min, arr_min, type_code, n_flights FROM ref_schedule \
+            .prepare_cached(&format!(
+                "SELECT callsign, flight, source, org, dst, dep_min, arr_min, type_code, n_flights, {wd} FROM ref_schedule \
                  WHERE airline_icao = ?1 AND n_flights >= ?2 AND ((org = ?3 AND dst = ?4) OR (org = ?4 AND dst = ?3)) \
                  ORDER BY rowid",
-            )?
+            ))?
             .query_map((&a.icao, min, &o1, &d1), |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?))
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?, r.get(9)?))
             })?
             .collect::<rusqlite::Result<_>>()?;
         // ORDER BY org, dep_min (NULLs last), as Postgres sorts the rows
@@ -666,6 +667,10 @@ pub async fn airline_schedule(
             let tn = r.7.as_ref().and_then(|t| names.get(t).cloned().flatten());
             opt_str(ro.key("type_name"), &tn);
             ro.int("n_flights", r.8);
+            // the weekdays it keeps another slot, only when there are any
+            if let Some(days) = crate::boards::weekday_times(r.9.as_deref()) {
+                crate::pyjson::write_value(ro.key("weekdays"), &days);
+            }
             ro.end();
         }
         buf.push(']');

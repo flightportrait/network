@@ -204,6 +204,7 @@ struct Sched {
     arr_min: Option<i64>,
     type_code: Option<String>,
     n_flights: Option<i64>,
+    weekdays: Option<String>,
 }
 
 /// ORDER BY n_flights DESC as Postgres runs it: NULLs first.
@@ -254,11 +255,12 @@ fn flight_facts(app: &App, asked: &str) -> rusqlite::Result<FlightFacts> {
         }
         let names = [callsign.as_str(), marketed.as_deref().unwrap_or(callsign.as_str())];
         let number = marketed.as_deref().unwrap_or(callsign.as_str());
+        let wd = crate::boards::weekdays_col(&app.refdb);
         let mut rows: Vec<Sched> = c
-            .prepare_cached(
-                "SELECT flight, source, org, dst, dep_min, arr_min, type_code, n_flights FROM ref_schedule \
+            .prepare_cached(&format!(
+                "SELECT flight, source, org, dst, dep_min, arr_min, type_code, n_flights, {wd} FROM ref_schedule \
                  WHERE callsign IN (?1, ?2) OR flight = ?3 ORDER BY rowid",
-            )?
+            ))?
             .query_map([names[0], names[1], number], |r| {
                 Ok(Sched {
                     flight: r.get(0)?,
@@ -269,6 +271,7 @@ fn flight_facts(app: &App, asked: &str) -> rusqlite::Result<FlightFacts> {
                     arr_min: r.get(5)?,
                     type_code: r.get(6)?,
                     n_flights: r.get(7)?,
+                    weekdays: r.get(8)?,
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;
@@ -389,6 +392,10 @@ pub async fn flight(State(app): State<Arc<App>>, axum::extract::Path(asked): axu
             m.insert("type".into(), row.map_or(Value::Null, |r| opt(&r.type_code)));
             m.insert("times".into(), row.map_or(Value::Null, |r| opt(&r.source)));
             m.insert("flight".into(), row.map_or(Value::Null, |r| opt(&r.flight)));
+            // the weekdays it keeps another slot, only when there are any
+            if let Some(days) = row.and_then(|r| crate::boards::weekday_times(r.weekdays.as_deref())) {
+                m.insert("weekdays".into(), days);
+            }
         }
     }
     let mut m = serde_json::Map::new();

@@ -17,7 +17,7 @@ use rusqlite::OptionalExtension;
 
 use crate::boards;
 use crate::http::{client_ip, json, peer_of, throttle, ApiError};
-use crate::pyjson::{write_float, write_str, Obj};
+use crate::pyjson::{write_float, write_str, write_value, Obj};
 use crate::state::App;
 
 const CACHE: &str = "public, s-maxage=3600";
@@ -64,8 +64,10 @@ struct Leg {
     flight: Option<String>,
     source: String,
     n_flights: i64,
+    weekdays: Option<String>,
 }
 
+/// The columns a Leg reads; the last is `weekdays` (boards::weekdays_col).
 const LEG_COLS: &str = "callsign, org, dst, airline_icao, dep_min, arr_min, type_code, flight, source, n_flights";
 
 fn read_leg(r: &rusqlite::Row) -> rusqlite::Result<Leg> {
@@ -80,6 +82,7 @@ fn read_leg(r: &rusqlite::Row) -> rusqlite::Result<Leg> {
         flight: r.get(7)?,
         source: r.get(8)?,
         n_flights: r.get::<_, Option<i64>>(9)?.unwrap_or(0),
+        weekdays: r.get(10)?,
     })
 }
 
@@ -119,6 +122,10 @@ fn board_item(out: &mut String, l: &Leg, other: (&str, &str)) {
     hhmm(o.key("arr"), l.arr_min);
     opt(o.key("type"), &l.type_code);
     o.int("flights", l.n_flights).str("source", &l.source);
+    // the weekdays it keeps another slot, only when there are any
+    if let Some(days) = boards::weekday_times(l.weekdays.as_deref()) {
+        write_value(o.key("weekdays"), &days);
+    }
     o.end();
 }
 
@@ -201,6 +208,7 @@ fn build(app: &App, code: &str) -> rusqlite::Result<Result<String, ApiError>> {
     }
 
     let min = app.settings.schedule_min_flights;
+    let wd = boards::weekdays_col(&app.refdb);
     // ORDER BY n_flights DESC LIMIT 80. Departures: Postgres reads the
     // schedule through its (org, dst) index, in storage order, and
     // pgsort::top_n picks among ties exactly as it does. Arrivals: it
@@ -210,13 +218,13 @@ fn build(app: &App, code: &str) -> rusqlite::Result<Result<String, ApiError>> {
         let Some(i) = &iata else { return Ok(vec![]) };
         if exact {
             let rows: Vec<Leg> = c
-                .prepare_cached(&format!("SELECT {LEG_COLS} FROM ref_schedule WHERE {col} = ?1 AND n_flights >= ?2 ORDER BY rowid"))?
+                .prepare_cached(&format!("SELECT {LEG_COLS}, {wd} FROM ref_schedule WHERE {col} = ?1 AND n_flights >= ?2 ORDER BY rowid"))?
                 .query_map((i, min), read_leg)?
                 .collect::<rusqlite::Result<_>>()?;
             return Ok(crate::pgsort::top_n(rows, 80, &|x: &Leg, y: &Leg| y.n_flights.cmp(&x.n_flights)));
         }
         c.prepare_cached(&format!(
-            "SELECT {LEG_COLS} FROM ref_schedule WHERE {col} = ?1 AND n_flights >= ?2 \
+            "SELECT {LEG_COLS}, {wd} FROM ref_schedule WHERE {col} = ?1 AND n_flights >= ?2 \
              ORDER BY n_flights DESC, callsign, org, dst LIMIT 80"
         ))?
         .query_map((i, min), read_leg)?
@@ -255,7 +263,7 @@ fn build(app: &App, code: &str) -> rusqlite::Result<Result<String, ApiError>> {
         for chunk in names.chunks(500) {
             let marks = vec!["?"; chunk.len()].join(",");
             let mut stmt = c.prepare(&format!(
-                "SELECT {LEG_COLS} FROM ref_schedule WHERE flight IN ({marks}) AND (org = ? OR dst = ?) \
+                "SELECT {LEG_COLS}, {wd} FROM ref_schedule WHERE flight IN ({marks}) AND (org = ? OR dst = ?) \
                  ORDER BY callsign, org, dst"
             ))?;
             let mut params: Vec<&dyn rusqlite::ToSql> = chunk.iter().map(|s| s as &dyn rusqlite::ToSql).collect();

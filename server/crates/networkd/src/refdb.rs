@@ -100,8 +100,9 @@ impl RefDb {
         g.mtime.is_some()
     }
 
-    /// The snapshot is there and holds every table in `needed`: a route
-    /// newer than the file on disk forwards until the next export.
+    /// The snapshot is there and holds every table in `needed` (or
+    /// "table.column"): a route newer than the file on disk forwards
+    /// until the next export.
     pub fn has(&self, needed: &[&str]) -> bool {
         let mut g = self.inner.lock().unwrap();
         self.refresh(&mut g);
@@ -112,11 +113,19 @@ impl RefDb {
             let read = Connection::open_with_flags(&self.path, OpenFlags::SQLITE_OPEN_READ_ONLY)
                 .and_then(|c| {
                     let mut stmt = c.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")?;
-                    let names = stmt.query_map([], |r| r.get::<_, String>(0))?.collect();
-                    names
+                    let tables: Vec<String> = stmt.query_map([], |r| r.get::<_, String>(0))?.collect::<rusqlite::Result<_>>()?;
+                    // columns too, as "table.column": a column newer than
+                    // the file on disk reads as absent, not as an error
+                    let mut names = tables.clone();
+                    for t in &tables {
+                        let mut cols = c.prepare(&format!("SELECT name FROM pragma_table_info('{}')", t.replace('\'', "''")))?;
+                        let found: Vec<String> = cols.query_map([], |r| r.get::<_, String>(0))?.collect::<rusqlite::Result<_>>()?;
+                        names.extend(found.into_iter().map(|col| format!("{t}.{col}")));
+                    }
+                    Ok(names)
                 });
             match read {
-                Ok(names) => g.tables = Some(names),
+                Ok(names) => g.tables = Some(names.into_iter().collect()),
                 Err(_) => return false,
             }
         }

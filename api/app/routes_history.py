@@ -24,6 +24,7 @@ from .address_blocks import state_of
 from .refdata_models import Airframe, AirframeClaim, AirframeEvent, \
     AirframeSpell, RefAirframe, RefAirline, RefAirport, RefSchedule, RefType
 from .routes_refdata import _hhmm, _memberships_by_airline, _serialize_airline
+from .schedule_pick import weekday_times
 
 router = APIRouter(tags=["History"])
 
@@ -331,6 +332,9 @@ def flight(callsign: spec.Callsign, request: Request, response: Response,
             # flew), published (an airport's board), or both
             leg["times"] = getattr(row, "source", None) if row else None
             leg["flight"] = getattr(row, "flight", None) if row else None
+            # the weekdays it keeps another slot, only when there are any
+            if row is not None and getattr(row, "weekdays", None):
+                leg["weekdays"] = weekday_times(row.weekdays)
     response.headers["Cache-Control"] = CACHE
     return out
 
@@ -393,6 +397,8 @@ def airport(code: spec.AirportCode, request: Request, response: Response,
                           "dep": _hhmm(r.dep_min), "arr": _hhmm(r.arr_min),
                           "type": r.type_code, "flights": r.n_flights,
                           "source": r.source})
+            if r.weekdays:
+                board[-1]["weekdays"] = weekday_times(r.weekdays)
             if r.airline_icao:
                 airlines[r.airline_icao] = (airlines.get(r.airline_icao, 0)
                                             + r.n_flights)
@@ -412,6 +418,8 @@ def airport(code: spec.AirportCode, request: Request, response: Response,
                              "dep": _hhmm(r.dep_min), "arr": _hhmm(r.arr_min),
                              "type": r.type_code, "flights": r.n_flights,
                              "source": r.source})
+            if r.weekdays:
+                arrivals[-1]["weekdays"] = weekday_times(r.weekdays)
     arrivals.sort(key=lambda b: (b["arr"] is None, b["arr"] or ""))
 
     # Today's board as the airport publishes it, when we hold one: the

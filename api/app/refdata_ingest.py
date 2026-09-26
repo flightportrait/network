@@ -329,6 +329,17 @@ def _board_stop(counterpart, kind):
     return code if 3 <= len(code) <= 4 and code.isalnum() else None
 
 
+def _weekdays_apart(weekdays, dep):
+    """The weekday slots still another slot than a published departure
+    that just replaced the observed one; None when none are."""
+    from .schedule_pick import WEEKDAY_APART_MIN, circ_diff
+    if not weekdays or dep is None:
+        return weekdays or None
+    kept = {k: v for k, v in weekdays.items()
+            if circ_diff(v[0], dep) > WEEKDAY_APART_MIN}
+    return kept or None
+
+
 def ingest_boards(session, path):
     """Merge harvested airport boards (boards.db, the private
     collector's artifact) into the schedule:
@@ -425,6 +436,7 @@ def ingest_boards(session, path):
             r.flight = flight[:8]
             r.source = "both"
             r.dep_min = sched
+            r.weekdays = _weekdays_apart(r.weekdays, sched)
             decorated += 1
             continue
         session.merge(RefSchedule(
@@ -503,6 +515,7 @@ def ingest_boards(session, path):
             r.flight, r.source = flight[:8], "both"
             if kind == "dep":
                 r.dep_min = sched
+                r.weekdays = _weekdays_apart(r.weekdays, sched)
             else:
                 r.arr_min = sched
             decorated += 1
@@ -950,12 +963,36 @@ def _local_min(ts, tzname, cache):
     return dt.hour * 60 + dt.minute
 
 
+def _local_day_min(ts, tzname, cache):
+    """UTC epoch -> (local date ordinal, local minute of day) in tzname;
+    None when the timezone is unknown. The weekday a flight keeps is the
+    one on the departure airport's own calendar."""
+    minute = _local_min(ts, tzname, cache)
+    if minute is None:
+        return None
+    local = datetime.datetime.fromtimestamp(ts, cache[tzname])
+    return local.date().toordinal(), minute
+
+
 SCHEDULE_WINDOW_DAYS = 60
 # How the departure is read (schedule_pick). Chosen by schedule_backtest
-# on fp-data, 14 days to 2026-09-25, 600k legs each predicted from the
-# days before it: within 45 min "mode" (the original) 77.1 %, this 79.5 %,
-# median error 13 -> 10 min. The weekday layer (81.9 %) needs a column.
+# on fp-data, 14 days to 2026-09-26, 558k legs each predicted from the
+# days before it, on the origin's calendar: within 45 min "mode" (the
+# original) 77.4 %, this 79.8 %, and with each weekday's own slot stored
+# beside it (ref_schedule.weekdays) 82.2 %; median error 13 -> 10 min.
 SCHEDULE_METHOD = "recent+kernel"
+
+
+def _paired_arrival(seen, dep):
+    """The median arrival (5-minute slot, lower median) of the sightings
+    [(day, dep, arr)] that left within KERNEL_MIN of dep: an arrival
+    that goes with that departure. None when none do."""
+    from .schedule_pick import KERNEL_MIN, circ_diff
+    if dep is None:
+        return None
+    arrs = sorted((a // 5) * 5 for _, d, a in seen
+                  if a is not None and circ_diff(d, dep) <= KERNEL_MIN)
+    return arrs[(len(arrs) - 1) // 2] if arrs else None
 
 
 def ingest_schedule(session, path):
@@ -988,7 +1025,7 @@ def ingest_schedule(session, path):
     import itertools
     import os
     import tempfile
-    from .schedule_pick import KERNEL_MIN, circ_diff, pick
+    from .schedule_pick import KERNEL_MIN, circ_diff, pick, weekday_slots
     fd, tmp = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
     src = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
@@ -1018,12 +1055,16 @@ def ingest_schedule(session, path):
                     " AND date >= ?"
                     " AND (dep_ts IS NULL OR arr_ts IS NULL"
                     "      OR arr_ts - dep_ts >= 600)", (cutoff,)):
-                try:
-                    day = datetime.date.fromisoformat(date).toordinal()
-                except (TypeError, ValueError):
-                    day = asof
-                yield (cs.strip().upper(), org, dst, day,
-                       _local_min(dep_ts, tz_by_code.get(org), zones),
+                local = _local_day_min(dep_ts, tz_by_code.get(org), zones)
+                if local is None:
+                    try:
+                        day = datetime.date.fromisoformat(date).toordinal()
+                    except (TypeError, ValueError):
+                        day = asof
+                    dep = None
+                else:
+                    day, dep = local
+                yield (cs.strip().upper(), org, dst, day, dep,
                        _local_min(dep_arr, tz_by_code.get(dst), zones), typ)
 
         for r in rows():
@@ -1050,14 +1091,13 @@ def ingest_schedule(session, path):
         for (cs, org, dst), group in itertools.groupby(
                 legs, key=lambda r: (r[0], r[1], r[2])):
             group = list(group)
-            dep = pick([(r[3], r[4]) for r in group if r[4] is not None],
-                       asof, SCHEDULE_METHOD)
-            arr = None
-            if dep is not None:
-                arrs = sorted((r[5] // 5) * 5 for r in group
-                              if r[5] is not None and r[4] is not None
-                              and circ_diff(r[4], dep) <= KERNEL_MIN)
-                arr = arrs[(len(arrs) - 1) // 2] if arrs else None
+            seen = [(r[3], r[4], r[5]) for r in group if r[4] is not None]
+            dep = pick([(d, m) for d, m, _ in seen], asof, SCHEDULE_METHOD)
+            arr = _paired_arrival(seen, dep)
+            days = weekday_slots(seen, asof, SCHEDULE_METHOD, dep)
+            weekdays = {str(wd): [m, _paired_arrival(
+                [x for x in seen if (x[0] - 1) % 7 == wd], m)]
+                for wd, m in days.items()} or None
             types = {}
             for r in group:
                 if r[6]:
@@ -1067,7 +1107,7 @@ def ingest_schedule(session, path):
             out.append({
                 "callsign": cs[:12], "org": org, "dst": dst,
                 "airline_icao": prefix if prefix.isalpha() else "",
-                "dep_min": dep, "arr_min": arr,
+                "dep_min": dep, "arr_min": arr, "weekdays": weekdays,
                 "type_code": typ, "n_flights": len(group)})
             if len(out) >= CHUNK:
                 session.execute(insert(RefSchedule), out)

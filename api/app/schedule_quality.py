@@ -67,7 +67,9 @@ def score(session, legs_path, tolerance_min=45, day=None):
         observed = local.hour * 60 + local.minute
         bucket = m["published"] if r.source in ("both", "published") else m["inferred"]
         bucket["legs"] += 1
-        if _circ_diff(observed, r.dep_min) <= tolerance_min:
+        # the day's own slot, when the flight keeps another one that weekday
+        want = ((r.weekdays or {}).get(str(local.weekday())) or [r.dep_min])[0]
+        if _circ_diff(observed, want) <= tolerance_min:
             bucket["hits"] += 1
     for k in ("published", "inferred"):
         m[k]["accuracy"] = _pct(m[k]["hits"], m[k]["legs"])

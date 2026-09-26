@@ -357,6 +357,65 @@ def test_schedule_follows_a_retimed_flight(ctx, tmp_path):
         session.close()
 
 
+def test_schedule_keeps_a_weekday_that_flies_another_slot(ctx, tmp_path):
+    """SIA322 leaves at 07:00 but at 18:00 on Fridays: the row keeps
+    07:00 and a Friday slot beside it, the schedule measure and the
+    airline's schedule both read it, and a published time that lands on
+    the Friday slot folds it away."""
+    import datetime as dt
+    import sqlite3
+    client, app, sm, settings, readsb = ctx
+    _seed_all(sm, tmp_path)
+    session = sm()
+    try:
+        session.get(RefAirport, "WSSS").tz = "Asia/Singapore"
+        session.get(RefAirport, "YSSY").tz = "Australia/Sydney"
+        session.commit()
+    finally:
+        session.close()
+    sgt = dt.timezone(dt.timedelta(hours=8))
+    last = dt.date(2026, 9, 20)
+    rows = []
+    for back in range(42):
+        day = last - dt.timedelta(days=back)
+        hhmm = (18, 0) if day.weekday() == 4 else (7, 0)
+        dep = dt.datetime(day.year, day.month, day.day, *hhmm, tzinfo=sgt)
+        rows.append(("76cd01", "9V-SHA", "A359", "SIA322", day.isoformat(),
+                     "SIN", "SYD", int(dep.timestamp()),
+                     int(dep.timestamp()) + 27000, 40000))
+    path = tmp_path / "weekday.db"
+    conn = sqlite3.connect(str(path))
+    conn.execute("CREATE TABLE legs (hex TEXT, reg TEXT, type TEXT, "
+                 "callsign TEXT, date TEXT, org TEXT, dst TEXT, dep_ts INT, "
+                 "arr_ts INT, max_alt INT)")
+    conn.executemany("INSERT INTO legs VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+    conn.commit()
+    conn.close()
+    session = sm()
+    try:
+        refdata_ingest.ingest_schedule(session, str(path))
+        session.commit()
+        row = session.query(RefSchedule).one()
+        assert row.dep_min == 7 * 60
+        # 18:00 SGT + 7.5 h is 17:30 UTC: 03:30 in Sydney (AEST)
+        assert row.weekdays == {"4": [18 * 60, 3 * 60 + 30]}
+        assert refdata_ingest._weekdays_apart(row.weekdays, 18 * 60) is None
+        assert refdata_ingest._weekdays_apart(row.weekdays, 7 * 60) == row.weekdays
+    finally:
+        session.close()
+    settings.schedule_min_flights = 1
+    dep = client.get("/v1/airlines/SIA/schedule/SIN/SYD").json()["departures"][0]
+    assert dep["dep"] == "07:00"
+    assert dep["weekdays"] == [{"day": "Fri", "dep": "18:00", "arr": "03:30"}]
+    from app import schedule_quality
+    session = sm()
+    try:
+        m = schedule_quality.score(session, str(path), day="2026-09-18")  # a Friday
+        assert m["inferred"]["hits"] == m["inferred"]["legs"] == 1
+    finally:
+        session.close()
+
+
 def test_lookup_endpoints(ctx, tmp_path):
     client, app, sm, settings, readsb = ctx
     _seed_all(sm, tmp_path)

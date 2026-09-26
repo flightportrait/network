@@ -13,6 +13,7 @@ from . import ratelimit
 from .db import get_session
 from .errors import ApiError
 from .address_blocks import state_of
+from .schedule_pick import weekday_times
 from .refdata_models import (Airframe, AirframeEvent, AirframeSpell,
                              RefAirframe, RefAirline, RefAirlineCountry,
                              RefAlliance, RefAllianceMembership, RefAirport,
@@ -480,8 +481,9 @@ def _hhmm(minute):
     "/v1/airlines/{icao}/schedule/{org}/{dst}",
     summary="Airline schedule",
     description="Inferred timetable for a route, both directions. Times "
-                "are HH:MM local at each row's origin. Observation, not a "
-                "published schedule. Rate: 300 per 600 s (bucket "
+                "are HH:MM local at each row's origin; `weekdays`, when "
+                "present, lists the days a flight keeps another slot. "
+                "Observation, not a published schedule. Rate: 300 per 600 s (bucket "
                 "`refdata`). Cache: 1 h edge.",
     operation_id="airline_schedule",
     responses=spec.ok(spec.EX_SCHEDULE, spec.R429, spec.R404),
@@ -524,6 +526,8 @@ def airline_schedule(icao: spec.AirlineICAO, org: spec.AirportEnd,
             "arr": _hhmm(r.arr_min), "arr_min": r.arr_min,
             "type": r.type_code, "type_name": type_names.get(r.type_code),
             "n_flights": r.n_flights})
+        if r.weekdays:
+            out[-1]["weekdays"] = weekday_times(r.weekdays)
     response.headers["Cache-Control"] = CACHE
     return {"icao": row.icao, "org": org, "dst": dst, "departures": out}
 

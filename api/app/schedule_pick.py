@@ -87,3 +87,43 @@ def pick(seen, asof, method="mode", weekday=None):
             if circ_diff(own, pooled) > WEEKDAY_APART_MIN:
                 return own
     return pooled
+
+
+def weekday_slots(seen, asof, method, pooled):
+    """{weekday: minute} for the weekdays whose own time is another slot
+    than `pooled`, read with `method` (its weekday flag aside) from
+    sightings [(day ordinal, minute, ...)]. What `pick(..., "weekday")`
+    would answer for those days, precomputed for all seven."""
+    if pooled is None:
+        return {}
+    flags = set(method.split("+"))
+    recent, kernel = "recent" in flags, "kernel" in flags
+    by_day = {}
+    for s in seen:
+        by_day.setdefault((s[0] - 1) % 7, []).append((s[0], s[1]))
+    out = {}
+    for wd, same in sorted(by_day.items()):
+        if len(same) < WEEKDAY_MIN_SEEN:
+            continue
+        own = _pick(same, asof, recent, kernel)
+        if circ_diff(own, pooled) > WEEKDAY_APART_MIN:
+            out[wd] = own
+    return out
+
+
+DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+def _hhmm(m):
+    return None if m is None else "%02d:%02d" % (m // 60, m % 60)
+
+
+def weekday_times(weekdays):
+    """ref_schedule.weekdays as the API writes it: Monday first,
+    [{"day": "Fri", "dep": "18:00", "arr": "23:10"}], [] when none."""
+    out = []
+    for k in sorted(weekdays or {}, key=int):
+        dep, arr = (list(weekdays[k]) + [None, None])[:2]
+        out.append({"day": DAY_NAMES[int(k)], "dep": _hhmm(dep),
+                    "arr": _hhmm(arr)})
+    return out
