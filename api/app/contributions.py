@@ -16,6 +16,7 @@ the catalog whenever both speak.
     python -m app.contributions reject ID [--note ..]
     python -m app.contributions withdraw ID [--note ..]   # undo an approval
     python -m app.contributions reconcile       # close rows observation overtook
+    python -m app.contributions recheck         # reopen timetable answers the clock disputes
     python -m app.contributions propose         # file what the evidence points at
 """
 import argparse
@@ -353,10 +354,13 @@ def check_claim(session, book, claim, airports=None, network=None,
         checks["timetable"] = "pass" if claimed in told else "fail"
         published = told.get(claimed)
         end = "org" if side == "dest" else "dst"
-        if (published is not None and known is not None and known.tz
-                and legs is not None and legs.available()):
-            seen = _local_minutes(legs.times_at(claim.callsign, gap["known"],
-                                                end), known.tz)
+        # when it was seen at the known end: the gap's own sightings
+        # (one-sided legs, which the flight log leaves out), else the log
+        stamps = gap.get("known_ts") or (
+            legs.times_at(claim.callsign, gap["known"], end)
+            if legs is not None and legs.available() else [])
+        if published is not None and known is not None and known.tz:
+            seen = _local_minutes(stamps, known.tz)
             near = sum(1 for m in seen if abs((m - published + 720) % 1440
                                               - 720) <= CLOCK_TOLERANCE_MIN)
             if seen and 2 * near >= len(seen):
@@ -398,12 +402,13 @@ LOG_RECENT_DAYS = 90
 
 
 def weighed(checks):
-    """The checks as the verdict reads them. The log saw the pair flown;
-    the rotation is an inference that assumes the airframe turns
-    straight back, which spoke-to-hub flights rarely do. Observation
-    outranks the inference."""
+    """The checks as the verdict reads them. The log saw the pair flown,
+    or the flight left when the timetable says it does; the rotation is
+    an inference that assumes the airframe turns straight back, which
+    spoke-to-hub flights rarely do. Observation outranks the inference."""
     checks = dict(checks or {})
-    if checks.get("log") == "pass" and checks.get("rotation") == "fail":
+    if (checks.get("log") == "pass" or checks.get("clock") == "pass") \
+            and checks.get("rotation") == "fail":
         checks["rotation"] = "skip"
     return checks
 
@@ -877,6 +882,43 @@ def reconcile(session, routes_book, today=None):
     return closed
 
 
+def recheck(session, book, legs=None, today=None):
+    """Hold approved timetable answers to the timetable and the clock
+    every night: when the airport's timetable now names another end, or
+    the flight keeps leaving at another time than the published one,
+    the catalog row closes and the claim waits for a person again.
+    A timetable that merely stopped listing the flight changes nothing
+    (boards come and go with the harvest). Returns the claims reopened."""
+    today = today or datetime.date.today()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    timetable = Timetable()
+    reopened = []
+    # a subquery, not DISTINCT: Postgres cannot compare the json checks
+    for claim in session.execute(
+            select(Claim).where(
+                Claim.status == "approved",
+                Claim.id.in_(select(Endorsement.claim_id).where(
+                    Endorsement.key_name == TIMETABLE_KEY)))).scalars().all():
+        if book.get(claim.callsign) is None:
+            continue                     # answered by observation since
+        checks = check_claim(session, book, claim, legs=legs,
+                             timetable=timetable)
+        if "fail" not in (checks.get("timetable"), checks.get("clock")):
+            continue
+        for row in session.execute(
+                select(RouteCatalog).where(RouteCatalog.claim_id == claim.id,
+                                           RouteCatalog.valid_to.is_(None))
+        ).scalars():
+            row.valid_to = today
+            row.closed_reason = "rechecked"
+        claim.checks, claim.status, claim.verdict = checks, "pending", \
+            "unverified"
+        claim.reviewed_at, claim.reviewed_by = now, "recheck"
+        reopened.append(claim)
+    session.commit()
+    return reopened
+
+
 def _print_claim(session, claim):
     print("#%-5d %-8s %s -> %s  %s  %s  %s" % (
         claim.id, claim.callsign, claim.origin, claim.dest, claim.status,
@@ -913,6 +955,7 @@ def main(argv=None):
     p = sub.add_parser("list"); p.add_argument("--approved", action="store_true",
                                                help="recent approvals instead")
     sub.add_parser("reconcile")
+    sub.add_parser("recheck")
     sub.add_parser("propose")
     args = ap.parse_args(argv)
 
@@ -983,6 +1026,15 @@ def main(argv=None):
             for callsign, reason in closed:
                 print("closed %s: %s" % (callsign, reason))
             print("%d closed" % len(closed))
+        elif args.cmd == "recheck":
+            book = GapBook(settings.gaps_path)
+            if not book.available():
+                sys.exit("the gaps artifact is not loaded")
+            done = recheck(session, book, legs=LegBook(settings.legs_path))
+            for claim in done:
+                print("reopened #%d %s %s -> %s" % (
+                    claim.id, claim.callsign, claim.origin, claim.dest))
+            print("recheck: %d reopened" % len(done))
         elif args.cmd == "propose":
             book = GapBook(settings.gaps_path)
             if not book.available():

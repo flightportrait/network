@@ -666,3 +666,76 @@ def test_a_timetable_that_names_another_airport_holds_a_claim(ctx, tmp_path):
         assert claim.status == "pending"
     finally:
         session.close()
+
+
+def test_the_clock_outranks_the_rotation(ctx, tmp_path):
+    """The rotation says Beijing is far too far (the airframe does not
+    turn straight back), but the flight leaves when Changi's timetable
+    says it does: observation outranks the inference."""
+    client, app, sm = _timetable(ctx, tmp_path, [("SQ826", "PEK", 60)],
+                                 seen_local_min=65)
+    gap = dict(TIMETABLE_GAP, est_km=900, n_rot=4)
+    _write_gz(tmp_path / "gaps.json.gz", {"SIA826": gap})
+    app.state.gaps = GapBook(str(tmp_path / "gaps.json.gz"))
+    session = sm()
+    try:
+        assert contributions.propose(session, app.state.gaps, app.state.routes,
+                                     legs=app.state.legs) == (1, 1)
+        claim = session.query(Claim).one()
+        assert claim.checks["rotation"] == "fail"
+        assert claim.checks["clock"] == "pass"
+    finally:
+        session.close()
+
+
+def test_the_gaps_own_sightings_set_the_clock(ctx, tmp_path):
+    """The flight log keeps only legs with both ends, so a gap's
+    departures live in the artifact itself (known_ts)."""
+    client, app, sm = _timetable(ctx, tmp_path, [("SQ826", "PEK", 60)],
+                                 seen_local_min=65)
+    app.state.legs = LegBook(str(tmp_path / "absent.db"))
+    sgt = datetime.timezone(datetime.timedelta(hours=8))
+    stamps = [int((datetime.datetime.combine(
+        datetime.date.today() - datetime.timedelta(days=d), datetime.time(),
+        sgt) + datetime.timedelta(minutes=70)).timestamp()) for d in range(1, 5)]
+    _write_gz(tmp_path / "gaps.json.gz",
+              {"SIA826": dict(TIMETABLE_GAP, known_ts=stamps)})
+    app.state.gaps = GapBook(str(tmp_path / "gaps.json.gz"))
+    session = sm()
+    try:
+        assert contributions.propose(session, app.state.gaps, app.state.routes,
+                                     legs=app.state.legs) == (1, 1)
+        assert session.query(Claim).one().checks["clock"] == "pass"
+    finally:
+        session.close()
+
+
+def test_recheck_reopens_a_timetable_answer_the_clock_disputes(ctx, tmp_path):
+    """Approved at 01:00; then the published time moves to 10:00 while
+    the aircraft keeps leaving at 01:05. The row closes, the question is
+    open again and the claim waits for a person. A timetable that stops
+    listing the flight changes nothing."""
+    client, app, sm = _timetable(ctx, tmp_path, [("SQ826", "PEK", 60)],
+                                 seen_local_min=65)
+    session = sm()
+    try:
+        contributions.propose(session, app.state.gaps, app.state.routes,
+                              legs=app.state.legs)
+        assert contributions.recheck(session, app.state.gaps,
+                                     legs=app.state.legs) == []
+        session.query(RefSchedule).one().dep_min = 600
+        session.commit()
+        done = contributions.recheck(session, app.state.gaps, legs=app.state.legs)
+        assert [c.callsign for c in done] == ["SIA826"]
+        claim = session.query(Claim).one()
+        assert (claim.status, claim.verdict) == ("pending", "unverified")
+        assert claim.checks["clock"] == "fail"
+        row = session.query(RouteCatalog).one()
+        assert row.closed_reason == "rechecked" and row.valid_to is not None
+        # a reopened question is not refiled by the next propose
+        assert contributions.propose(session, app.state.gaps, app.state.routes,
+                                     legs=app.state.legs) == (0, 0)
+    finally:
+        session.close()
+    assert client.get("/v1/flights/SIA826").status_code == 404
+    assert client.get("/v1/gaps").json()["total"] == 1
