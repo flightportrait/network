@@ -236,6 +236,7 @@ async fn typed_results() {
         (Some("aircraft"), Some("76cda1"), Some("76cda1"), Some("9V-SMA"), Some("A359"))
     );
     assert_eq!((p["type_name"].as_str(), p["operator"].as_str()), (Some("Airbus A350-900"), Some("Singapore Airlines")));
+    assert!(p["score"].as_f64().unwrap() >= 1000.0, "{p}");
 
     let v = ask(&mut r, "A380").await;
     let t = &v["results"][0];

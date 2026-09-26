@@ -171,15 +171,16 @@ impl Search<'_> {
         let q = self.ask.q;
         let intents = parse(q, &self.e.lx);
         let mut reading: Option<Value> = None;
+        let mut about = None;
         for (r, it) in intents.iter().enumerate() {
             let base = INTENT - INTENT_STEP * r as f64;
             let n = self.intent(it, r, base)?;
             if n > 0 && reading.is_none() {
                 reading = Some(intent_json(it));
+                about = Some(agrees_with(it));
             }
         }
-        let first = intents.first().map(agrees_with);
-        let codes = self.codes(first)?;
+        let codes = self.codes(about)?;
         if reading.is_none() && codes > 0 {
             reading = Some(json!({"kind": "code", "code": compact(q)}));
         }
@@ -288,8 +289,12 @@ impl Search<'_> {
                     (Occur::Must, self.any_of(f.airports, &place.airports)),
                 ]));
                 let q = self.only(q, &["flight"]);
-                for (pop, doc) in self.by_pop(&*q, 20)? {
-                    self.offer(base + lift(pop, 6.0), doc);
+                for (pop, doc) in self.by_pop(&*q, 40)? {
+                    // flights that begin or end there first, the main
+                    // airport first, by how often the legs there fly
+                    let fit = place_fit(&doc, place);
+                    let s = base + if fit.end { 10.0 } else { 0.0 } - 3.0 * fit.at as f64 + lift(fit.flights.unwrap_or(pop), 6.0);
+                    self.offer(s, doc);
                     n += 1;
                 }
             }
@@ -527,6 +532,29 @@ fn route_fit(doc: &Value, from: &Place, to: &Place) -> RouteFit {
     fit
 }
 
+/// How a flight fits a place: whether it begins or ends there, how far
+/// down the place's airport list, how often its legs there fly.
+struct PlaceFit {
+    end: bool,
+    at: usize,
+    flights: Option<u64>,
+}
+
+fn place_fit(doc: &Value, place: &Place) -> PlaceFit {
+    let route: Vec<&str> = doc["route"].as_array().map(|r| r.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+    let pos = |code: &str| place.airports.iter().position(|a| a == code);
+    let end = [route.first(), route.last()].into_iter().flatten().any(|c| pos(c).is_some());
+    let at = route.iter().filter_map(|c| pos(c)).min().unwrap_or(0);
+    let flights = doc["legs"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|l| [l["org"].as_str(), l["dst"].as_str()].into_iter().flatten().any(|c| pos(c).is_some()))
+        .filter_map(|l| l["flights"].as_u64())
+        .max();
+    PlaceFit { end, at, flights }
+}
+
 /// The kind of result a reading is about.
 fn agrees_with(it: &Intent) -> &'static str {
     match it {
@@ -643,6 +671,18 @@ mod tests {
         assert_eq!(f(&["SIN"], &["LHR"]), (true, false, 0, Some(31)));
         assert_eq!(f(&["SYD"], &["LHR"]), (false, true, 0, None));
         assert_eq!(f(&["JFK", "SYD"], &["LGW", "LHR"]), (false, true, 2, None));
+    }
+
+    #[test]
+    fn a_place_at_either_end_before_one_on_the_way() {
+        let p = Place { text: String::new(), airports: vec!["LHR".into(), "LGW".into()], how: "city" };
+        let doc = json!({"route": ["SIN", "LHR"], "legs": [{"org": "SIN", "dst": "LHR", "flights": 26}]});
+        let f = place_fit(&doc, &p);
+        assert_eq!((f.end, f.at, f.flights), (true, 0, Some(26)));
+        let doc = json!({"route": ["CPH", "LGW", "AER"], "legs": [
+            {"org": "CPH", "dst": "LGW", "flights": 40}, {"org": "LGW", "dst": "AER", "flights": 46}]});
+        let f = place_fit(&doc, &p);
+        assert_eq!((f.end, f.at, f.flights), (false, 1, Some(46)));
     }
 
     #[test]
