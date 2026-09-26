@@ -4398,7 +4398,7 @@
           "Reference"
         ],
         "summary": "Search",
-        "description": "One box over registrations, hexes, flight numbers, routes (two places), fleets (an operator and a type), airports and airlines. One ranked list: exact codes, then prefixes, then word starts, then near misses, traffic as the tie-breaker. Rate: 600 per 600 s (bucket `search`). Cache: 12 h edge.",
+        "description": "One box over registrations, hexes, flight numbers (\"SQ322\", \"SQ 322\"), routes (two places: \"SIN LHR\", \"SIN-LHR\", \"Singapore to London\"), fleets (an operator and a type), airports and airlines; names compare without accents. One ranked list: exact codes, then prefixes, then word starts, then near misses (only when nothing matched a whole code or word), traffic as the tie-breaker. Rate: 600 per 600 s (bucket `search`). Cache: 12 h edge.",
         "operationId": "search",
         "parameters": [
           {

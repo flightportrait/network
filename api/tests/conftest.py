@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 pytest.importorskip("fastapi")
 
 from fastapi.testclient import TestClient          # noqa: E402
-from sqlalchemy import create_engine               # noqa: E402
+from sqlalchemy import create_engine, event        # noqa: E402
 from sqlalchemy.orm import sessionmaker as make_sm # noqa: E402
 from sqlalchemy.pool import StaticPool             # noqa: E402
 
@@ -85,11 +85,25 @@ def run(coro):
     return asyncio.get_event_loop_policy().new_event_loop().run_until_complete(coro)
 
 
+def _translate(s, frm, to):
+    """Postgres's translate(), which search folds accents with."""
+    if s is None:
+        return None
+    return s.translate(str.maketrans(frm, to[:len(frm)],
+                                     frm[len(to):]))
+
+
+def _postgres_functions(dbapi_conn, _record):
+    dbapi_conn.create_function("translate", 3, _translate,
+                               deterministic=True)
+
+
 @pytest.fixture
 def ctx():
     ratelimit.reset()
     engine = create_engine("sqlite://", poolclass=StaticPool,
                            connect_args={"check_same_thread": False})
+    event.listen(engine, "connect", _postgres_functions)
     Base.metadata.create_all(engine)
     sm = make_sm(bind=engine, expire_on_commit=False)
     settings = Settings()

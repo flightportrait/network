@@ -186,3 +186,132 @@ def test_busiest_airport_wins_the_city(ctx, tmp_path):
     body = client.get("/v1/search", params={"q": "Singapore"}).json()
     airports = [r["id"] for r in body["results"] if r["kind"] == "airport"]
     assert airports[0] == "SIN"
+
+
+def test_the_exact_number_is_scored_before_the_cap(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    _seed_all(sm, tmp_path)
+    session = sm()
+    session.add(RefAirline(icao="BAW", iata="BA", name="British Airways"))
+    session.add(RefAirline(icao="UAE", iata="EK", name="Emirates"))
+    # five busier numbers typed as BA16… fill a prefix's five rows
+    for cs, n in (("BA1611", 5), ("BA1606", 4), ("BA1608", 4),
+                  ("BA1635", 4), ("BA1637", 4), ("BAW16", 62),
+                  ("BAW168", 1), ("UAE110", 55), ("UAE17K", 55),
+                  ("UAE19", 53), ("UAE11M", 51), ("UAE185", 51),
+                  ("UAE1", 30)):
+        session.add(RefSchedule(callsign=cs, org="LHR", dst="SIN",
+                                airline_icao=cs[:3], n_flights=n))
+    session.commit(); session.close()
+    app.state.legs = LegBook(str(tmp_path / "missing.db"))
+    body = client.get("/v1/search", params={"q": "BA16"}).json()
+    flights = [r["id"] for r in body["results"] if r["kind"] == "flight"]
+    assert flights[0] == "BAW16" and len(flights) == 5
+    # the prefix's own number, though five busier ones start with it
+    for q in ("UAE1", "EK1"):
+        body = client.get("/v1/search", params={"q": q}).json()
+        assert body["results"][0]["id"] == "UAE1", q
+
+
+def test_a_flight_number_typed_with_a_space(ctx, tmp_path):
+    client, _ = _ready(ctx, tmp_path)
+    for q in ("SQ 322", "sq 322", "SIA 322", "SQ322"):
+        body = client.get("/v1/search", params={"q": q}).json()
+        assert body["results"][0]["id"] == "SIA322", q
+        assert body["q"] == q.upper()
+    # a registration or a pair of places is not a flight number
+    from app.routes_search import _compact_flight
+    assert _compact_flight("SQ 322") == "SQ322"
+    assert _compact_flight("BA 16A") == "BA16A"
+    assert _compact_flight("737 800") == "737 800"
+    assert _compact_flight("SIN LHR") == "SIN LHR"
+    assert _compact_flight("9V SMA") == "9V SMA"
+
+
+def test_routes_asked_in_words(ctx, tmp_path):
+    client, _ = _ready(ctx, tmp_path)
+    for q in ("Singapore to London", "from SIN to LHR", "to LHR from SIN",
+              "SIN-LHR", "SIN - LHR", "SIN–LHR", "SIN — LHR",
+              "SIN → LHR", "SIN>LHR", "SIN->LHR", "Singapore - London",
+              "flights from Singapore to London",
+              "flights to London from Singapore", "Changi to Heathrow"):
+        body = client.get("/v1/search", params={"q": q}).json()
+        hits = [r for r in body["results"] if r["kind"] == "flight"]
+        assert hits and hits[0]["id"] == "SIA322", q
+    body = client.get("/v1/search", params={"q": "London to Singapore"}).json()
+    assert body["results"][0]["id"] == "SIA317"
+
+
+def test_what_is_not_a_route():
+    from app.routes_search import _places
+    assert _places("SIN LHR") == ("SIN", "LHR")
+    assert _places("HONG KONG TO KUALA LUMPUR") == ("HONG KONG", "KUALA LUMPUR")
+    assert _places("FLIGHTS TO LONDON FROM SINGAPORE") == ("SINGAPORE", "LONDON")
+    assert _places("FROM SIN → LHR") == ("SIN", "LHR")
+    # registrations keep their dash; words with "to" in them are words
+    for q in ("9V-SMA", "D-AIMA", "G-XLEA", "A6-EDA", "TOKYO", "TORONTO",
+              "TOKYO HANEDA", "TO LONDON", "FROM SIN", "SIN TO", "FLIGHTS",
+              "SIN TO LHR TO SYD", "A-B", "SIN-LHR-SYD", "→"):
+        assert _places(q) in (None, ("TOKYO", "HANEDA")), q
+
+
+def test_names_and_cities_without_their_accents(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    _seed_all(sm, tmp_path)
+    session = sm()
+    session.add(RefAirport(
+        ident="SBGR", kind="large_airport", iso_country="BR", iata="GRU",
+        name="São Paulo/Guarulhos–Governor André Franco Montoro "
+             "International Airport", municipality="São Paulo"))
+    session.add(RefAirport(ident="LSZH", kind="large_airport",
+                           iso_country="CH", iata="ZRH",
+                           name="Zürich Airport", municipality="Zurich"))
+    session.add(RefAirline(icao="WIF", iata="WF", name="Widerøe"))
+    session.commit(); session.close()
+    for q, want in (("Sao Paulo", "GRU"), ("São Paulo", "GRU"),
+                    ("sao paulo", "GRU"), ("Zurich", "ZRH"),
+                    ("Zürich", "ZRH"), ("Wideroe", "WIF"),
+                    ("Widerøe", "WIF")):
+        body = client.get("/v1/search", params={"q": q}).json()
+        assert body["results"] and body["results"][0]["id"] == want, q
+    body = client.get("/v1/search", params={"q": "Sao Paulo"}).json()
+    assert body["results"][0]["detail"] == "São Paulo · BR"
+    assert body["results"][0]["label"].startswith("São Paulo/Guarulhos")
+
+
+def test_a_busy_airport_outranks_an_air_base_named_first(ctx, tmp_path):
+    client, app, sm, settings, readsb = ctx
+    _seed_all(sm, tmp_path)
+    session = sm()
+    session.add(RefAirport(ident="WSAC", name="Changi Air Base (East)",
+                           kind="medium_airport", iso_country="SG",
+                           municipality="Singapore", iata=None))
+    session.add(RefSchedule(callsign="RSAF1", org="WSAC", dst="WSAP",
+                            airline_icao="RSF", n_flights=280))
+    for cs, org, dst, n in SCHEDULE:
+        session.add(RefSchedule(callsign=cs, org=org, dst=dst,
+                                airline_icao="SIA", n_flights=n))
+    session.add(RefSchedule(callsign="SIA1", org="SIN", dst="SFO",
+                            airline_icao="SIA", n_flights=9000))
+    session.commit(); session.close()
+    body = client.get("/v1/search", params={"q": "Changi"}).json()
+    airports = [r["id"] for r in body["results"] if r["kind"] == "airport"]
+    assert airports == ["SIN", "WSAC"]
+    # the base still answers its own code first
+    body = client.get("/v1/search", params={"q": "WSAC"}).json()
+    assert body["results"][0]["id"] == "WSAC"
+
+
+def test_the_fold_table_is_networkds():
+    """networkd folds with the same table, or the two answer apart."""
+    import os
+    import re
+    from app.routes_search import FOLD_FROM, FOLD_TO
+    assert len(FOLD_FROM) == len(FOLD_TO)
+    here = os.path.dirname(os.path.abspath(__file__))
+    src = open(os.path.join(here, "..", "..", "server", "crates", "networkd",
+                            "src", "search.rs"), encoding="utf-8").read()
+    for name, table in (("FOLD_FROM", FOLD_FROM), ("FOLD_TO", FOLD_TO)):
+        body = re.search(r"const %s: &str = concat!\((.*?)\);" % name, src,
+                         re.S).group(1)
+        assert "".join(re.findall(r'"([^"]*)"', body)) == table, name
