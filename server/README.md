@@ -63,6 +63,21 @@ The network server in Rust, and the harness that measures it.
   enrichment reads memory and the local reference snapshot; the
   community catalog is asked at most once per request, for callsigns it
   has not answered in ten minutes.
+  `/v2/search` answers from a full-text index (Tantivy) of the
+  reference snapshot, built by the same binary:
+  `networkd search-index build --refdata data/refdata.sqlite
+  [--legs data/legs.db] --out data/search` writes one generation per
+  snapshot (`data/search/<created_at>/`: the index, `lexicon.json` for
+  query understanding, `build.json`), points `data/search/CURRENT` at it
+  and keeps the one before. networkd opens the current generation
+  read-only (`NETWORKD_SEARCH_INDEX`, default `data/search`), looks for a
+  new one every 30 s, and answers 503 `artifact_unavailable` without
+  one. The cities a place name stands for and the aircraft families are
+  tables in `crates/networkd/data/search/`. Results link to the site at
+  `NETWORKD_SITE_URL` (default `https://flightportrait.com/network`);
+  rate bucket `search_v2` (`NETWORK_API_SEARCH_V2_RATE_LIMIT`, 600).
+  `python3 tools/search_eval/run.py --api v2` scores it on the golden
+  set.
   `/openapi.json` and the docs pages are copies in
   `crates/networkd/static`; after an API change, rerun
   `python api/export_openapi.py --networkd server/crates/networkd/static`
