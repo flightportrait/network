@@ -28,6 +28,10 @@
 <meta name="theme-color" content="#F5F1E6">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
+<!-- the card's photo: planespotters' lookup (fetched, so crossorigin)
+     and its image host, connected before the first click -->
+<link rel="preconnect" href="https://api.planespotters.net" crossorigin>
+<link rel="preconnect" href="https://t.plnspttrs.net">
 <style>
   /* The palette is registered so it can ease: at night (body.night-ui,
      set by the night layer when most of the view is dark) the whole
@@ -2862,9 +2866,24 @@
       map.on("mouseenter", "planes", function () {
         map.getCanvas().style.cursor = "pointer";
       });
+      map.on("mousemove", "planes", function (e) {
+        photoSoon(e.features[0] && e.features[0].properties.hex);
+      });
       map.on("mouseleave", "planes", function () {
         map.getCanvas().style.cursor = "";
       });
+      // the photo lookup starts once the pointer rests on a plane, not
+      // for every plane a sweep crosses
+      var photoTimer = null, photoHex = null;
+      function photoSoon(hex) {
+        if (hex === photoHex) return;
+        photoHex = hex;
+        clearTimeout(photoTimer);
+        if (hex && window.__photoLookup) {
+          photoTimer = setTimeout(function () { window.__photoLookup(hex); }, 150);
+        }
+      }
+      map.on("mouseleave", "planes", function () { photoSoon(null); });
       var hoverAt = 0, hoverHex = null;
       map.on("mousemove", function (e) {
         if (!gpu.active) return;
@@ -2873,6 +2892,7 @@
         hoverAt = now;
         var hex = gpuHit(e.point);
         map.getCanvas().style.cursor = hex ? "pointer" : "";
+        photoSoon(hex);
         var t = el("tip");
         if (!hex) {
           if (hoverHex) { t.style.display = "none"; hoverHex = null; }
@@ -3227,18 +3247,58 @@
       : { type: "FeatureCollection", features: [] });
   }
 
+  // One planespotters lookup per aircraft, shared by the card and the
+  // airframe panel: started when the pointer rests on a plane or the tap
+  // lands, and remembered on this device for a day (the image itself
+  // then comes from the browser's cache). A failed lookup counts as no
+  // photo for this visit only: never kept on the device, and never
+  // retried on every render of the card.
   var photoCache = {};       // hex -> {src, link, photographer} | null
+  var photoAsks = {};        // hex -> Promise of the same
+  var PHOTO_KEY = "fp-photos", PHOTO_TTL = 864e5, PHOTO_KEEP = 400;
+  var photoStore = (function () {
+    try {
+      var v = JSON.parse(localStorage.getItem(PHOTO_KEY) || "null");
+      return v && typeof v === "object" ? v : {};
+    } catch (e) { return {}; }
+  })();
+  function photoKeep(hex, p) {
+    photoStore[hex] = { p: p, at: Date.now() };
+    var keys = Object.keys(photoStore);
+    if (keys.length > PHOTO_KEEP) {
+      keys.sort(function (a, b) { return photoStore[a].at - photoStore[b].at; });
+      keys.slice(0, keys.length - PHOTO_KEEP).forEach(function (k) { delete photoStore[k]; });
+    }
+    try { localStorage.setItem(PHOTO_KEY, JSON.stringify(photoStore)); } catch (e) {}
+  }
+  function photoLookup(hex) {
+    if (!hex) return Promise.resolve(null);
+    if (hex in photoCache) return Promise.resolve(photoCache[hex]);
+    var kept = photoStore[hex];
+    if (kept && Date.now() - kept.at < PHOTO_TTL) {
+      photoCache[hex] = kept.p;
+      return Promise.resolve(kept.p);
+    }
+    if (!photoAsks[hex]) {
+      photoAsks[hex] = fetch("https://api.planespotters.net/pub/photos/hex/" + hex)
+        .then(function (r) { if (!r.ok) throw r.status; return r.json(); })
+        .then(function (d) {
+          var p = (d.photos || [])[0];
+          p = p && p.thumbnail_large ? { src: p.thumbnail_large.src, link: p.link,
+                                         photographer: p.photographer } : null;
+          photoCache[hex] = p;
+          photoKeep(hex, p);
+          return p;
+        })
+        .catch(function () { photoCache[hex] = null; return null; })
+        .then(function (p) { delete photoAsks[hex]; return p; });
+    }
+    return photoAsks[hex];
+  }
+  window.__photoLookup = photoLookup;
   function loadPhoto(hex) {
     if (hex in photoCache) { renderPhoto(hex); return; }
-    photoCache[hex] = undefined;   // in flight
-    fetch("https://api.planespotters.net/pub/photos/hex/" + hex)
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        var p = (d.photos || [])[0];
-        photoCache[hex] = p ? { src: p.thumbnail_large.src, link: p.link,
-                                photographer: p.photographer } : null;
-        renderPhoto(hex);
-      }).catch(function () { photoCache[hex] = null; renderPhoto(hex); });
+    photoLookup(hex).then(function () { renderPhoto(hex); });
   }
   // planespotters is a third party fetched in the visitor's browser;
   // escape every field and allow only https URLs (esc alone would not
@@ -3446,6 +3506,7 @@
     if (window.__closeAirport) window.__closeAirport(true);
     if (!el("fl-detail").hidden) el("fl-close").click();
     if (!el("af-detail").hidden) el("af-close").click();
+    if (window.__photoLookup) window.__photoLookup(hex);
     state.selected = hex;
     if (history.replaceState) {
       history.replaceState(null, "",
@@ -7978,15 +8039,12 @@ window.__initJoin = function () {
     clearLayers();
     activeIdx = null;
 
-    fetch("https://api.planespotters.net/pub/photos/hex/" + hex)
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
+    (window.__photoLookup ? window.__photoLookup(hex) : Promise.resolve(null))
+      .then(function (p) {
         if (mine !== af.token) return;
-        var p = (d.photos || [])[0];
         if (!p) return;
         var pl = esc(/^https:\/\//i.test(p.link || "") ? p.link : "");
-        var ps = esc(/^https:\/\//i.test(p.thumbnail_large.src || "")
-          ? p.thumbnail_large.src : "");
+        var ps = esc(/^https:\/\//i.test(p.src || "") ? p.src : "");
         el("af-photo").innerHTML = "<a href='" + pl +
           "' target='_blank' rel='noopener'><img src='" +
           ps + "' alt=''></a>" +
