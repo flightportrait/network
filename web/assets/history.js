@@ -5,6 +5,8 @@
    it, the map's cards the latest few.
 
    fpHistory.flag(iso)          the state of registration as its flag
+   fpHistory.stateOf(hex)       that state's ISO code from the hex alone
+                                (assets/address_blocks.js, loaded first)
    fpHistory.facts(d)           "Built 1982 · Serial 22194 · engine"
    fpHistory.rows(d)            [{at, src, what, more, hi}], newest first
    fpHistory.list(rows, limit)  <ol class='tl'> of those rows
@@ -31,6 +33,17 @@
     var name = esc(countryName(code));
     return "<span class='flag' role='img' title='" + name + "' aria-label='" +
       name + "'>" + f + "</span>";
+  }
+  // As the API's address_blocks.state_of: the smallest containing block
+  // wins (Bermuda inside the United Kingdom), none for ICAO's own blocks.
+  function stateOf(hex) {
+    var blocks = window.fpAddressBlocks, a = parseInt(hex, 16), best = null;
+    if (!blocks || !/^[0-9a-f]{6}$/i.test(hex || "")) return null;
+    for (var i = 0; i < blocks.length && blocks[i][0] <= a; i++) {
+      var b = blocks[i];
+      if (a <= b[1] && (!best || b[1] - b[0] < best[1] - best[0])) best = b;
+    }
+    return best ? best[2] : null;
   }
   function day(iso) {
     var d = new Date(String(iso).slice(0, 10) + "T00:00:00Z");
@@ -129,6 +142,6 @@
     return rows(d).filter(function (r) { return r.hi; });
   }
 
-  window.fpHistory = { flag: flag, facts: facts, rows: rows, list: list,
-                       notable: notable, day: day };
+  window.fpHistory = { flag: flag, stateOf: stateOf, facts: facts, rows: rows,
+                       list: list, notable: notable, day: day };
 })();

@@ -1650,6 +1650,7 @@
 
 <script src="vendor/maplibre-gl.js"></script>
 <script src="assets/search.js"></script>
+<script src="assets/address_blocks.js"></script>
 <script src="assets/history.js"></script>
 <script>
 (function () {
@@ -3597,8 +3598,10 @@
     // the airframe leads the labelled rows further down (rows below)
     var facts = [];
     var rec = recordOf(a.hex);
-    var flag = rec && rec.country && window.fpHistory
-      ? " " + window.fpHistory.flag(rec.country) : "";
+    // the state is the hex's address block: drawn with the rest, not
+    // after the record arrives
+    var H = window.fpHistory, state = H && H.stateOf(a.hex);
+    var flag = state ? " " + H.flag(state) : "";
     if (typeName) facts.push(["Aircraft", esc(typeName)]);
     if (a.r) facts.push(["Registration", esc(a.r) + flag]);
     var built = rec && ((rec.history && rec.history.built_year) || rec.year);
