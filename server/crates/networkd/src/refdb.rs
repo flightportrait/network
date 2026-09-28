@@ -14,15 +14,22 @@ use std::time::{Duration, Instant, SystemTime};
 use bytes::Bytes;
 use rusqlite::{Connection, OpenFlags};
 
+use crate::bodycache::BodyCache;
+
 const RECHECK: Duration = Duration::from_secs(30);
-const CACHE_MAX: usize = 20_000;
+/// response bodies held per snapshot
+const CACHE_BYTES: usize = 64 * 1024 * 1024;
+/// pooled connections, and each one's page cache (KiB, SQLite's negative
+/// form): together they bound what the snapshot costs in memory
+const POOL_MAX: usize = 8;
+const PAGE_CACHE_KIB: i64 = 8_000;
 
 struct Inner {
     mtime: Option<SystemTime>,
     next_check: Option<Instant>,
     generation: u64,
     pool: Vec<Connection>,
-    cache: HashMap<String, Bytes>,
+    cache: BodyCache,
     /// the snapshot's table names, read once per generation
     tables: Option<std::collections::HashSet<String>>,
     /// structures built from the snapshot, once per generation
@@ -52,7 +59,7 @@ impl std::ops::Deref for Conn<'_> {
 impl Drop for Conn<'_> {
     fn drop(&mut self) {
         let mut g = self.db.inner.lock().unwrap();
-        if g.generation == self.generation && g.pool.len() < 16 {
+        if g.generation == self.generation && g.pool.len() < POOL_MAX {
             g.pool.push(self.conn.take().unwrap());
         }
     }
@@ -67,7 +74,7 @@ impl RefDb {
                 next_check: None,
                 generation: 0,
                 pool: vec![],
-                cache: HashMap::new(),
+                cache: BodyCache::new("refdata", CACHE_BYTES),
                 tables: None,
                 memo: HashMap::new(),
             }),
@@ -149,7 +156,7 @@ impl RefDb {
                 c.pragma_update(None, "query_only", true)?;
                 // LIKE as Postgres has it: case-sensitive
                 c.pragma_update(None, "case_sensitive_like", true)?;
-                c.pragma_update(None, "cache_size", -32_000)?;
+                c.pragma_update(None, "cache_size", -PAGE_CACHE_KIB)?;
                 c
             }
         };
@@ -160,7 +167,7 @@ impl RefDb {
     pub fn cached(&self, key: &str) -> Option<Bytes> {
         let mut g = self.inner.lock().unwrap();
         self.refresh(&mut g);
-        g.cache.get(key).cloned()
+        g.cache.get(key)
     }
 
     /// Remember `body` for `key`, if the snapshot has not changed since
@@ -169,9 +176,6 @@ impl RefDb {
         let mut g = self.inner.lock().unwrap();
         if g.generation != generation {
             return;
-        }
-        if g.cache.len() >= CACHE_MAX {
-            g.cache.clear();
         }
         g.cache.insert(key, body);
     }

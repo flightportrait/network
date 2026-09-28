@@ -30,13 +30,15 @@ use serde_json::{json, Value};
 
 pub use engine::Engine;
 
+use crate::bodycache::BodyCache;
 use crate::http::{client_ip, json as respond, peer_of, throttle, ApiError};
 use crate::search::{norm, quote, CACHE};
 use crate::state::App;
 use schema::KINDS;
 
 const RECHECK: Duration = Duration::from_secs(30);
-const CACHE_MAX: usize = 20_000;
+/// search answers held per index generation
+const CACHE_BYTES: usize = 32 * 1024 * 1024;
 const LIMIT: usize = 10;
 const LIMIT_MAX: usize = 50;
 /// a caller's position is rounded to this many degrees (~25 km)
@@ -46,7 +48,7 @@ struct Held {
     next_check: Option<Instant>,
     name: Option<String>,
     engine: Option<Arc<Engine>>,
-    cache: HashMap<String, Bytes>,
+    cache: BodyCache,
 }
 
 /// The index directory and the generation open from it.
@@ -59,7 +61,7 @@ impl SearchIndex {
     pub fn new(dir: &str) -> Arc<SearchIndex> {
         Arc::new(SearchIndex {
             dir: dir.into(),
-            held: Mutex::new(Held { next_check: None, name: None, engine: None, cache: HashMap::new() }),
+            held: Mutex::new(Held { next_check: None, name: None, engine: None, cache: BodyCache::new("search", CACHE_BYTES) }),
         })
     }
 
@@ -98,16 +100,13 @@ impl SearchIndex {
     }
 
     fn cached(&self, key: &str) -> Option<Bytes> {
-        self.held.lock().unwrap().cache.get(key).cloned()
+        self.held.lock().unwrap().cache.get(key)
     }
 
     fn remember(&self, key: String, generation: &str, body: Bytes) {
         let mut h = self.held.lock().unwrap();
         if h.engine.as_ref().is_none_or(|e| e.generation != generation) {
             return;
-        }
-        if h.cache.len() >= CACHE_MAX {
-            h.cache.clear();
         }
         h.cache.insert(key, body);
     }

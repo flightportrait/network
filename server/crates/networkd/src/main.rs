@@ -11,6 +11,7 @@
 mod address_blocks;
 mod airframe;
 mod beacon;
+mod bodycache;
 mod boards;
 mod catalog;
 mod departure;
