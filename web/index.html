@@ -3687,8 +3687,8 @@
     var rec = recordOf(a.hex);
     // the state is the hex's address block: drawn with the rest, not
     // after the record arrives
-    var H = window.fpHistory, state = H && H.stateOf(a.hex);
-    var flag = state ? " " + H.flag(state) : "";
+    var H = window.fpHistory, regState = H && H.stateOf(a.hex);
+    var flag = regState ? " " + H.flag(regState) : "";
     if (typeName) facts.push(["Aircraft", esc(typeName)]);
     if (a.r) facts.push(["Registration", esc(a.r) + flag]);
     var built = rec && ((rec.history && rec.history.built_year) || rec.year);
