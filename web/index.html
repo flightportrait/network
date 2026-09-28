@@ -354,10 +354,20 @@
   .detail a.hist::after{content:" \2192"}
   .detail a.hist:hover{text-decoration:underline}
   /* The photo at a fixed height with the credit set over its corner,
-     so it costs one block, not a block and a line. */
-  .detail .photo{margin:8px -20px 0;display:none;position:relative}
-  .detail .photo.show{display:block}
-  .detail .photo img{width:100%;height:150px;object-fit:cover;display:block}
+     so it costs one block, not a block and a line. Its place is held
+     from the selection (.wait, a quiet tint) and the image fades into
+     it, so the card does not jump when planespotters answers; no photo
+     folds the place away. */
+  .detail .photo{margin:0 -20px;height:0;overflow:hidden;position:relative;
+    transition:height .2s ease,margin-top .2s ease}
+  .detail .photo.wait,.detail .photo.show{height:150px;margin-top:8px}
+  .detail .photo.wait{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+  .detail .photo img{width:100%;height:150px;object-fit:cover;display:block;
+    opacity:0;transition:opacity .25s ease}
+  .detail .photo.show img{opacity:1}
+  @media(prefers-reduced-motion:reduce){
+    .detail .photo,.detail .photo img{transition:none}
+  }
   .detail .credit{position:absolute;right:6px;bottom:6px;
     font-family:'Helvetica Neue',Arial,sans-serif;font-size:10px;
     letter-spacing:.03em;color:var(--quiet);background:color-mix(in srgb,var(--paper) 88%,transparent);
@@ -1114,7 +1124,8 @@
     #sheet-cards .cardclose{top:-2px;right:8px;width:40px;height:40px;
       padding:0;display:flex;align-items:center;justify-content:center;
       font-size:26px;border-radius:20px}
-    #sheet-cards .detail .photo{margin:8px -20px 0}
+    #sheet-cards .detail .photo{margin:0 -20px}
+    #sheet-cards .detail .photo.wait,#sheet-cards .detail .photo.show{height:160px;margin-top:8px}
     #sheet-cards .detail .photo img{height:160px}
     #sheet-cards .cardclose:active{background:color-mix(in srgb,var(--ink) 8%,transparent)}
     .sheet-handle::before{content:"";display:block;width:40px;height:4px;
@@ -3298,6 +3309,13 @@
   window.__photoLookup = photoLookup;
   function loadPhoto(hex) {
     if (hex in photoCache) { renderPhoto(hex); return; }
+    var box = el("d-photo");
+    if (box.dataset.hex !== hex) {
+      box.dataset.hex = hex;
+      box.dataset.src = "";
+      box.innerHTML = "";
+      box.className = "photo wait";
+    }
     photoLookup(hex).then(function () { renderPhoto(hex); });
   }
   // planespotters is a third party fetched in the visitor's browser;
@@ -3311,19 +3329,27 @@
     if (state.selected !== hex) return;
     var box = el("d-photo");
     var p = photoCache[hex];
-    if (!p) { box.className = "photo"; box.innerHTML = ""; return; }
+    box.dataset.hex = hex;
+    if (!p) { box.className = "photo"; box.innerHTML = ""; box.dataset.src = ""; return; }
     var link = esc(httpsOnly(p.link)), src = esc(httpsOnly(p.src));
+    // the card renders on every update of the sky: the photo already in
+    // place (or on its way) stays, rather than fading in again each time
+    if (box.dataset.src === src && box.querySelector("img")) return;
+    box.dataset.src = src;
     box.innerHTML = "<a href='" + link + "' target='_blank' " +
       "rel='noopener'><img src='" + src + "' alt=''></a>" +
       "<div class='credit'>&copy; " + esc(p.photographer) +
       " &middot; <a href='" + link +
       "' target='_blank' rel='noopener'>planespotters.net</a></div>";
     var img = box.querySelector("img");
-    box.className = "photo";
+    box.className = "photo wait";
     img.onload = function () {
       if (state.selected === hex && img.naturalWidth > 0) box.className = "photo show";
     };
-    img.onerror = function () { box.className = "photo"; box.innerHTML = ""; };
+    img.onerror = function () {
+      if (state.selected !== hex) return;
+      box.className = "photo"; box.innerHTML = ""; box.dataset.src = "";
+    };
     if (img.complete && img.naturalWidth > 0) box.className = "photo show";
   }
 
