@@ -3378,6 +3378,20 @@
       });
   }
   var flightCache = {};      // callsign -> the flight record (legs, times)
+  // A schedule row's times today: its weekday's own slot when it keeps
+  // another one that day (row.weekdays, [{day: "Fri", dep, arr}]),
+  // read on the airport's calendar. The airport board keeps its own
+  // copy: the two scripts do not see each other.
+  function onToday(row, tz) {
+    var day = null;
+    try {
+      day = new Intl.DateTimeFormat("en-GB", { timeZone: tz || "UTC",
+        weekday: "short" }).format(new Date());
+    } catch (e) {}
+    var w = (row.weekdays || []).filter(function (x) { return x.day === day; })[0];
+    return w ? { dep: w.dep || row.dep, arr: w.arr || row.arr }
+             : { dep: row.dep, arr: row.arr };
+  }
   // Time-zone label for an airport: the zone's short name and its
   // offset now, "CEST (UTC+02:00)"; the offset alone when the short
   // name is only "GMT+2".
@@ -5748,6 +5762,13 @@ window.__initAirlines = function () {
       return "&#" + c.charCodeAt(0) + ";";
     });
   }
+  // the other days' slots, for a timetable: "Fri 18:00" (the airport
+  // board keeps its own copy: the scripts do not see each other)
+  function otherDays(row, arr) {
+    return (row.weekdays || []).map(function (w) {
+      return w.day + " " + ((arr ? w.arr : w.dep) || "–");
+    }).join(", ");
+  }
   function tailURL(code, size) {
     var entry = state.tails[code];
     var relative = entry && entry[String(size)];
@@ -7602,6 +7623,13 @@ window.__initJoin = function () {
     return String(x == null ? "" : x).replace(/[&<>"']/g, function (c) {
       return "&#" + c.charCodeAt(0) + ";";
     });
+  }
+  // the other days' slots, for a timetable: "Fri 18:00" (the airport
+  // board keeps its own copy: the scripts do not see each other)
+  function otherDays(row, arr) {
+    return (row.weekdays || []).map(function (w) {
+      return w.day + " " + ((arr ? w.arr : w.dep) || "–");
+    }).join(", ");
   }
   function dur(a, b) {
     if (!a || !b || b <= a) return "";
