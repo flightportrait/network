@@ -20,6 +20,10 @@ station](docs/privacy.md).
 `web/` is static HTML. No build. It talks to our API. We serve it
 at `/network/` on the site.
 
+`functions/` holds the Cloudflare Pages Functions served with it.
+`/network/plane/{hex}` returns the airframe page with its data
+already in the HTML, so a reader without JavaScript gets the content.
+
 `api/` is the instance behind data.flightportrait.com, published so
 the privacy handling is auditable ([its README](api/README.md)).
 There is one network; this is the code it runs, not a self-host kit.

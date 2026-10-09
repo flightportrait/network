@@ -439,7 +439,7 @@
         if (p.notable) tags.push("<span class='tag hi'>" + p.notable +
           (p.notable > 1 ? " reports" : " report") + "</span>");
         return "<div class='row'>" +
-          "<span class='reg'><a href='plane.html?hex=" + esc(p.hex) + "'>" + esc(p.reg) + "</a>" +
+          "<span class='reg'><a href='plane/" + esc(p.hex) + "'>" + esc(p.reg) + "</a>" +
           (H && p.country ? H.flag(p.country) : "") + "</span>" +
           "<span class='type'>" + esc(typeName(p.type)) +
           (p.type && typeName(p.type) !== p.type ? "<span class='code q'>" + esc(p.type) + "</span>" : "") + "</span>" +
@@ -654,7 +654,7 @@
             return "<div class='row' data-hex='" + esc(a.hex) + "'>" +
               "<span class='cs'>" + esc((a.flight || "").trim()) + "</span>" +
               "<span class='route'>" + esc(routeText(a)) + "</span>" +
-              "<span class='reg q'>" + (a.r ? "<a href='plane.html?hex=" + esc(a.hex) + "'>" + esc(a.r) + "</a>" : "") + "</span>" +
+              "<span class='reg q'>" + (a.r ? "<a href='plane/" + esc(a.hex) + "'>" + esc(a.r) + "</a>" : "") + "</span>" +
               "<span class='type'>" + (a.t ? "<span class='badge' title='" + esc(typeName(a.t)) + "'>" +
                 esc(shortType(typeName(a.t))) + "</span>" : "") + "</span>" +
               "<span class='alt num'>" + esc(alt(a)) + "</span>" +
@@ -663,7 +663,7 @@
             return "<div class='row est' data-hex='" + esc(a.hex) + "'>" +
               "<span class='cs'>" + esc((a.flight || "").trim()) + "<span class='tag'>estimated</span></span>" +
               "<span class='route'>" + esc(routeText(a)) + "</span>" +
-              "<span class='reg q'>" + (a.r ? "<a href='plane.html?hex=" + esc(a.hex) + "'>" + esc(a.r) + "</a>" : "") + "</span>" +
+              "<span class='reg q'>" + (a.r ? "<a href='plane/" + esc(a.hex) + "'>" + esc(a.r) + "</a>" : "") + "</span>" +
               "<span class='type'>" + (a.t ? "<span class='badge' title='" + esc(typeName(a.t)) + "'>" +
                 esc(shortType(typeName(a.t))) + "</span>" : "") + "</span>" +
               "<span class='alt num'>" + esc(alt(a)) + "</span>" +
@@ -681,7 +681,7 @@
             esc(clock(a.last_seen.at)) + "</span>" : "") +
           "<span class='q'>" + esc([a.r, typeName(a.t), alt(a)].filter(Boolean).join(" · ")) + "</span>" +
           "<a href='/network/#" + esc(a.hex) + "'>Live map</a> &middot; " +
-          "<a href='plane.html?hex=" + esc(a.hex) + "'>Aircraft</a>")
+          "<a href='plane/" + esc(a.hex) + "'>Aircraft</a>")
         .addTo(state.map);
     }
     function find(hex) {

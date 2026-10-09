@@ -332,7 +332,7 @@
       html += "<section class='block'><h2>Aircraft on this flight</h2><div class='tablewrap'><table class='legs'>" +
         "<thead><tr><th>Registration</th><th>Type</th><th class='num'>Flights</th></tr></thead><tbody>";
       fleet.forEach(function (a) {
-        html += "<tr><td><a href='plane.html?hex=" + esc(a.hex) + "'>" + esc(a.reg || a.hex.toUpperCase()) + "</a></td>" +
+        html += "<tr><td><a href='plane/" + esc(a.hex) + "'>" + esc(a.reg || a.hex.toUpperCase()) + "</a></td>" +
           "<td>" + esc(typeName(a.type)) + "</td><td class='num'>" + (a.flights || "") + "</td></tr>";
       });
       html += "</tbody></table></div></section>";

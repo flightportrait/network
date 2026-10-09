@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<base href="/network/">
 <!-- One airframe's observed life: identity and the flight log in one
      /v1/airframes/{hex} call, photo from planespotters (credited).
      The legs are what the open trace archives actually show, gaps
@@ -181,8 +182,13 @@
   // Talks to the instance we operate. For local hacking, set
   // window.FP_API before this script.
   var API = window.FP_API || "https://data.flightportrait.com";
-  var hex = (new URLSearchParams(location.search).get("hex") ||
+  // /network/plane/{hex}; the older ?hex= and #hex forms still read
+  var hex = ((location.pathname.match(/\/plane\/([0-9a-fA-F]{6})$/) || [])[1] ||
+             new URLSearchParams(location.search).get("hex") ||
              location.hash.slice(1) || "").toLowerCase();
+  if (/^[0-9a-f]{6}$/.test(hex) && location.pathname !== "/network/plane/" + hex) {
+    history.replaceState(null, "", "/network/plane/" + hex);
+  }
 
   function el(id) { return document.getElementById(id); }
   function esc(s) {

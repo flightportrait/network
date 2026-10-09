@@ -3669,7 +3669,7 @@
     link.hidden = !notable.length;
     if (!notable.length) return;
     var top = notable[0];
-    link.href = "plane.html?hex=" + hex;
+    link.href = "plane/" + hex;
     link.dataset.hex = hex;
     link.innerHTML = top.what.replace(/<[^>]+>/g, "") +
       " <span class='more'>" + H.day(top.at) +
@@ -3729,7 +3729,7 @@
     var alert = (a.emergency && EMERG[a.emergency]) || SQUAWK[a.squawk] || "";
     el("d-alert").hidden = !alert;
     el("d-alert").textContent = alert;
-    el("d-history").href = "plane.html?hex=" + a.hex;
+    el("d-history").href = "plane/" + a.hex;
     el("d-history").dataset.hex = a.hex;
     var cs = (a.flight || "").trim();
     el("d-flightlog").hidden = !/^[A-Z]{3}\d/.test(cs);
@@ -8079,7 +8079,7 @@ window.__initJoin = function () {
     el("af-facts").innerHTML = "";
     el("af-hist").innerHTML = "";
     el("af-hist-head").hidden = el("af-hist").hidden = true;
-    el("af-hist-all").href = "plane.html?hex=" + hex;
+    el("af-hist-all").href = "plane/" + hex;
     el("af-photo").className = "photo";
     el("af-photo").innerHTML = "";
     ["af-flights", "af-airports", "af-pair"].forEach(function (id) {
@@ -8089,7 +8089,7 @@ window.__initJoin = function () {
      "af-legs", "af-note"].forEach(function (id) {
       el(id).hidden = true;
     });
-    el("af-full").href = "plane.html?hex=" + hex;
+    el("af-full").href = "plane/" + hex;
     clearLayers();
     activeIdx = null;
 
