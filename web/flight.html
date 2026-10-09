@@ -242,7 +242,7 @@
         ready.then(function () {
           var entry = tails[prefix[1]], rel = entry && entry["64"];
           el("ident").innerHTML = (rel ? "<img class='tail' alt='' src='assets/airline-tails/" + esc(rel) + "'>" : "") +
-            "<a href='airline.html?icao=" + esc(prefix[1]) + "' style='color:inherit;text-decoration:none'>" + esc(a.name) + "</a>" +
+            "<a href='airline/" + esc(prefix[1]) + "' style='color:inherit;text-decoration:none'>" + esc(a.name) + "</a>" +
             (a.iata ? " · " + esc(a.iata) + callsign.slice(3) : "");
         });
       }).catch(function () {});

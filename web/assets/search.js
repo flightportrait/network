@@ -18,7 +18,7 @@
     if (r.kind === "aircraft") return "plane/" + encodeURIComponent(r.id);
     if (r.kind === "flight") return "flight.html?callsign=" + encodeURIComponent(r.id);
     if (r.kind === "airport") return "/network/?airport=" + encodeURIComponent(r.id);
-    if (r.kind === "airline") return "airline.html?icao=" + encodeURIComponent(r.id);
+    if (r.kind === "airline") return "airline/" + encodeURIComponent(r.id);
     if (r.kind === "live") return "/network/#" + encodeURIComponent(r.id);
     return "#";
   }

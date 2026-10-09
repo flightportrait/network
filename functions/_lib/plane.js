@@ -2,15 +2,7 @@
 // with the airframe's identity, stats and flight log written in, plus
 // title, description, canonical and breadcrumbs. The page's own script
 // then renders the full view over it, as it does for visitors.
-
-const API = "https://data.flightportrait.com";
-const SITE = "https://flightportrait.com";
-const TTL = 3600; // matches the API's s-maxage for /v1/airframes
-
-function esc(s) {
-  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => (
-    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
+import { SITE, esc, api, breadcrumbs, cachedPage, headRewriter, SetText, SetHtml, SetAttr } from "./edge.js";
 
 export function canonical(hex) {
   return `${SITE}/network/plane/${hex}`;
@@ -55,18 +47,12 @@ function head(d, s) {
   return { title, desc };
 }
 
-function breadcrumbs(d) {
+function crumbs(d) {
   const { reg, operator, icao } = ident(d);
   const items = [{ name: "Network", item: `${SITE}/network/` }];
-  if (operator && icao) {
-    items.push({ name: operator, item: `${SITE}/network/airline.html?icao=${icao}` });
-  }
+  if (operator && icao) items.push({ name: operator, item: `${SITE}/network/airline/${icao}` });
   items.push({ name: reg, item: canonical(d.hex) });
-  return JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: items.map((x, i) => ({ "@type": "ListItem", position: i + 1, ...x })),
-  }).replace(/</g, "\\u003c");
+  return breadcrumbs(items);
 }
 
 function identHtml(d) {
@@ -74,7 +60,7 @@ function identHtml(d) {
   let html = [type, d.hex.toUpperCase()].filter(Boolean).map(esc).join(" · ");
   if (operator) {
     html += " · " + (icao
-      ? `<a href="airline.html?icao=${esc(icao)}" style="color:inherit;text-decoration:none">${esc(operator)}</a>`
+      ? `<a href="airline/${esc(icao)}" style="color:inherit;text-decoration:none">${esc(operator)}</a>`
       : esc(operator));
   }
   return html;
@@ -97,57 +83,27 @@ function logHtml(d) {
   return html + "</tbody></table></div>";
 }
 
-class SetText {
-  constructor(value) { this.value = value; }
-  element(e) { e.setInnerContent(this.value); }
-}
-class SetHtml {
-  constructor(value) { this.value = value; }
-  element(e) { e.setInnerContent(this.value, { html: true }); }
-}
-class SetAttr {
-  constructor(name, value) { this.attr = name; this.value = value; }
-  element(e) { e.setAttribute(this.attr, this.value); }
-}
-class Append {
-  constructor(value) { this.value = value; }
-  element(e) { e.append(this.value, { html: true }); }
-}
-
-export function render(page, d) {
-  const s = summary(d);
-  const { title, desc } = head(d, s);
-  const url = canonical(d.hex);
-  let rw = new HTMLRewriter()
-    .on("title", new SetText(title))
-    .on('meta[name="description"]', new SetAttr("content", desc))
-    .on('meta[property="og:title"]', new SetAttr("content", title))
-    .on('meta[property="og:description"]', new SetAttr("content", desc))
-    .on("head", new Append(
-      `<link rel="canonical" href="${url}">` +
-      `<meta property="og:url" content="${url}">` +
-      (s.legs ? "" : '<meta name="robots" content="noindex">') +
-      `<script type="application/ld+json">${breadcrumbs(d)}</script>`))
-    .on("#reg", new SetText(ident(d).reg))
-    .on("#ident", new SetHtml(identHtml(d)))
-    .on("#log", new SetHtml(logHtml(d)));
-  if (s.legs) {
-    rw = rw
-      .on("#s-legs", new SetText(String(s.legs)))
-      .on("#s-airports", new SetText(String(s.airports)))
-      .on("#s-pair", new SetText(s.pair || "–"))
-      .on("#s-days", new SetText(String(s.days)))
-      .on("#s-first", new SetText(s.first))
-      .on("#stats", new SetAttr("style", ""));
-  }
-  return rw.transform(page);
-}
-
-async function api(path) {
-  const r = await fetch(API + path, { cf: { cacheTtl: TTL, cacheEverything: true } });
-  if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`api ${r.status}`);
-  return r.json();
+export function airframePage(context, hex) {
+  return cachedPage(context, canonical(hex), "/network/plane", async (page) => {
+    const d = await api("/v1/airframes/" + hex);
+    if (!d) return null;
+    const s = summary(d);
+    const { title, desc } = head(d, s);
+    let rw = headRewriter(title, desc, canonical(hex), crumbs(d), s.legs > 0)
+      .on("#reg", new SetText(ident(d).reg))
+      .on("#ident", new SetHtml(identHtml(d)))
+      .on("#log", new SetHtml(logHtml(d)));
+    if (s.legs) {
+      rw = rw
+        .on("#s-legs", new SetText(String(s.legs)))
+        .on("#s-airports", new SetText(String(s.airports)))
+        .on("#s-pair", new SetText(s.pair || "–"))
+        .on("#s-days", new SetText(String(s.days)))
+        .on("#s-first", new SetText(s.first))
+        .on("#stats", new SetAttr("style", ""));
+    }
+    return rw.transform(page);
+  });
 }
 
 // A registration typed as a URL ("9V-SMF") resolves to its hex through
@@ -158,37 +114,4 @@ export async function hexForReg(reg) {
   const hit = ((d && d.results) || []).find((r) =>
     r.kind === "aircraft" && String(r.label).toUpperCase() === want);
   return hit ? hit.id : null;
-}
-
-export async function airframePage(context, hex) {
-  const cache = caches.default;
-  const key = new Request(canonical(hex));
-  const hit = await cache.match(key);
-  if (hit) return hit;
-
-  const page = await context.env.ASSETS.fetch(new URL("/network/plane", context.request.url));
-  let d;
-  try {
-    d = await api("/v1/airframes/" + hex);
-  } catch (e) {
-    // API busy or down. A 503 tells crawlers to come back; a visitor's
-    // browser still shows the page, its script fetching on its own.
-    const res = new Response(page.body, { status: 503, headers: page.headers });
-    res.headers.set("Retry-After", "600");
-    return res;
-  }
-  if (!d) {
-    const res = new Response(page.body, { status: 404, headers: page.headers });
-    res.headers.set("X-Robots-Tag", "noindex");
-    return res;
-  }
-  const res = new Response(render(page, d).body, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": `public, max-age=300, s-maxage=${TTL}`,
-    },
-  });
-  context.waitUntil(cache.put(key, res.clone()));
-  return res;
 }

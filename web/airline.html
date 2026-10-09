@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<base href="/network/">
 <meta name="robots" content="noindex">
 <!-- One airline as the network observes it: the aircraft flying its
      callsigns now (from the airframe record), its routes and the
@@ -296,8 +297,13 @@
 (function () {
   "use strict";
   var API = window.FP_API || "https://data.flightportrait.com";
-  var icao = (new URLSearchParams(location.search).get("icao") ||
+  // /network/airline/{ICAO}; the older ?icao= and #ICAO forms still read
+  var fromPath = (location.pathname.match(/\/airline\/([A-Za-z0-9]{3})$/) || [])[1];
+  var icao = (fromPath || new URLSearchParams(location.search).get("icao") ||
               location.hash.replace(/^#/, "").split("/")[0] || "").toUpperCase().trim();
+  if (/^[A-Z0-9]{3}$/.test(icao) && location.pathname !== "/network/airline/" + icao) {
+    history.replaceState(null, "", "/network/airline/" + icao + (fromPath ? location.hash : ""));
+  }
   function el(id) { return document.getElementById(id); }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"'\/]/g, function (c) {

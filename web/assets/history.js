@@ -110,7 +110,7 @@
     if (!h) return [];
     var out = [], seen = {};
     (h.operators || []).forEach(function (o, i) {
-      var link = "<a href='airline.html?icao=" + esc(o.icao) + "'>" +
+      var link = "<a href='airline/" + esc(o.icao) + "'>" +
         esc(o.name || o.icao) + "</a>";
       // the first stint starts where the network's view starts, not
       // where the airline's does
