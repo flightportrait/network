@@ -23,6 +23,11 @@ are paired by the caller's public IP (an IPv6 address by its /64),
 held in memory for ten minutes under a salted hash of it, and never
 written anywhere.
 
+`GET /v1/me` (the Am I feeding page) compares the caller's public IP
+with the stations connected in the last poll of readsb's client list.
+Both sides are salted hashes held in memory, replaced at every poll,
+and never written anywhere.
+
 The roster (`GET /v1/stations`): generated id, optional label,
 coarse coordinates, first and last heard, online or not.
 
