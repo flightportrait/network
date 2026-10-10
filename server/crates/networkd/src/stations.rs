@@ -124,6 +124,26 @@ pub fn parse_clients(body: &[u8]) -> anyhow::Result<Vec<Client>> {
     Ok(rows)
 }
 
+/// The address each connected feeder came from, in the same poll: the
+/// normalized UUID and the IP, for /v1/me's salted network key. The
+/// caller keeps only that key; the address goes no further.
+pub fn feeder_addresses(body: &[u8]) -> Vec<(String, String)> {
+    let Ok(v) = serde_json::from_slice::<Value>(body) else { return vec![] };
+    let mut out = vec![];
+    for entry in v.get("clients").and_then(|c| c.as_array()).into_iter().flatten() {
+        let Some(e) = entry.as_array().filter(|a| a.len() >= 2) else { continue };
+        let Some(uuid) = e[0].as_str().filter(|u| !is_anonymous(u)) else { continue };
+        let Some(n) = normalize_uuid(uuid) else { continue };
+        let Some(addr) = e[1].as_str() else { continue };
+        let ip = addr.trim().split(" port ").next().unwrap_or("").trim();
+        match ip.parse::<std::net::IpAddr>() {
+            Ok(a) if !a.is_loopback() => out.push((n, ip.to_string())),
+            _ => {}
+        }
+    }
+    out
+}
+
 /// What the self view shows of a connected station. The UUID stays out
 /// of process state, as it stays out of the database.
 #[derive(Clone, Debug)]
@@ -367,9 +387,20 @@ pub async fn poll_clients(app: &App, reg: &Registry, body: &[u8]) -> anyhow::Res
     let now = micros_now();
     let presence = reg.upsert_presence(&rows, now).await?;
     reg.prune_sessions(app.settings.session_retention_days, now).await?;
+    let mut by_network: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    {
+        let b = app.beacons.lock().unwrap();
+        for (n, ip) in feeder_addresses(body) {
+            by_network
+                .entry(b.network_of(&ip))
+                .or_default()
+                .push((format!("fp-{}", &sha256_hex(&n)[..10]), n[..16].to_string()));
+        }
+    }
     let mut p = app.presence.lock().unwrap();
     p.count = presence.len();
     p.live = presence;
+    p.by_network = by_network;
     p.at = now_s();
     Ok(())
 }
@@ -435,6 +466,43 @@ pub async fn roster(State(app): State<Arc<App>>, req: Request) -> Response {
     }
     out.push_str("]}");
     json(out, "public, s-maxage=30")
+}
+
+/// GET /v1/me: is the address asking feeding the network right now? The
+/// "am I feeding" check feeder images link to. The asker's address is
+/// matched by the setup beacon's salted key against the stations
+/// connected in the last clients.json poll; both live in memory only.
+/// A browser on IPv6 and a feeder on IPv4 do not match: the station
+/// key (/v1/stations/{uuid}) stays the exact check.
+pub async fn me(State(app): State<Arc<App>>, req: Request) -> Response {
+    if app.stations.is_none() {
+        return crate::proxy::forward(State(app), req).await.into_response();
+    }
+    let ip = client_ip(&app, req.headers(), peer_of(&req));
+    if let Err(e) = throttle(&app, &ip, "station_detail", app.settings.station_detail_rate_limit) {
+        return e.into_response();
+    }
+    let key = app.beacons.lock().unwrap().network_of(&ip);
+    let p = app.presence.lock().unwrap();
+    let mine: Vec<_> = p.by_network.get(&key).map(|v| v.as_slice()).unwrap_or(&[])
+        .iter()
+        .filter_map(|(id, half)| p.live.get(half).map(|l| (id, l)))
+        .collect();
+    let mut out = String::with_capacity(64 + mine.len() * 160);
+    out.push_str(if mine.is_empty() { "{\"feeding\":false" } else { "{\"feeding\":true" });
+    out.push_str(",\"stations\":[");
+    for (i, (id, l)) in mine.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        let mut o = Obj::new(&mut out);
+        o.str("id", id).str("connected_since", &l.connected_since);
+        opt_f64(&mut o, "messages_per_s", Some(l.msgs_per_s));
+        opt_f64(&mut o, "positions_per_s", Some(l.positions_per_s));
+        o.end();
+    }
+    out.push_str("]}");
+    json(out, "no-store")
 }
 
 /// Aircraft one station sees now (readsb's filter_uuid takes the half id).
@@ -531,6 +599,18 @@ mod tests {
         assert_eq!(rows[0].rtt_ms, 31.2);
         assert_eq!(rows[0].positions_total, 1234);
         assert!(!format!("{:?}", rows[0]).contains("1.2.3.4"));
+    }
+
+    #[test]
+    fn feeder_addresses_skip_anonymous_and_loopback() {
+        let body = br#"{"clients":[
+            ["0123-4567-89AB-CDEF-0123456789abcdef","  203.0.113.7 port 51234",1,2,3,4,5,6,7],
+            ["fedcba98765432100123456789abcdef","::1 port 5",1,2,3,4,5,6,7],
+            ["abcdef0123456789-0000-0000-000000000000","198.51.100.1 port 5",1,2,3,4,5,6,7],
+            ["00112233445566778899aabbccddeeff","mlat port 9",1,2,3,4,5,6,7]
+        ]}"#;
+        let rows = feeder_addresses(body);
+        assert_eq!(rows, vec![("0123456789abcdef0123456789abcdef".to_string(), "203.0.113.7".to_string())]);
     }
 
     #[test]

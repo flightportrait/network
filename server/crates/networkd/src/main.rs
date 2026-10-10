@@ -201,6 +201,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/airports/{code}", get(history::airport))
         .route("/v1/stations", get(stations::roster))
         .route("/v1/stations/{uuid}", get(stations::self_view))
+        .route("/v1/me", get(stations::me))
         // the fleet tier has its own listener; never this one
         .route("/fleet", get(http::not_found))
         .route("/fleet/{*rest}", get(http::not_found))

@@ -130,7 +130,7 @@ def test_aircraft_cap(ctx):
 
 
 OPENAPI_PATHS = {
-    "/", "/healthz", "/v1/now", "/v1/aircraft",
+    "/", "/healthz", "/v1/now", "/v1/aircraft", "/v1/me",
     "/v1/trace/{hex}",
     "/v2/point/{lat}/{lon}/{radius}",
     "/v1/airframes/{hex}",
@@ -164,7 +164,7 @@ def test_openapi_paths_exact(ctx):
 
 
 # served by networkd only, documented in the same document
-CANDIDATE_PATHS = {"/v2/search"}
+CANDIDATE_PATHS = {"/v2/search", "/v1/me"}
 
 STABLE_PATHS = {
     "/", "/healthz", "/v1/now", "/v1/aircraft", "/v1/trace/{hex}",

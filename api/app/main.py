@@ -213,7 +213,7 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
         from .llms import LLMS_TXT
         return PlainTextResponse(LLMS_TXT)
 
-    # operations only networkd serves (/v2/search), documented in the one
+    # operations only networkd serves (/v2/search, /v1/me), documented in the one
     # document it serves, each after its /v1 sibling
     generated = app.openapi
 
@@ -223,8 +223,9 @@ def create_network_api_app(settings=None, sessionmaker=None, readsb=None,
             paths = {}
             for path, item in doc["paths"].items():
                 paths[path] = item
-                if path == "/v1/search":
-                    paths.update(spec.NETWORKD_PATHS)
+                for extra, after in spec.NETWORKD_AFTER.items():
+                    if path == after:
+                        paths[extra] = spec.NETWORKD_PATHS[extra]
             paths.update(spec.NETWORKD_PATHS)
             doc["paths"] = paths
         return doc

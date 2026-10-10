@@ -52,7 +52,7 @@ impl Beacons {
     }
 
     /// The key a home is known by: its IPv4 address, or its IPv6 /64.
-    fn network_of(&self, ip: &str) -> String {
+    pub fn network_of(&self, ip: &str) -> String {
         let key = match ip.parse::<IpAddr>() {
             Ok(IpAddr::V6(v6)) => match v6.to_ipv4_mapped() {
                 Some(v4) => v4.to_string(),

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="canonical" href="https://flightportrait.com/network/feeding">
+<!-- Am I feeding: the status link feeder images point to. It asks
+     /v1/me, which matches this browser's address against the stations
+     connected now (a salted hash, in memory, never stored), and falls
+     back to the station key, as the join page's watch does. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Am I feeding? FlightPortrait network</title>
+<meta name="description" content="Check whether your receiver is feeding the FlightPortrait network, from the network it feeds from or with its station key.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FlightPortrait network">
+<meta property="og:title" content="Am I feeding? FlightPortrait network">
+<meta property="og:image" content="https://flightportrait.com/og-network.jpg">
+<meta name="theme-color" content="#F5F1E6">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
+    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
+    --card:#FAF7EE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);overflow-x:hidden;
+    font:17px/1.6 Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
+    -webkit-font-smoothing:antialiased}
+  .caps{font-family:'Helvetica Neue',Arial,sans-serif;
+    font-size:12px;letter-spacing:.1em}
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px}
+  .topbar{position:sticky;top:0;z-index:5;background:var(--paper)}
+  .topbar .wrap{max-width:1000px;display:flex;align-items:center;
+    justify-content:space-between;height:64px;gap:18px}
+  .wordmark{display:flex;align-items:center;gap:10px;text-decoration:none;
+    color:var(--ink);font-size:17px}
+  .wordmark img{width:24px;height:24px;display:block;border-radius:5px}
+  .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
+  .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
+    white-space:nowrap}
+  .topnav a:hover{color:var(--red)}
+  main a{color:var(--ink)}
+
+  .feed{max-width:640px;padding:48px 0 80px}
+  h1{font-size:44px;line-height:1.1;font-weight:400;margin-bottom:24px}
+  .listen{border:1px solid var(--line);border-radius:6px;padding:16px 18px;background:var(--card)}
+  .state{display:flex;gap:10px;align-items:center}
+  .pulse{width:9px;height:9px;border-radius:50%;background:var(--quiet);flex:none}
+  .pulse.waiting{background:#D9A51C}
+  .pulse.online{background:#3D7A50}
+  .stats{color:var(--quiet);font-size:15px;margin:6px 0 0 19px}
+  .stats:empty{display:none}
+  .keybox{margin-top:28px}
+  .keybox label{display:block;margin-bottom:6px}
+  .keyrow{display:flex;gap:8px}
+  .keyrow input{flex:1;min-width:0;font:13.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    padding:8px 11px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink)}
+  .keyrow input.bad{border-color:var(--red)}
+  .keyrow button{background:var(--ink);color:var(--paper);border:none;cursor:pointer;
+    border-radius:6px;padding:8px 15px;font:14px Palatino,Georgia,serif}
+  .keyrow button:hover{background:var(--red)}
+  .more{margin-top:28px;font-size:15px}
+  .searchbox{position:relative;flex:0 1 240px;min-width:150px}
+  .searchbox input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
+    padding:6px 11px;border:1px solid rgba(34,31,26,.22);border-radius:999px;
+    background:var(--card);color:var(--ink);outline:none}
+  .searchbox input::placeholder{color:var(--quiet)}
+  .searchbox input:focus{border-color:var(--ink)}
+  .s-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;
+    background:var(--card);border:1px solid var(--line);border-radius:6px;
+    box-shadow:0 8px 24px rgba(34,31,26,.12);max-height:60vh;overflow:auto;
+    min-width:280px}
+  .s-kind{padding:10px 12px 4px;color:var(--quiet)}
+  .s-row{display:flex;align-items:center;gap:12px;padding:7px 12px;text-decoration:none;color:var(--ink)}
+  .s-pic{width:34px;height:34px;flex:0 0 34px;object-fit:contain;border-radius:6px}
+  .s-text{min-width:0}
+  .s-row:hover,.s-row.active{background:rgba(34,31,26,.06)}
+  .s-label{display:block;font-size:16px}
+  .s-detail{display:block;font-size:13px;color:var(--quiet)}
+  .s-empty{padding:14px 12px;color:var(--quiet);font-size:15px}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span style="color:var(--quiet)">network</span></a>
+    <div class="searchbox"><input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false"><div class="s-list" id="q-list" hidden></div></div>
+    <nav class="topnav" aria-label="Network">
+      <a href="/network/">Live map</a>
+      <a href="/network/?mode=airlines">Airlines</a>
+      <a href="/network/?mode=join">Join</a>
+      <a href="https://docs.flightportrait.com">Docs</a>
+      <a href="https://docs.flightportrait.com/api/reference">API</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap feed">
+    <h1>Am I feeding?</h1>
+    <div class="listen">
+      <div id="mine"><div class="state"><span class="pulse" id="pulse"></span><span id="line">checking</span></div></div>
+    </div>
+    <div class="keybox">
+      <label for="key">Your station key</label>
+      <div class="keyrow"><input id="key" spellcheck="false" autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"><button id="watch">Watch</button></div>
+      <div class="state" id="keystate" hidden style="margin-top:12px"><span class="pulse" id="kpulse"></span><span id="kline"></span></div>
+      <p class="stats" id="kstats"></p>
+    </div>
+    <p class="more"><a href="/network/?mode=join">Join the network</a> &middot; <a href="https://docs.flightportrait.com/network/feed">Feeding docs</a></p>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var API = window.FP_API || "https://data.flightportrait.com";
+  var UUID_RE = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/;
+  function el(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function since(iso) { return iso ? new Date(iso).toLocaleString() : ""; }
+
+  // from this address: /v1/me
+  function me() {
+    fetch(API + "/v1/me").then(function (r) {
+      if (r.status === 429) return null;
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (d) {
+      if (!d) return;
+      if (!d.feeding) {
+        el("mine").innerHTML = "<div class='state'><span class='pulse waiting'></span>" +
+          "<span>No station is feeding from this network.</span></div>";
+        return;
+      }
+      el("mine").innerHTML = d.stations.map(function (s) {
+        var bits = [];
+        if (s.messages_per_s != null) bits.push("<b>" + s.messages_per_s.toFixed(1) + "</b> messages/s");
+        if (s.connected_since) bits.push("connected since " + esc(since(s.connected_since)));
+        return "<div class='state'><span class='pulse online'></span><span>station " +
+          esc(s.id) + " is online</span></div><p class='stats'>" + bits.join(" &middot; ") + "</p>";
+      }).join("");
+    }).catch(function () {
+      el("pulse").className = "pulse";
+      el("line").textContent = "network not answering";
+    });
+  }
+  me();
+  setInterval(me, 30000);
+
+  // with the key: /v1/stations/{key}, the join page's watch
+  var key = null;
+  try { key = localStorage.getItem("fp-station-uuid"); } catch (e) {}
+  if (key) el("key").value = key;
+  function check() {
+    if (!key) return;
+    var k = key;
+    el("keystate").hidden = false;
+    fetch(API + "/v1/stations/" + k).then(function (r) {
+      if (r.status === 404) {
+        el("kpulse").className = "pulse waiting";
+        el("kline").textContent = "waiting for your station";
+        el("kstats").innerHTML = "";
+        return null;
+      }
+      if (r.status === 429) return null;
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (d) {
+      if (!d || k !== key) return;
+      el("kpulse").className = "pulse online";
+      el("kline").textContent = "station " + d.id + (d.online ? " is online" : " was heard, currently offline");
+      var bits = [];
+      if (d.messages_per_s != null) bits.push("<b>" + d.messages_per_s.toFixed(1) + "</b> messages/s");
+      if (d.aircraft_seen != null) bits.push("<b>" + d.aircraft_seen + "</b> aircraft right now");
+      if (d.first_seen) bits.push("first heard " + new Date(d.first_seen).toLocaleDateString());
+      el("kstats").innerHTML = bits.join(" &middot; ");
+    }).catch(function () {
+      el("kpulse").className = "pulse";
+      el("kline").textContent = "network not answering";
+    });
+  }
+  el("watch").addEventListener("click", function () {
+    var v = el("key").value.trim().toLowerCase();
+    if (!UUID_RE.test(v)) { el("key").classList.add("bad"); return; }
+    el("key").classList.remove("bad");
+    key = v;
+    try { localStorage.setItem("fp-station-uuid", v); } catch (e) {}
+    check();
+  });
+  el("key").addEventListener("keydown", function (ev) { if (ev.key === "Enter") el("watch").click(); });
+  if (key) check();
+  setInterval(check, 30000);
+})();
+</script>
+<script src="assets/search.js"></script>
+<script>fpSearch(document.getElementById("q"), document.getElementById("q-list"));</script>
+</body>
+</html>

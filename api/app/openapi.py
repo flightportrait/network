@@ -199,9 +199,9 @@ SCH_NOW = _obj({
              "generated_at"])
 
 EX_NOW = {
-    "aircraft_count": 7,
-    "aircraft_with_pos": 5,
-    "station_count": 1,
+    "aircraft_count": 508,
+    "aircraft_with_pos": 467,
+    "station_count": 18,
     "generated_at": 1787924061.0,
     "archive_through": "2026-09-06",
 }
@@ -699,6 +699,26 @@ SCH_STATION = _obj({
     })),
 }, required=["id", "online", "positions_total", "first_seen", "last_seen",
              "recent_sessions"])
+
+SCH_ME = _obj({
+    "feeding": _t("boolean", "True when a station is connected from the "
+                             "address asking."),
+    "stations": _arr(_obj({
+        "id": _t("string", "Public id, fp-<10 hex>."),
+        "connected_since": _t("string", "ISO 8601 UTC."),
+        "messages_per_s": _t("number"),
+        "positions_per_s": _t("number"),
+    }, required=["id", "connected_since"])),
+}, required=["feeding", "stations"])
+
+EX_ME = {
+    "feeding": True,
+    "stations": [{
+        "id": "fp-a1b2c3d4e5",
+        "connected_since": "2026-10-09T08:12:40.118202+00:00",
+        "messages_per_s": 412.6, "positions_per_s": 96.3,
+    }],
+}
 
 EX_STATION = {
     "id": "fp-a1b2c3d4e5", "online": True,
@@ -1361,3 +1381,27 @@ NETWORKD_PATHS = {"/v2/search": {"get": {
     },
     **CANDIDATE,
 }}}
+
+
+# ---- /v1/me (served by networkd only) --------------------------------
+# networkd keeps the connected stations' addresses as salted hashes in
+# memory; this service keeps no addresses, so it does not answer it.
+NETWORKD_PATHS["/v1/me"] = {"get": {
+    "tags": ["Stations"],
+    "summary": "Am I feeding",
+    "description": (
+        "Whether a station is connected from the address asking, and "
+        "which. The address is matched in memory against the current "
+        "connections by a salted hash and never stored. A browser on IPv6 "
+        "and a feeder on IPv4 do not match; the station key "
+        "(`/v1/stations/{station_uuid}`) is the exact check.\n\n"
+        "Rate: 60 per 600 s (bucket `station_detail`). Never cached. "
+        "Stability: candidate for the stable tier."),
+    "operationId": "me",
+    "responses": {str(k): v for k, v in ok(EX_ME, R429, schema=SCH_ME).items()},
+    **CANDIDATE,
+}}
+
+# where each networkd-only operation sits: after its sibling
+NETWORKD_AFTER = {"/v2/search": "/v1/search",
+                  "/v1/me": "/v1/stations/{station_uuid}"}

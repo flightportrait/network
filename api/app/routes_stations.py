@@ -77,3 +77,4 @@ async def self_view(station_uuid: spec.StationUUID, request: Request,
             aircraft_seen = None
     return stations_logic.serialize_self(
         station, live, aircraft_seen, settings.offline_after_s)
+

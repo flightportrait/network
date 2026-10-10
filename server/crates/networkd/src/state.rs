@@ -24,6 +24,9 @@ pub struct Presence {
     pub at: f64,
     /// connected stations by half id, when this instance keeps the registry
     pub live: HashMap<String, crate::stations::Live>,
+    /// (public id, half id) of the stations connected from each network,
+    /// keyed by the beacon's salted hash of the address; never the address
+    pub by_network: HashMap<String, Vec<(String, String)>>,
 }
 
 pub struct App {
