@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Planes above me: the aircraft over the visitor right now, nearest
+     first (assets/above.js). The edge writes an approximate position onto
+     #above (functions/network/above.js); the exact one is the visitor's
+     to give. The same page exists in German and French (de/, fr/).
+     When the words here change, change them in all three. -->
+<base href="/network/">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planes above me, live. FlightPortrait network</title>
+<meta name="description" content="What plane is above me? Every flight over you right now, nearest first: airline, aircraft, registration, altitude and route, from the FlightPortrait network's antennas.">
+<link rel="canonical" href="https://flightportrait.com/network/above">
+<link rel="alternate" hreflang="en" href="https://flightportrait.com/network/above">
+<link rel="alternate" hreflang="de" href="https://flightportrait.com/network/de/above">
+<link rel="alternate" hreflang="fr" href="https://flightportrait.com/network/fr/above">
+<link rel="alternate" hreflang="x-default" href="https://flightportrait.com/network/above">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FlightPortrait">
+<meta property="og:title" content="Planes above me, live. FlightPortrait network">
+<meta property="og:description" content="What plane is above me? Every flight over you right now, nearest first: airline, aircraft, registration, altitude and route, from the FlightPortrait network's antennas.">
+<meta property="og:url" content="https://flightportrait.com/network/above">
+<meta property="og:image" content="https://flightportrait.com/og-network.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#F5F1E6">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebPage", "name": "Planes above me", "description": "What plane is above me? Every flight over you right now, nearest first: airline, aircraft, registration, altitude and route, from the FlightPortrait network's antennas.", "url": "https://flightportrait.com/network/above", "inLanguage": "en", "isPartOf": {"@type": "WebSite", "name": "FlightPortrait", "url": "https://flightportrait.com/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Network", "item": "https://flightportrait.com/network/"}, {"@type": "ListItem", "position": 2, "name": "Planes above me", "item": "https://flightportrait.com/network/above"}]}]}</script>
+<style>
+  :root{
+    --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
+    --line:rgba(34,31,26,.14); --quiet:rgba(34,31,26,.72);
+    --card:#FAF7EE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);overflow-x:hidden;
+    font:17px/1.6 Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px}
+  .topbar{position:sticky;top:0;z-index:5;background:var(--paper)}
+  .topbar .wrap{max-width:1000px;display:flex;align-items:center;
+    justify-content:space-between;height:64px;gap:18px}
+  .wordmark{display:flex;align-items:center;gap:10px;text-decoration:none;
+    color:var(--ink);font-size:17px}
+  .wordmark img{width:24px;height:24px;display:block;border-radius:5px}
+  .topnav{display:flex;gap:22px;align-items:center;overflow-x:auto}
+  .topnav a{color:var(--ink);text-decoration:none;font-size:15px;
+    white-space:nowrap}
+  .topnav a:hover{color:var(--red)}
+  main a{color:var(--ink)}
+
+  .above{padding:36px 0 60px}
+  h1{font-size:44px;line-height:1.1;font-weight:400}
+  .sub{font-size:18px;color:var(--quiet);margin-top:4px}
+  .where{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;
+    margin:24px 0 8px;font-size:16px}
+  .where select{font:15px Palatino,Georgia,serif;color:var(--ink);
+    background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+  .where button{background:none;border:none;padding:0;cursor:pointer;
+    font:15px Palatino,Georgia,serif;color:var(--ink);text-decoration:underline}
+  .where button:hover{color:var(--red)}
+  .where button[hidden]{display:none}
+  .tablewrap{overflow-x:auto}
+  table.legs{width:100%;border-collapse:collapse;
+    font-variant-numeric:tabular-nums;font-size:16px}
+  table.legs th{text-align:left;font-weight:400;color:var(--quiet);
+    padding:8px 12px 8px 0;border-bottom:1px solid var(--ink);
+    white-space:nowrap}
+  table.legs td{padding:8px 12px 8px 0;vertical-align:top;
+    border-bottom:1px solid rgba(34,31,26,.08);white-space:nowrap}
+  table.legs th.num,table.legs td.num{text-align:right}
+  table.legs th:last-child,table.legs td:last-child{padding-right:0}
+  table.legs td.flight a{color:var(--ink);text-decoration:none}
+  table.legs td.flight a:hover{color:var(--red)}
+  table.legs .city{display:block;font-size:13px;color:var(--quiet);line-height:1.3}
+  .framecard{display:flex;gap:16px;align-items:center;max-width:420px;
+    margin:40px 0 0;padding:12px 16px 12px 12px;background:var(--card);
+    border:1px solid var(--line);border-radius:8px}
+  .framecard img{width:72px;height:88px;flex:none;display:block;
+    object-fit:cover;border-radius:2px}
+  .framecard p{margin:0 0 10px;font-size:15px;line-height:1.35}
+  .framecard a{display:inline-block;background:var(--ink);color:var(--paper);
+    text-decoration:none;border-radius:6px;padding:6px 13px;
+    font:14px Palatino,Georgia,serif}
+  .framecard a:hover{background:var(--red)}
+  .langs{margin-top:28px;font-size:14px;color:var(--quiet)}
+  .searchbox{position:relative;flex:0 1 240px;min-width:150px}
+  .searchbox input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
+    padding:6px 11px;border:1px solid rgba(34,31,26,.22);border-radius:999px;
+    background:var(--card);color:var(--ink);outline:none}
+  .searchbox input::placeholder{color:var(--quiet)}
+  .searchbox input:focus{border-color:var(--ink)}
+  .s-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;
+    background:var(--card);border:1px solid var(--line);border-radius:6px;
+    box-shadow:0 8px 24px rgba(34,31,26,.12);max-height:60vh;overflow:auto;
+    min-width:280px}
+  .s-kind{padding:10px 12px 4px;color:var(--quiet)}
+  .s-row{display:flex;align-items:center;gap:12px;padding:7px 12px;text-decoration:none;color:var(--ink)}
+  .s-pic{width:34px;height:34px;flex:0 0 34px;object-fit:contain;border-radius:6px}
+  .s-text{min-width:0}
+  .s-row:hover,.s-row.active{background:rgba(34,31,26,.06)}
+  .s-label{display:block;font-size:16px}
+  .s-detail{display:block;font-size:13px;color:var(--quiet)}
+  .s-empty{padding:14px 12px;color:var(--quiet);font-size:15px}
+  @media (max-width:640px){ h1{font-size:34px} }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="wordmark" href="/"><img src="/apple-touch-icon.png" alt="">FlightPortrait&nbsp;<span style="color:var(--quiet)">network</span></a>
+    <div class="searchbox"><input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false"><div class="s-list" id="q-list" hidden></div></div>
+    <nav class="topnav" aria-label="Network">
+      <a href="/network/">Live map</a>
+      <a href="/network/?mode=airlines">Airlines</a>
+      <a href="/network/?mode=join">Join</a>
+      <a href="https://docs.flightportrait.com">Docs</a>
+      <a href="https://docs.flightportrait.com/api/reference">API</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap above" id="above">
+    <h1>Planes above me</h1>
+    <p class="sub">Every flight over you right now, nearest first.</p>
+    <div class="where">
+      <span id="where"></span>
+      <label>within <select id="radius" aria-label="Radius"></select></label>
+      <button type="button" id="exact">Use my exact location</button>
+    </div>
+    <div class="tablewrap" id="list" hidden>
+      <table class="legs">
+        <thead><tr><th>Flight</th><th>Airline</th><th>Aircraft</th><th>Registration</th><th>Route</th><th class="num">Altitude</th><th class="num">Distance</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="framecard">
+      <img src="assets/frame.jpg" alt="A FlightPortrait frame on a wall">
+      <div>
+        <p>The planes over your home, drawn and framed.</p>
+        <a href="/">See the frame</a>
+      </div>
+    </div>
+    <p class="langs">English &middot; <a href="/network/de/above" hreflang="de" lang="de">Deutsch</a> &middot; <a href="/network/fr/above" hreflang="fr" lang="fr">Français</a></p>
+  </div>
+</main>
+
+<script src="assets/above.js"></script>
+<script src="assets/search.js"></script>
+<script>fpSearch(document.getElementById("q"), document.getElementById("q-list"));</script>
+</body>
+</html>
