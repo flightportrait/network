@@ -40,7 +40,12 @@ const PUBLISH_S: f64 = 1.0;
 /// What the map's partner layer carries of each aircraft: identity and
 /// position (hex, flight, t, lat, lon, alt_baro, gs, track, category).
 const MAP_FIELDS: [usize; 9] = [F_HEX, F_FLIGHT, 2, F_LAT, F_LON, F_ALT, 7, F_TRACK, 9];
-const MAP_MAX: usize = 3000;
+const MAP_MAX: usize = 1000;
+/// The widest box the map's layer answers, in degrees: a regional view.
+/// No world-wide answer, so a script cannot take the partner's whole sky
+/// in a few calls.
+const MAP_SPAN_LON: f64 = 60.0;
+const MAP_SPAN_LAT: f64 = 40.0;
 const NO_STORE: &str = "no-store";
 
 pub struct Partner {
@@ -399,9 +404,13 @@ pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
         Some(b) if b.chars().count() > 80 => {
             return Err(ApiError::new(422, "invalid_request", "query.bbox: String should have at most 80 characters"))
         }
-        Some(b) if !b.is_empty() => Some(parse_bbox(b)?),
-        _ => None,
+        Some(b) if !b.is_empty() => parse_bbox(b)?,
+        _ => return Err(ApiError::new(422, "invalid_request", "bbox is required")),
     };
+    let span_lon = if bbox.w <= bbox.e { bbox.e - bbox.w } else { 360.0 - bbox.w + bbox.e };
+    if span_lon > MAP_SPAN_LON || bbox.n - bbox.s > MAP_SPAN_LAT {
+        return Err(ApiError::new(422, "invalid_request", "bbox is wider than the map's layer answers"));
+    }
     let theirs = partner.snapshot.get();
     let ours = app.snapshot();
     let mut body = String::with_capacity(4096);
@@ -416,7 +425,7 @@ pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
         let known: HashSet<&str> = ours.entries.iter().map(|e| &*e.hex).collect();
         let mut n = 0;
         for e in &theirs.entries {
-            if !e.has_pos || known.contains(&*e.hex) || bbox.as_ref().is_some_and(|b| !e.in_bbox(b)) {
+            if !e.has_pos || known.contains(&*e.hex) || !e.in_bbox(&bbox) {
                 continue;
             }
             if n > 0 {

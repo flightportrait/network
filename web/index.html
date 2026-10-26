@@ -2678,11 +2678,26 @@
     return !partner.off && !document.body.classList.contains("replaying");
   }
   function setupPartner(map) {
+    // The layer answers a regional box only (60° by 40°): zoomed out
+    // further, partner aircraft are not drawn.
+    function regionBox() {
+      var b = map.getBounds();
+      var w = b.getWest(), e = b.getEast(), so = b.getSouth(), n = b.getNorth();
+      var mw = (e - w) * 0.2, mh = (n - so) * 0.2;
+      w -= mw; e += mw; so = Math.max(-85, so - mh); n = Math.min(85, n + mh);
+      if (e - w > 58 || n - so > 38) return null;
+      var wrap = function (x) { return ((x + 180) % 360 + 360) % 360 - 180; };
+      return [wrap(w), so, wrap(e), n];
+    }
     function poll() {
       if (!partnerShown() || document.hidden) return;
-      var box = viewBox();
-      var q = box ? "?bbox=" + [box.w, box.s, box.e, box.n]
-        .map(function (x) { return x.toFixed(3); }).join(",") : "";
+      var box = regionBox();
+      if (!box) {
+        partner.data = [];
+        draw();
+        return;
+      }
+      var q = "?bbox=" + box.map(function (x) { return x.toFixed(3); }).join(",");
       fetch(API + "/v1/map/partner" + q).then(function (r) {
         if (r.status === 404) { stop(); return null; }
         return r.ok ? r.json() : null;
@@ -2748,6 +2763,13 @@
       .observe(document.body, { attributes: true, attributeFilter: ["class"] });
     poll();
     partner.timer = setInterval(poll, 10000);
+    var moved = 0;
+    map.on("moveend", function () {
+      var now = Date.now();
+      if (partner.off || now - moved < 3000) return;
+      moved = now;
+      poll();
+    });
     if (!reducedMotion) {
       partner.glide = setInterval(function () {
         if (partnerShown() && !document.hidden && partner.data.length) draw();

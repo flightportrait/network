@@ -194,7 +194,7 @@ impl Settings {
                 .map(|o| o.trim().trim_end_matches('/').to_string())
                 .filter(|o| !o.is_empty())
                 .collect(),
-            partner_map_rate_limit: int("NETWORKD_PARTNER_MAP_RATE_LIMIT", 300) as usize,
+            partner_map_rate_limit: int("NETWORKD_PARTNER_MAP_RATE_LIMIT", 120) as usize,
             partner_store: s("NETWORKD_PARTNER_STORE", "").trim().to_string(),
             partner_keep_days: int("NETWORKD_PARTNER_KEEP_DAYS", 14),
             partner_sample_s: int("NETWORKD_PARTNER_SAMPLE_S", 120) as f64,

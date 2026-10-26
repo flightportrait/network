@@ -1009,6 +1009,16 @@ mod tests {
             assert!(["hex", "flight", "t", "lat", "lon", "alt_baro", "gs", "track", "category"].contains(k), "{k}");
         }
         assert_eq!(ac[0]["hex"], "beef01");
+        // no box, or a box wider than a region: refused
+        for path in ["/v1/map/partner", "/v1/map/partner?bbox=-180,-80,180,80", "/v1/map/partner?bbox=0,0,90,10"] {
+            let (status, _, body) = text_from(&mut public, path, None, Some("https://flightportrait.com")).await;
+            assert_eq!(status, 422, "{path}");
+            assert!(!body.contains("beef01"));
+        }
+        // a box across the antimeridian is measured the short way round
+        let (status, _, _) =
+            text_from(&mut public, "/v1/map/partner?bbox=170,0,-170,10", None, Some("https://flightportrait.com")).await;
+        assert_eq!(status, 200);
         // outside the box, nothing
         let (_, _, body) =
             text_from(&mut public, "/v1/map/partner?bbox=-10,40,10,60", None, Some("https://flightportrait.com")).await;
@@ -1024,7 +1034,7 @@ mod tests {
     async fn without_a_partner_the_layer_is_not_there() {
         let mut public = crate::router(app("nopartner"));
         let (status, _, _) =
-            text_from(&mut public, "/v1/map/partner", None, Some("https://flightportrait.com")).await;
+            text_from(&mut public, "/v1/map/partner?bbox=100,0,110,10", None, Some("https://flightportrait.com")).await;
         assert_eq!(status, 404);
     }
 
