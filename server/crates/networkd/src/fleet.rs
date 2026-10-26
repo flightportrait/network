@@ -464,6 +464,62 @@ pub async fn callsign(State(app): State<Arc<App>>, Path(asked): Path<String>) ->
     Ok(json(s, NO_STORE))
 }
 
+/// The radius cap of the partner's "near" history, in nautical miles.
+const NEAR_MAX_NM: f64 = 50.0;
+
+/// GET /fleet/v1/partner/near/{lat}/{lon}/{radius_nm}?hours=24: the
+/// partner network's aircraft seen near a frame in the last hours, the
+/// closest first, from the partner's internal store (partner.rs). The
+/// frames' "your sky" history; 404 where no store is kept.
+pub async fn partner_near(
+    State(app): State<Arc<App>>,
+    Path((lat, lon, radius)): Path<(String, String, String)>,
+    req: Request,
+) -> ApiResult {
+    let Some(p) = app.partner.clone().filter(|p| p.store.is_some()) else {
+        return Err(ApiError::new(404, "not_found", "no partner history here"));
+    };
+    let (Some(lat), Some(lon), Some(radius)) = (py_float(&lat), py_float(&lon), py_float(&radius)) else {
+        return Err(ApiError::new(422, "invalid_request", "lat, lon and radius are numbers"));
+    };
+    if !((-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon)) || radius.is_nan() || radius <= 0.0 {
+        return Err(ApiError::new(422, "invalid_request", "invalid coordinates or radius"));
+    }
+    let radius = radius.min(NEAR_MAX_NM);
+    let max_h = (app.settings.partner_keep_days.max(1) * 24) as f64;
+    let hours = crate::http::query_param(req.uri().query(), "hours")
+        .and_then(|h| py_float(&h))
+        .filter(|h| h.is_finite() && *h > 0.0)
+        .unwrap_or(24.0)
+        .min(max_h);
+    let since = (now_s() - hours * 3600.0) as i64;
+    let seen = tokio::task::spawn_blocking(move || p.store.as_ref().unwrap().near(lat, lon, radius, since))
+        .await
+        .map_err(|_| ApiError::new(500, "internal", "partner history failed"))?
+        .map_err(|e| ApiError::new(500, "internal", format!("partner history: {e}")))?;
+    let mut buf = String::with_capacity(64 + seen.len() * 96);
+    buf.push_str("{\"aircraft\":[");
+    for (i, a) in seen.iter().enumerate() {
+        if i > 0 {
+            buf.push(',');
+        }
+        let mut o = Obj::new(&mut buf);
+        o.str("hex", &a.hex);
+        if let Some(f) = &a.flight {
+            o.str("flight", f);
+        }
+        if let Some(t) = &a.t {
+            o.str("t", t);
+        }
+        o.int("first", a.first).int("last", a.last).f64("closest_nm", round_to(a.closest_nm, 1));
+        o.end();
+    }
+    buf.push_str("],\"since\":");
+    buf.push_str(&since.to_string());
+    buf.push('}');
+    Ok(json(buf, NO_STORE))
+}
+
 /// GET /fleet/v1/routes?cs=A,B: /v1/routes, unthrottled, up to 200.
 pub async fn routes(State(app): State<Arc<App>>, req: Request) -> Response {
     crate::catalog::routes_body(&app, req.uri().query(), &ROUTES, None).await
@@ -538,6 +594,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/fleet/v1/point/{lat}/{lon}/{radius}", get(point))
         .route("/fleet/v1/callsign/{callsign}", get(callsign))
         .route("/fleet/v1/routes", get(routes))
+        .route("/fleet/v1/partner/near/{lat}/{lon}/{radius}", get(partner_near))
         .fallback(not_found)
         .method_not_allowed_fallback(crate::http::method_not_allowed)
         .with_state(app.clone());
@@ -969,5 +1026,40 @@ mod tests {
         let (status, _, _) =
             text_from(&mut public, "/v1/map/partner", None, Some("https://flightportrait.com")).await;
         assert_eq!(status, 404);
+    }
+
+    #[tokio::test]
+    async fn partner_history_is_fleet_only_and_needs_a_store() {
+        // no store: 404 behind the token
+        let mut r = router(app_with("near-nostore", true));
+        let (status, _, _) = call(&mut r, "/fleet/v1/partner/near/1.35/103.82/10", Some(TOKEN)).await;
+        assert_eq!(status, 404);
+
+        let a = app_with("near", true);
+        let path = std::env::temp_dir().join(format!("networkd-fleet-near-{}.sqlite", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let st = crate::partner::Store::open(path.to_str().unwrap(), 14).unwrap();
+        let (v, h) = parse_aircraft_full(r#"{"hex":"beef01","flight":"PRTNR1","t":"A20N","lat":1.36,"lon":103.83}"#).unwrap();
+        st.record(&Snapshot::new(now_s(), vec![Entry::with_hidden(v, h)]), now_s() as i64 - 600).unwrap();
+        let p = crate::partner::Partner::new(100, Some(st));
+        // swap in a partner that has the store
+        let a = {
+            let mut app = Arc::try_unwrap(a).ok().unwrap();
+            app.partner = Some(p);
+            Arc::new(app)
+        };
+        let mut r = router(a.clone());
+        let (status, _, _) = call(&mut r, "/fleet/v1/partner/near/1.35/103.82/10", None).await;
+        assert_eq!(status, 401);
+        let (status, resp, v) = call(&mut r, "/fleet/v1/partner/near/1.35/103.82/10?hours=1", Some(TOKEN)).await;
+        assert_eq!(status, 200);
+        assert_eq!(resp.headers()["cache-control"], "no-store");
+        assert_eq!(v["aircraft"][0]["hex"], "beef01");
+        assert_eq!(v["aircraft"][0]["flight"], "PRTNR1");
+        // and the public listener has no such route
+        let mut public = crate::router(a);
+        let (status, _, _) = call(&mut public, "/fleet/v1/partner/near/1.35/103.82/10", Some(TOKEN)).await;
+        assert_eq!(status, 404);
+        let _ = std::fs::remove_file(&path);
     }
 }

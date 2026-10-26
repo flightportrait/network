@@ -79,6 +79,11 @@
     <p>The daily archive our flight history and routes are built from.</p>
     <p class="credit">&copy; adsb.lol, <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a></p>
   </div>
+  <div class="src" id="partner-src" hidden>
+    <h3><a id="partner-name" href="#" rel="noopener"></a></h3>
+    <p>Coverage lent by a partner network, drawn on the live map and credited there. It is not part of our data: not in the API, the history or any release.</p>
+    <p class="credit">Coverage partly via <span id="partner-credit"></span>, shown with permission</p>
+  </div>
 
   <h2>Aircraft and registries</h2>
   <div class="src">
@@ -154,6 +159,23 @@
   <footer>Something missing or credited wrong: hello@flightportrait.com &middot; <a href="/network/terms.html">Feeder terms</a> &middot; <a href="/network/privacy.html">Privacy</a></footer>
   <p><a class="back" href="/network/" id="back-foot">Back to the map</a></p>
 </div>
+<script>
+  // A partner network's credit, when one lends coverage: the map layer
+  // says who (/v1/map/partner, our pages only); 404 means none.
+  (function () {
+    var API = window.FP_API || "https://data.flightportrait.com";
+    fetch(API + "/v1/map/partner?bbox=0,0,0.001,0.001").then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (d) {
+      if (!d || !d.credit || !d.credit.name) return;
+      var a = document.getElementById("partner-name");
+      a.textContent = d.credit.name;
+      if (d.credit.url) a.href = d.credit.url; else a.removeAttribute("href");
+      document.getElementById("partner-credit").textContent = d.credit.name;
+      document.getElementById("partner-src").hidden = false;
+    }).catch(function () {});
+  })();
+</script>
 <script>
   // Arrived from the map or its menu: going back restores where they
   // were (mode, card, position). Arrived from anywhere else: the map.

@@ -131,6 +131,9 @@ fn start_tasks(app: &Arc<App>) {
     if let Some(p) = &app.partner {
         tokio::spawn(partner::read_lines(p.clone(), s.partner_live_json.clone()));
         tokio::spawn(partner::publish(p.clone()));
+        if p.store.is_some() {
+            tokio::spawn(partner::keep(p.clone(), s.partner_sample_s));
+        }
     }
     let snap_every = if s.point_mode() { s.snapshot_poll_s.max(60.0) } else { s.snapshot_poll_s };
     let a = app.clone();

@@ -123,7 +123,7 @@ impl App {
             local,
             fleet: crate::fleet::Caches::default(),
             partner: (!settings.partner_live_json.is_empty() && !settings.point_mode())
-                .then(|| crate::partner::Partner::new(settings.max_aircraft)),
+                .then(|| crate::partner::Partner::new(settings.max_aircraft, crate::partner::Store::from_settings(&settings))),
             snapshot: SnapshotCell::new(),
             published,
             settings,

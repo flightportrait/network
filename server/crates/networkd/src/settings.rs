@@ -105,6 +105,12 @@ pub struct Settings {
     /// the origins the map's partner layer answers (our own site)
     pub partner_map_origins: Vec<String>,
     pub partner_map_rate_limit: usize,
+    /// the partner's internal store, one SQLite file of its own (empty: no
+    /// store), kept a rolling `partner_keep_days`, sampled every
+    /// `partner_sample_s`
+    pub partner_store: String,
+    pub partner_keep_days: i64,
+    pub partner_sample_s: f64,
 }
 
 impl Settings {
@@ -189,6 +195,9 @@ impl Settings {
                 .filter(|o| !o.is_empty())
                 .collect(),
             partner_map_rate_limit: int("NETWORKD_PARTNER_MAP_RATE_LIMIT", 300) as usize,
+            partner_store: s("NETWORKD_PARTNER_STORE", "").trim().to_string(),
+            partner_keep_days: int("NETWORKD_PARTNER_KEEP_DAYS", 14),
+            partner_sample_s: int("NETWORKD_PARTNER_SAMPLE_S", 120) as f64,
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),
         }
     }
