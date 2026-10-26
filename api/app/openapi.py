@@ -23,7 +23,8 @@ TAGS = [
 ]
 
 DESCRIPTION = (
-    "Open data from the FlightPortrait receiver network. No API key.\n"
+    "Free flight data from the FlightPortrait receiver network, for "
+    "non-commercial use. No API key.\n"
     "\n"
     "**Stability.** Operations marked `x-stability: stable` only ever gain "
     "fields; names and types are frozen. Operations marked `x-stability: "
