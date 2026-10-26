@@ -638,6 +638,9 @@ mod tests {
         s.fleet_token = TOKEN.into();
         // a partner endpoint makes the partner sky; no task reads it in tests
         s.partner_live_json = if partner { "127.0.0.1:9".into() } else { String::new() };
+        s.partner_name = if partner { "Partner Net".into() } else { String::new() };
+        s.partner_url = "https://partner.example".into();
+        s.partner_map_origins = vec!["https://flightportrait.com".into()];
         let app = App::new(s);
         app.routes.refresh();
         let rows = [
@@ -841,14 +844,28 @@ mod tests {
     }
 
     async fn text(r: &mut Router, path: &str, token: Option<&str>) -> (u16, String) {
+        let (status, _, body) = text_from(r, path, token, None).await;
+        (status, body)
+    }
+
+    async fn text_from(
+        r: &mut Router,
+        path: &str,
+        token: Option<&str>,
+        origin: Option<&str>,
+    ) -> (u16, axum::http::HeaderMap, String) {
         let mut b = axum::http::Request::builder().uri(path);
         if let Some(t) = token {
             b = b.header("Authorization", format!("Bearer {t}"));
         }
+        if let Some(o) = origin {
+            b = b.header("Origin", o);
+        }
         let resp = r.call(b.body(Body::empty()).unwrap()).await.unwrap();
         let status = resp.status().as_u16();
+        let headers = resp.headers().clone();
         let bytes = axum::body::to_bytes(resp.into_body(), 8 << 20).await.unwrap();
-        (status, String::from_utf8_lossy(&bytes).to_lowercase())
+        (status, headers, String::from_utf8_lossy(&bytes).to_lowercase())
     }
 
     /// The partner agreement's promise, as a test: a partner aircraft
@@ -914,5 +931,43 @@ mod tests {
         // the public count is the network's own five
         let (_, _, now) = call(&mut public, "/v1/now", None).await;
         assert_eq!(now["aircraft_count"], 5);
+
+        // the one public door, the map's layer: our own pages only
+        let layer = "/v1/map/partner?bbox=100,0,110,10";
+        for origin in [None, Some("https://elsewhere.example"), Some("https://flightportrait.com.evil.example")] {
+            let (status, _, body) = text_from(&mut public, layer, None, origin).await;
+            assert_eq!(status, 403, "{origin:?}");
+            assert!(!body.contains("beef01"));
+        }
+        let (status, headers, body) = text_from(&mut public, layer, None, Some("https://flightportrait.com")).await;
+        assert_eq!(status, 200);
+        assert_eq!(headers["cache-control"], "no-store");
+        let v: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(v["credit"]["name"], "partner net");
+        let ac = v["aircraft"].as_array().unwrap();
+        // the partner's own aircraft only: the network hears 76cd01
+        assert_eq!(ac.len(), 1);
+        let keys: Vec<&str> = ac[0].as_object().unwrap().keys().map(String::as_str).collect();
+        for k in &keys {
+            assert!(["hex", "flight", "t", "lat", "lon", "alt_baro", "gs", "track", "category"].contains(k), "{k}");
+        }
+        assert_eq!(ac[0]["hex"], "beef01");
+        // outside the box, nothing
+        let (_, _, body) =
+            text_from(&mut public, "/v1/map/partner?bbox=-10,40,10,60", None, Some("https://flightportrait.com")).await;
+        assert!(!body.contains("beef01"));
+        // and the API's own description never mentions the layer
+        for path in ["/openapi.json", "/llms.txt"] {
+            let (_, body) = text(&mut public, path, None).await;
+            assert!(!body.contains("map/partner"), "{path}");
+        }
+    }
+
+    #[tokio::test]
+    async fn without_a_partner_the_layer_is_not_there() {
+        let mut public = crate::router(app("nopartner"));
+        let (status, _, _) =
+            text_from(&mut public, "/v1/map/partner", None, Some("https://flightportrait.com")).await;
+        assert_eq!(status, 404);
     }
 }

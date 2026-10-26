@@ -98,6 +98,13 @@ pub struct Settings {
     /// a partner network's readsb JSON position port (empty: none); its
     /// aircraft reach the fleet tier only (partner.rs)
     pub partner_live_json: String,
+    /// the partner's name and link, credited wherever its aircraft are
+    /// drawn; an empty name keeps them off the map
+    pub partner_name: String,
+    pub partner_url: String,
+    /// the origins the map's partner layer answers (our own site)
+    pub partner_map_origins: Vec<String>,
+    pub partner_map_rate_limit: usize,
 }
 
 impl Settings {
@@ -174,6 +181,14 @@ impl Settings {
             fleet_bind: s("NETWORKD_FLEET_BIND", "").trim().to_string(),
             fleet_token: s("NETWORKD_FLEET_TOKEN", "").trim().to_string(),
             partner_live_json: s("NETWORKD_PARTNER_LIVE_JSON", "").trim().to_string(),
+            partner_name: s("NETWORKD_PARTNER_NAME", "").trim().to_string(),
+            partner_url: s("NETWORKD_PARTNER_URL", "").trim().to_string(),
+            partner_map_origins: s("NETWORKD_PARTNER_MAP_ORIGINS", "https://flightportrait.com,https://www.flightportrait.com")
+                .split(',')
+                .map(|o| o.trim().trim_end_matches('/').to_string())
+                .filter(|o| !o.is_empty())
+                .collect(),
+            partner_map_rate_limit: int("NETWORKD_PARTNER_MAP_RATE_LIMIT", 300) as usize,
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),
         }
     }

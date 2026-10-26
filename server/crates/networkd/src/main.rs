@@ -188,6 +188,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/contributors", get(gaps::contributors))
         .route("/v1/setup/beacon", get(beacon::find).post(beacon::report).fallback(beacon::other_method))
         .route("/v2/point/{lat}/{lon}/{radius}", get(live::point))
+        .route("/v1/map/partner", get(partner::map))
         .route("/v1/airlines", get(refdata::airlines))
         .route("/v1/airlines/{icao}", get(refdata::airline))
         .route("/v1/alliances", get(refdata::alliances))

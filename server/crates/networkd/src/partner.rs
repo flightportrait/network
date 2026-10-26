@@ -9,19 +9,33 @@
 //! that readsb's JSON position port), never merged into the network's
 //! aggregator. The test at the end holds the rule in the source: only
 //! this module, the fleet tier and the wiring name it.
+//!
+//! One public door, by agreement: `map`, the map's partner layer. Live
+//! positions of the partner's aircraft the network does not hear, for
+//! our own site only, credited, never cached, never in the OpenAPI.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use axum::extract::{Request, State};
+use axum::http::header;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpStream;
 
-use crate::sky::{parse_aircraft_full, Entry, LiveSky, Snapshot, SnapshotCell};
-use crate::state::now_s;
+use crate::http::{client_ip, json, peer_of, query_param, throttle, ApiError, ApiResult};
+use crate::live::parse_bbox;
+use crate::pyjson::{write_float, write_str};
+use crate::sky::{parse_aircraft_full, Entry, LiveSky, Snapshot, SnapshotCell, F_HEX, F_FLIGHT, F_LAT, F_LON, F_ALT, F_TRACK};
+use crate::state::{now_s, App};
 
 /// How often the partner's snapshot is rebuilt while its lines flow.
 const PUBLISH_S: f64 = 1.0;
+/// What the map's partner layer carries of each aircraft: identity and
+/// position (hex, flight, t, lat, lon, alt_baro, gs, track, category).
+const MAP_FIELDS: [usize; 9] = [F_HEX, F_FLIGHT, 2, F_LAT, F_LON, F_ALT, 7, F_TRACK, 9];
+const MAP_MAX: usize = 3000;
+const NO_STORE: &str = "no-store";
 
 pub struct Partner {
     live: Mutex<LiveSky>,
@@ -130,6 +144,82 @@ pub async fn publish(partner: Arc<Partner>) {
         };
         partner.set_snapshot(snap);
     }
+}
+
+/// The request comes from one of the site's own pages: its Origin, or
+/// failing that its Referer, is a listed origin.
+fn from_site(origins: &[String], headers: &axum::http::HeaderMap) -> bool {
+    let get = |h| headers.get(h).and_then(|v| v.to_str().ok());
+    if let Some(o) = get(header::ORIGIN) {
+        return origins.iter().any(|x| x == o.trim_end_matches('/'));
+    }
+    get(header::REFERER).is_some_and(|r| origins.iter().any(|x| r == x || r.starts_with(&format!("{x}/"))))
+}
+
+/// GET /v1/map/partner?bbox=: the partner's live aircraft the network
+/// does not hear, for our map. Positions only: no history, no search, no
+/// fields beyond MAP_FIELDS. Answered only to the site's own pages,
+/// throttled, `no-store`. A browser page elsewhere gets 403; a scraper
+/// can forge an Origin, which is why the agreement promises "never
+/// offered", not "impossible to copy".
+pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
+    let s = &app.settings;
+    let partner = match &app.partner {
+        Some(p) if !s.partner_name.is_empty() => p,
+        _ => return Err(ApiError::new(404, "not_found", "Not Found")),
+    };
+    if !from_site(&s.partner_map_origins, req.headers()) {
+        return Err(ApiError::new(403, "forbidden", "this layer belongs to the FlightPortrait map"));
+    }
+    let ip = client_ip(&app, req.headers(), peer_of(&req));
+    throttle(&app, &ip, "partner_map", s.partner_map_rate_limit)?;
+    let bbox = match query_param(req.uri().query(), "bbox").as_deref() {
+        Some(b) if b.chars().count() > 80 => {
+            return Err(ApiError::new(422, "invalid_request", "query.bbox: String should have at most 80 characters"))
+        }
+        Some(b) if !b.is_empty() => Some(parse_bbox(b)?),
+        _ => None,
+    };
+    let theirs = partner.snapshot.get();
+    let ours = app.snapshot();
+    let mut body = String::with_capacity(4096);
+    body.push_str("{\"credit\":{\"name\":");
+    write_str(&mut body, &s.partner_name);
+    body.push_str(",\"url\":");
+    write_str(&mut body, &s.partner_url);
+    body.push_str("},\"now\":");
+    write_float(&mut body, theirs.generated_at);
+    body.push_str(",\"aircraft\":[");
+    if theirs.fresh(s.stale_after_s) {
+        let known: HashSet<&str> = ours.entries.iter().map(|e| &*e.hex).collect();
+        let mut n = 0;
+        for e in &theirs.entries {
+            if !e.has_pos || known.contains(&*e.hex) || bbox.as_ref().is_some_and(|b| !e.in_bbox(b)) {
+                continue;
+            }
+            if n > 0 {
+                body.push(',');
+            }
+            body.push('{');
+            let mut first = true;
+            for f in MAP_FIELDS {
+                if let Some(kv) = e.field(f) {
+                    if !first {
+                        body.push(',');
+                    }
+                    body.push_str(kv);
+                    first = false;
+                }
+            }
+            body.push('}');
+            n += 1;
+            if n >= MAP_MAX {
+                break;
+            }
+        }
+    }
+    body.push_str("]}");
+    Ok(json(body, NO_STORE))
 }
 
 #[cfg(test)]

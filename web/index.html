@@ -2668,6 +2668,109 @@
     }
     return null;
   }
+  // ---- partner coverage ---------------------------------------------
+  // Aircraft a partner network hears and ours does not (/v1/map/partner):
+  // drawn live, credited, on this map only. No search, no list, no
+  // history: the layer is a picture of coverage, not data. A server
+  // without a partner answers 404 and the layer never starts.
+  var partner = { data: [], credit: null, at: 0, recv: 0, timer: null, glide: null, off: false };
+  function partnerShown() {
+    return !partner.off && !document.body.classList.contains("replaying");
+  }
+  function setupPartner(map) {
+    function poll() {
+      if (!partnerShown() || document.hidden) return;
+      var box = viewBox();
+      var q = box ? "?bbox=" + [box.w, box.s, box.e, box.n]
+        .map(function (x) { return x.toFixed(3); }).join(",") : "";
+      fetch(API + "/v1/map/partner" + q).then(function (r) {
+        if (r.status === 404) { stop(); return null; }
+        return r.ok ? r.json() : null;
+      }).then(function (d) {
+        if (!d) return;
+        if (!partner.credit && d.credit && d.credit.name) addLayer(d.credit);
+        var live = {};
+        (state.aircraft || []).forEach(function (a) { live[a.hex] = 1; });
+        partner.data = (d.aircraft || []).filter(function (a) { return !live[a.hex]; });
+        partner.at = d.now || Date.now() / 1000;
+        partner.recv = Date.now();
+        draw();
+      }).catch(function () {});
+    }
+    function stop() {
+      partner.off = true;
+      clearInterval(partner.timer);
+      clearInterval(partner.glide);
+    }
+    function addLayer(credit) {
+      partner.credit = credit;
+      var link = credit.url
+        ? "<a href='" + esc(credit.url) + "' target='_blank' rel='noopener'>" + esc(credit.name) + "</a>"
+        : esc(credit.name);
+      map.addSource("partner", { type: "geojson", attribution: "Coverage partly via " + link,
+        data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({ id: "partner", type: "symbol", source: "partner",
+        layout: {
+          "icon-image": ["get", "icon"],
+          "icon-rotate": ["coalesce", ["get", "track"], 0],
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true
+        } });
+      if (map.getStyle().glyphs) {
+        map.addLayer({ id: "partner-labels", type: "symbol", source: "partner", minzoom: 6.5,
+          layout: {
+            "text-field": ["coalesce", ["get", "flight"], ""],
+            "text-font": ["Noto Sans Regular"], "text-size": 11,
+            "text-offset": [0, 1.7], "text-anchor": "top", "text-optional": true
+          },
+          paint: { "text-color": "rgba(34,31,26,.78)",
+                   "text-halo-color": "rgba(245,241,230,.85)", "text-halo-width": 1.2 } });
+      }
+      map.on("click", "partner", function (e) {
+        select(e.features[0].properties.hex, "map");
+      });
+      map.on("mouseenter", "partner", function () { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "partner", function () { map.getCanvas().style.cursor = ""; });
+    }
+    function draw() {
+      var src = map.getSource("partner");
+      if (!src) return;
+      var dt = partnerElapsed();
+      src.setData({ type: "FeatureCollection",
+        features: partnerShown() ? partner.data.map(function (a) {
+          return { type: "Feature", properties: { hex: a.hex, flight: a.flight || "",
+              track: a.track, icon: "icon-" + iconFor(a) },
+            geometry: { type: "Point", coordinates: glided(a, dt) } };
+        }) : [] });
+    }
+    // playback belongs to the archive, which holds no partner aircraft
+    new MutationObserver(function () { draw(); if (partnerShown()) poll(); })
+      .observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    poll();
+    partner.timer = setInterval(poll, 10000);
+    if (!reducedMotion) {
+      partner.glide = setInterval(function () {
+        if (partnerShown() && !document.hidden && partner.data.length) draw();
+      }, 1000);
+    }
+  }
+  function partnerElapsed() {
+    var age = Math.max(0, Math.min(30, partner.recv / 1000 - partner.at));
+    return (Date.now() - partner.recv) / 1000 + age;
+  }
+  // The card's view of a partner aircraft: where it is drawn now.
+  function partnerOf(hex) {
+    if (!partnerShown()) return null;
+    for (var i = 0; i < partner.data.length; i++) {
+      if (partner.data[i].hex !== hex) continue;
+      var a = partner.data[i], p = glided(a, partnerElapsed()), out = {};
+      for (var k in a) out[k] = a[k];
+      out.lon = p[0]; out.lat = p[1]; out.seen_pos = 0; out._heard = Date.now();
+      out._partner = partner.credit;
+      return out;
+    }
+    return null;
+  }
   function estAgo(a) {
     var m = Math.max(1, Math.round((Date.now() / 1000 - a.last_seen.at) / 60));
     return m + " min ago";
@@ -2866,8 +2969,10 @@
       map.on("click", function (e) {
         // an estimate under the tap opens its own card (its layer's
         // handler); only an empty tap closes the card
-        var onEstimate = map.getLayer("estimated") &&
-          map.queryRenderedFeatures(e.point, { layers: ["estimated"] }).length;
+        var onEstimate = ["estimated", "partner"].some(function (id) {
+          return map.getLayer(id) &&
+            map.queryRenderedFeatures(e.point, { layers: [id] }).length;
+        });
         if (gpu.active) {
           var hit = gpuHit(e.point);
           if (hit) select(hit, "map"); else if (!onEstimate) deselect();
@@ -2941,6 +3046,7 @@
                     REPLAY_SPEEDS.indexOf(sp) >= 0 ? sp : 60, false);
       }
       setupEstimates(map);
+      setupPartner(map);
 
       // Airports: fixed quiet marks under the moving sky — paper
       // beacons ringed in ink, every one a door into the airport card.
@@ -3533,7 +3639,8 @@
     for (var i = 0; i < state.aircraft.length; i++) {
       if (state.aircraft[i].hex === hex) return state.aircraft[i];
     }
-    return estimateOf(hex);            // lost from the sky, still drawn
+    return estimateOf(hex) ||          // lost from the sky, still drawn
+      partnerOf(hex);                  // heard by a partner network
   }
 
   // How the camera answers a selection depends on where it came from.
@@ -3714,8 +3821,13 @@
     var posAge = a.seen_pos != null
       ? a.seen_pos + (Date.now() - (a._heard || state.fetchedAt)) / 1000 : null;
     var stale = posAge != null && posAge >= 30;
-    el("d-sub").hidden = !stale && !a.estimated;
-    if (a.estimated) {
+    el("d-sub").hidden = !stale && !a.estimated && !a._partner;
+    if (a._partner) {
+      var pc = a._partner;
+      el("d-sub").innerHTML = "via " + (pc.url
+        ? "<a href='" + esc(pc.url) + "' target='_blank' rel='noopener'>" + esc(pc.name) + "</a>"
+        : esc(pc.name));
+    } else if (a.estimated) {
       el("d-sub").innerHTML = "<span class='stale'>estimated position &middot; " +
         "last heard " + estClock(a.last_seen.at) + ", " + estAgo(a) + "</span>";
     } else if (stale) {
@@ -3733,8 +3845,9 @@
     el("d-alert").textContent = alert;
     el("d-history").href = "plane/" + a.hex;
     el("d-history").dataset.hex = a.hex;
+    el("d-history").hidden = !!a._partner;
     var cs = (a.flight || "").trim();
-    el("d-flightlog").hidden = !/^[A-Z]{3}\d/.test(cs);
+    el("d-flightlog").hidden = !!a._partner || !/^[A-Z]{3}\d/.test(cs);
     el("d-flightlog").href = "flight.html?callsign=" + encodeURIComponent(cs);
     loadPhoto(a.hex);
     loadRoute((a.flight || "").trim());
