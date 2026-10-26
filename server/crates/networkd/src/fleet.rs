@@ -387,6 +387,16 @@ async fn aircraft_array(app: &Arc<App>, snap: &Arc<Snapshot>, picks: &[(u32, Opt
     Ok(buf)
 }
 
+/// The network's fresh snapshot, with a partner network's aircraft the
+/// network did not hear laid after its own: frames only (partner.rs).
+fn sky(app: &App) -> Result<Arc<Snapshot>, ApiError> {
+    let snap = fresh(app)?;
+    Ok(match &app.partner {
+        Some(p) => p.fleet_sky(snap, app.settings.stale_after_s),
+        None => snap,
+    })
+}
+
 /// GET /fleet/v1/point/{lat}/{lon}/{radius_nm}: /v2/point's envelope,
 /// enriched, unthrottled.
 pub async fn point(State(app): State<Arc<App>>, Path((lat, lon, radius)): Path<(String, String, String)>) -> ApiResult {
@@ -408,7 +418,7 @@ pub async fn point(State(app): State<Arc<App>>, Path((lat, lon, radius)): Path<(
     }
     let radius = radius.min(MAX_RADIUS_NM);
     let started = Instant::now();
-    let snap = fresh(&app)?;
+    let snap = sky(&app)?;
     let mut hits: Vec<(u32, Option<f64>)> = vec![];
     for (i, e) in snap.entries.iter().enumerate() {
         let (Some(alat), Some(alon)) = (e.lat, e.lon) else { continue };
@@ -438,7 +448,7 @@ pub async fn callsign(State(app): State<Arc<App>>, Path(asked): Path<String>) ->
     if want.is_empty() || want.chars().count() > 16 {
         return Err(ApiError::new(422, "invalid_request", "invalid callsign"));
     }
-    let snap = fresh(&app)?;
+    let snap = sky(&app)?;
     let picks: Vec<(u32, Option<f64>)> = snap
         .entries
         .iter()
@@ -605,6 +615,10 @@ mod tests {
     }
 
     fn app(name: &str) -> Arc<App> {
+        app_with(name, false)
+    }
+
+    fn app_with(name: &str, partner: bool) -> Arc<App> {
         let d = scratch(name);
         refdata(&d.join("refdata.sqlite"));
         routes_file(&d.join("routes.json.gz"));
@@ -622,6 +636,8 @@ mod tests {
         s.nat = false;
         s.fleet_bind = "127.0.0.1:0".into();
         s.fleet_token = TOKEN.into();
+        // a partner endpoint makes the partner sky; no task reads it in tests
+        s.partner_live_json = if partner { "127.0.0.1:9".into() } else { String::new() };
         let app = App::new(s);
         app.routes.refresh();
         let rows = [
@@ -822,5 +838,81 @@ mod tests {
                 assert!(a.get(k).is_none(), "{k}");
             }
         }
+    }
+
+    async fn text(r: &mut Router, path: &str, token: Option<&str>) -> (u16, String) {
+        let mut b = axum::http::Request::builder().uri(path);
+        if let Some(t) = token {
+            b = b.header("Authorization", format!("Bearer {t}"));
+        }
+        let resp = r.call(b.body(Body::empty()).unwrap()).await.unwrap();
+        let status = resp.status().as_u16();
+        let bytes = axum::body::to_bytes(resp.into_body(), 8 << 20).await.unwrap();
+        (status, String::from_utf8_lossy(&bytes).to_lowercase())
+    }
+
+    /// The partner agreement's promise, as a test: a partner aircraft
+    /// reaches the fleet tier and no public route. Each route is checked
+    /// for the identifiers its own path does not carry (routes echo what
+    /// they were asked).
+    #[tokio::test]
+    async fn partner_aircraft_reach_the_fleet_tier_and_nothing_public() {
+        let a = app_with("partner", true);
+        let rows = [
+            r#"{"hex":"beef01","flight":"PRTNR1","t":"A20N","lat":1.23456,"lon":103.65432,"alt_baro":9000,"type":"adsb_icao"}"#,
+            // an aircraft the network hears too: the network's report stays
+            r#"{"hex":"76cd01","flight":"SIA322","lat":7.77777,"lon":101.11111}"#,
+        ];
+        let entries = rows
+            .iter()
+            .map(|r| {
+                let (v, h) = parse_aircraft_full(r).unwrap();
+                Entry::with_hidden(v, h)
+            })
+            .collect();
+        a.partner.as_ref().unwrap().set_snapshot(Arc::new(Snapshot::new(now_s(), entries)));
+
+        let mut fleet = router(a.clone());
+        let (status, _, v) = call(&mut fleet, "/fleet/v1/point/1.3521/103.8198/100", Some(TOKEN)).await;
+        assert_eq!(status, 200);
+        let hexes: Vec<&str> = v["ac"].as_array().unwrap().iter().map(|x| x["hex"].as_str().unwrap()).collect();
+        assert!(hexes.contains(&"beef01"), "{hexes:?}");
+        assert_eq!(hexes.iter().filter(|h| **h == "76cd01").count(), 1);
+        let (_, body) = text(&mut fleet, "/fleet/v1/callsign/PRTNR1", Some(TOKEN)).await;
+        assert!(body.contains("beef01"));
+        assert!(!body.contains("7.77777"), "the network's report of 76cd01 wins");
+
+        let mut public = crate::router(a.clone());
+        let paths = [
+            "/",
+            "/healthz",
+            "/v1/now",
+            "/v1/aircraft",
+            "/v2/point/1.3521/103.8198/250",
+            "/v1/trace/beef01",
+            "/v1/estimated",
+            "/v1/routes?cs=PRTNR1",
+            "/v1/flights/PRTNR1",
+            "/v1/airframes/beef01",
+            "/v1/search?q=PRTNR1",
+            "/v2/search?q=PRTNR1",
+            "/v1/stations",
+            "/v1/gaps",
+            "/v1/airports/SIN",
+            "/openapi.json",
+            "/llms.txt",
+        ];
+        for path in paths {
+            let (_, body) = text(&mut public, path, None).await;
+            for secret in ["beef01", "prtnr1", "1.23456", "103.65432", "7.77777"] {
+                if path.to_lowercase().contains(secret) {
+                    continue;
+                }
+                assert!(!body.contains(secret), "{secret} leaked on {path}");
+            }
+        }
+        // the public count is the network's own five
+        let (_, _, now) = call(&mut public, "/v1/now", None).await;
+        assert_eq!(now["aircraft_count"], 5);
     }
 }

@@ -24,6 +24,7 @@ mod history;
 mod http;
 mod legs;
 mod nat;
+mod partner;
 mod live;
 mod localdb;
 mod pg;
@@ -126,6 +127,10 @@ fn start_tasks(app: &Arc<App>) {
     if !s.live_json.is_empty() && !s.point_mode() {
         tokio::spawn(sky::read_lines(app.clone(), s.live_json.clone()));
         tokio::spawn(sky::publish(app.clone()));
+    }
+    if let Some(p) = &app.partner {
+        tokio::spawn(partner::read_lines(p.clone(), s.partner_live_json.clone()));
+        tokio::spawn(partner::publish(p.clone()));
     }
     let snap_every = if s.point_mode() { s.snapshot_poll_s.max(60.0) } else { s.snapshot_poll_s };
     let a = app.clone();

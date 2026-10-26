@@ -63,6 +63,9 @@ pub struct App {
     pub stations: Option<Arc<crate::stations::Registry>>,
     /// the private fleet tier's lookups, remembered between requests
     pub fleet: crate::fleet::Caches,
+    /// a partner network's live sky, when one feeds us; read by the
+    /// fleet tier only (partner.rs)
+    pub partner: Option<Arc<crate::partner::Partner>>,
     published: watch::Sender<u64>,
 }
 
@@ -119,6 +122,8 @@ impl App {
             stations,
             local,
             fleet: crate::fleet::Caches::default(),
+            partner: (!settings.partner_live_json.is_empty() && !settings.point_mode())
+                .then(|| crate::partner::Partner::new(settings.max_aircraft)),
             snapshot: SnapshotCell::new(),
             published,
             settings,

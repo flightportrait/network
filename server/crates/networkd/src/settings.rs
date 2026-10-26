@@ -95,6 +95,9 @@ pub struct Settings {
     /// the bearer token every /fleet/v1 request carries (empty: the
     /// fleet tier stays off)
     pub fleet_token: String,
+    /// a partner network's readsb JSON position port (empty: none); its
+    /// aircraft reach the fleet tier only (partner.rs)
+    pub partner_live_json: String,
 }
 
 impl Settings {
@@ -170,6 +173,7 @@ impl Settings {
             boards_path: s("NETWORK_API_BOARDS_PATH", "data/boards.db"),
             fleet_bind: s("NETWORKD_FLEET_BIND", "").trim().to_string(),
             fleet_token: s("NETWORKD_FLEET_TOKEN", "").trim().to_string(),
+            partner_live_json: s("NETWORKD_PARTNER_LIVE_JSON", "").trim().to_string(),
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),
         }
     }
