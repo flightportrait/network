@@ -52,6 +52,7 @@ observation, and are served once corroborated or reviewed. See
 
 ## Licenses
 
-Code here is Apache-2.0. Data from the API is ODbL 1.0.
+Code here is Apache-2.0. Live data from the API is CC BY-NC 4.0 (non-commercial); routes and
+history derived from ODbL archives are ODbL 1.0.
 Airline marks on the map belong to their owners. [NOTICE](NOTICE)
 has the rest.

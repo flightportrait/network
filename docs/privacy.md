@@ -33,7 +33,7 @@ coarse coordinates, first and last heard, online or not.
 
 To delete a station's registry history, email
 hello@flightportrait.com. There is no public delete endpoint. Data
-already published under ODbL stays.
+already published stays under its licence.
 
 `web/` is static files. It talks to the API, OpenFreemap, and
 (in the browser) planespotters.net. It does not receive Beast

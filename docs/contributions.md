@@ -73,4 +73,4 @@ two disagree the question reopens.
 Contributors who gave a name are listed at
 [flightportrait.com/network/contributors.html](https://flightportrait.com/network/contributors.html)
 and `GET /v1/contributors`. Answers and catalog rows are open data
-under the same licence as everything else here, ODbL 1.0.
+under the same licence as the route tables, ODbL 1.0.

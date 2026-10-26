@@ -138,7 +138,7 @@ impl Settings {
             terms_url: s("NETWORK_API_TERMS_URL", "https://flightportrait.com/network/terms"),
             attribution: s(
                 "NETWORK_API_ATTRIBUTION",
-                "Data (c) FlightPortrait network feeders and credited sources, ODbL 1.0",
+                "Data (c) FlightPortrait network feeders and credited sources. Live data CC BY-NC 4.0 (non-commercial); routes and history ODbL 1.0",
             ),
             credits_url: s("NETWORK_API_CREDITS_URL", "https://flightportrait.com/network/credits.html"),
             fallback: s("NETWORKD_FALLBACK", ""),

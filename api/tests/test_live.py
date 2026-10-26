@@ -25,6 +25,7 @@ def test_healthz_and_index(ctx):
     assert index["swagger"] == "/docs"
     assert index["source"] == "https://github.com/flightportrait/network"
     assert "feed.flightportrait.com" in index["feed"]
+    assert "CC BY-NC 4.0" in index["attribution"]
     assert "ODbL" in index["attribution"]
     assert index["credits"].endswith("/network/credits.html")
 

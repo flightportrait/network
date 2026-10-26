@@ -1,6 +1,6 @@
 # FlightPortrait network API
 
-> Free, open flight data from the FlightPortrait receiver network: aircraft in the air now, aircraft near a point, flights with their routes and usual times, airports, airlines, airframes, and search across all of them. No API key needed. JSON over HTTPS at https://data.flightportrait.com. Data (c) FlightPortrait network feeders and credited sources, ODbL 1.0.
+> Free flight data from the FlightPortrait receiver network, for non-commercial use: aircraft in the air now, aircraft near a point, flights with their routes and usual times, airports, airlines, airframes, and search across all of them. No API key needed. JSON over HTTPS at https://data.flightportrait.com. Data (c) FlightPortrait network feeders and credited sources: live data CC BY-NC 4.0, routes and history ODbL 1.0.
 
 ## Start here
 
@@ -18,6 +18,6 @@
 
 ## Terms
 
-- [Data and licensing](https://docs.flightportrait.com/network/data.md): ODbL 1.0; credit "FlightPortrait network" and link back.
+- [Data and licensing](https://docs.flightportrait.com/network/data.md): live data CC BY-NC 4.0 (non-commercial; ask before commercial use), routes and history ODbL 1.0; credit "FlightPortrait network" and link back.
 - [Terms](https://flightportrait.com/network/terms): fair use; be kind to the rate limits.
 - [Source](https://github.com/flightportrait/network): this service is open source.

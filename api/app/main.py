@@ -3,8 +3,8 @@
 App factory in the house pattern: everything injectable through app.state
 (settings, sessionmaker, readsb client), a module-level `app` for uvicorn.
 The service reads the local aggregator readsb and persists the
-stations registry in its own Postgres. Apache-2.0; the data it
-serves is ODbL 1.0. Published so the station privacy handling is
+stations registry in its own Postgres. Apache-2.0; the live data it
+serves is CC BY-NC 4.0, routes and history ODbL 1.0. Published so the station privacy handling is
 auditable — there is one network, and this is the code it runs.
 """
 import logging

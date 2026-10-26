@@ -719,7 +719,7 @@
         }).then(function (style) {
           var map = state.map = new maplibregl.Map({ container: "live-map", style: style,
             center: [10, 30], zoom: 1.4, attributionControl: { compact: true,
-              customAttribution: "FlightPortrait network, ODbL &middot; <a href='/network/credits.html'>Credits</a>" } });
+              customAttribution: "FlightPortrait network, CC BY-NC &middot; <a href='/network/credits.html'>Credits</a>" } });
           map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
           map.on("load", function () {
             // as the live map draws it: ferry routes off (they read as

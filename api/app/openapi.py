@@ -64,7 +64,11 @@ DESCRIPTION = (
     "operation notes its bucket and default limit. 429 means wait for "
     "`Retry-After` seconds.\n"
     "\n"
-    "Data is ODbL 1.0. Credit \"FlightPortrait network feeders\" and link "
+    "**Licences.** Live data (aircraft, positions, trails, stations, "
+    "estimates) is CC BY-NC 4.0: free for non-commercial use; write to "
+    "hello@flightportrait.com before any commercial use. Routes, flight "
+    "logs and airframe history derive from ODbL archives and are ODbL 1.0. "
+    "Credit \"FlightPortrait network feeders\" and link "
     "the credits page, which lists every source the data draws on and "
     "the credit each one asks for; republishing carries them too.\n"
     "Credits: https://flightportrait.com/network/credits.html\n"
@@ -878,7 +882,8 @@ EX_INDEX = {
     "source": "https://github.com/flightportrait/network",
     "terms": "https://flightportrait.com/network/terms",
     "attribution": "Data (c) FlightPortrait network feeders and credited "
-                   "sources, ODbL 1.0",
+                   "sources. Live data CC BY-NC 4.0 (non-commercial); "
+                   "routes and history ODbL 1.0",
     "credits": "https://flightportrait.com/network/credits.html",
     "feed": "feed.flightportrait.com:30004 (beast_reduce_plus_out)",
 }

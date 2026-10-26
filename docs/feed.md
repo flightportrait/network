@@ -66,5 +66,5 @@ rounded to about 11 km from coverage. Not an address. Feeder IPs
 are not stored.
 
 [Feeder terms](https://flightportrait.com/network/terms): you keep
-your data; the aggregate is published under ODbL. Stop whenever you
-like.
+your data; the aggregate is published for non-commercial use
+(CC BY-NC 4.0). Stop whenever you like.
