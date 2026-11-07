@@ -1018,12 +1018,12 @@ mod tests {
             assert!(["hex", "flight", "t", "lat", "lon", "alt_baro", "gs", "track", "category", "via"].contains(k), "{k}");
         }
         assert_eq!(ac[0]["hex"], "beef01");
-        // no box, or a box wider than a region: refused
-        for path in ["/v1/map/partner", "/v1/map/partner?bbox=-180,-80,180,80", "/v1/map/partner?bbox=0,0,90,10"] {
-            let (status, _, body) = text_from(&mut public, path, None, Some("https://flightportrait.com")).await;
-            assert_eq!(status, 422, "{path}");
-            assert!(!body.contains("beef01"));
-        }
+        // no box: refused
+        let (status, _, body) = text_from(&mut public, "/v1/map/partner", None, Some("https://flightportrait.com")).await;
+        assert_eq!(status, 422);
+        assert!(!body.contains("beef01"));
+        // the partner-only count, for the headline: the network hears 76cd01
+        assert_eq!(v["total"], 1);
         // a box across the antimeridian is measured the short way round
         let (status, _, _) =
             text_from(&mut public, "/v1/map/partner?bbox=170,0,-170,10", None, Some("https://flightportrait.com")).await;
@@ -1093,6 +1093,34 @@ mod tests {
             let (_, body) = text(&mut public, path, None).await;
             assert!(!body.contains("5ec0d1"), "5ec0d1 leaked on {path}");
         }
+    }
+
+    /// Zoomed out, the layer draws coverage, not the partner's whole sky:
+    /// one aircraft per grid cell. A regional box answers in full, and the
+    /// total counts every partner-only aircraft either way.
+    #[tokio::test]
+    async fn a_wide_box_gets_one_aircraft_per_cell() {
+        let a = app_with("partner-wide", true);
+        // twenty aircraft within a few kilometres of each other, one far away
+        let rows: Vec<String> = (0..20)
+            .map(|i| format!(r#"{{"hex":"be{i:04x}","lat":48.{i:02},"lon":11.{i:02}}}"#))
+            .chain([r#"{"hex":"beffff","lat":-33.9,"lon":151.2}"#.to_string()])
+            .collect();
+        let refs: Vec<&str> = rows.iter().map(String::as_str).collect();
+        a.partners[0].set_snapshot(snapshot_of(&refs));
+        let mut public = crate::router(a);
+        let origin = Some("https://flightportrait.com");
+        let (status, _, body) = text_from(&mut public, "/v1/map/partner?bbox=-180,-80,180,80", None, origin).await;
+        assert_eq!(status, 200);
+        let v: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(v["total"], 21);
+        let hexes: Vec<&str> = v["aircraft"].as_array().unwrap().iter().map(|x| x["hex"].as_str().unwrap()).collect();
+        assert_eq!(hexes, ["be0000", "beffff"]);
+        // a regional box: every aircraft in it
+        let (_, _, body) = text_from(&mut public, "/v1/map/partner?bbox=0,40,20,55", None, origin).await;
+        let v: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(v["aircraft"].as_array().unwrap().len(), 20);
+        assert_eq!(v["total"], 21);
     }
 
     #[tokio::test]

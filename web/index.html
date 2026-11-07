@@ -2678,14 +2678,15 @@
     return !partner.off && !document.body.classList.contains("replaying");
   }
   function setupPartner(map) {
-    // The layer answers a regional box only (60° by 40°): zoomed out
-    // further, partner aircraft are not drawn.
+    // The view plus a margin. The layer answers a regional box (up to 60°
+    // by 40°) in full; zoomed out further it sends a coverage picture,
+    // one aircraft per grid cell.
     function regionBox() {
       var b = map.getBounds();
       var w = b.getWest(), e = b.getEast(), so = b.getSouth(), n = b.getNorth();
       var mw = (e - w) * 0.2, mh = (n - so) * 0.2;
       w -= mw; e += mw; so = Math.max(-85, so - mh); n = Math.min(85, n + mh);
-      if (e - w > 58 || n - so > 38) return null;
+      if (e - w >= 359) return [-180, so, 180, n];
       var wrap = function (x) { return ((x + 180) % 360 + 360) % 360 - 180; };
       return [wrap(w), so, wrap(e), n];
     }
@@ -2709,11 +2710,14 @@
         partner.data = (d.aircraft || []).filter(function (a) { return !live[a.hex]; });
         partner.at = d.now || Date.now() / 1000;
         partner.recv = Date.now();
+        partner.total = d.total || 0;
+        paintCount();
         draw();
       }).catch(function () {});
     }
     function stop() {
       partner.off = true;
+      partner.total = 0;
       clearInterval(partner.timer);
       clearInterval(partner.glide);
     }
@@ -2779,6 +2783,13 @@
         if (partnerShown() && !document.hidden && partner.data.length) draw();
       }, 1000);
     }
+  }
+  // The headline: the network's aircraft plus those only a partner hears
+  // (the layer's worldwide count), while the partner layer is on.
+  function paintCount() {
+    if (replay.on || state.total == null) return;
+    el("count-aircraft").textContent =
+      state.total + (partnerShown() ? (partner.total || 0) : 0);
   }
   function partnerElapsed() {
     var age = Math.max(0, Math.min(30, partner.recv / 1000 - partner.at));
@@ -4712,8 +4723,8 @@
     state.generatedAt = d.generated_at || 0;
     state.fetchedAt = Date.now();
     setStatus(true, "live");
-    el("count-aircraft").textContent =
-      d.total != null ? d.total : state.aircraft.length;
+    state.total = d.total != null ? d.total : state.aircraft.length;
+    paintCount();
     gpuSync();
     pushPositions();
     renderListSoon();

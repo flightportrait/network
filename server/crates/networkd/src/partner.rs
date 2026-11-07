@@ -42,11 +42,13 @@ const PUBLISH_S: f64 = 1.0;
 /// position (hex, flight, t, lat, lon, alt_baro, gs, track, category).
 const MAP_FIELDS: [usize; 9] = [F_HEX, F_FLIGHT, 2, F_LAT, F_LON, F_ALT, 7, F_TRACK, 9];
 const MAP_MAX: usize = 1000;
-/// The widest box the map's layer answers, in degrees: a regional view.
-/// No world-wide answer, so a script cannot take the partner's whole sky
-/// in a few calls.
+/// The widest box the map's layer answers in full, in degrees: a regional
+/// view. A wider box gets a picture of the coverage, one aircraft per grid
+/// cell of MAP_WIDE_CELLS across, so a script cannot take a partner's whole
+/// sky in a few calls.
 const MAP_SPAN_LON: f64 = 60.0;
 const MAP_SPAN_LAT: f64 = 40.0;
+const MAP_WIDE_CELLS: f64 = 60.0;
 const NO_STORE: &str = "no-store";
 
 pub struct Partner {
@@ -432,7 +434,10 @@ fn from_site(origins: &[String], headers: &axum::http::HeaderMap) -> bool {
 /// GET /v1/map/partner?bbox=: the partners' live aircraft the network
 /// does not hear, for our map. `credits` lists the named partners; each
 /// aircraft's `via` is its partner's place in that list (`credit` is the
-/// first, for pages that know one partner). Positions only: no history, no search, no
+/// first, for pages that know one partner). `total` counts the partners'
+/// positioned aircraft the network does not hear, the whole world, for
+/// the map's headline. A box wider than a region, or holding more than
+/// MAP_MAX, is thinned to one aircraft per grid cell. Positions only: no history, no search, no
 /// fields beyond MAP_FIELDS. Answered only to the site's own pages,
 /// throttled, `no-store`. A browser page elsewhere gets 403; a scraper
 /// can forge an Origin, which is why the agreement promises "never
@@ -456,9 +461,8 @@ pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
         _ => return Err(ApiError::new(422, "invalid_request", "bbox is required")),
     };
     let span_lon = if bbox.w <= bbox.e { bbox.e - bbox.w } else { 360.0 - bbox.w + bbox.e };
-    if span_lon > MAP_SPAN_LON || bbox.n - bbox.s > MAP_SPAN_LAT {
-        return Err(ApiError::new(422, "invalid_request", "bbox is wider than the map's layer answers"));
-    }
+    let span_lat = (bbox.n - bbox.s).max(0.0);
+    let wide = span_lon > MAP_SPAN_LON || span_lat > MAP_SPAN_LAT;
     let ours = app.snapshot();
     let credit = |body: &mut String, p: &Partner| {
         body.push_str("{\"name\":");
@@ -485,35 +489,57 @@ pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
     // the network's aircraft, then each partner's in turn: an aircraft is
     // drawn once, credited to the first partner that hears it
     let mut known: HashSet<&str> = ours.entries.iter().map(|e| &*e.hex).collect();
-    let mut n = 0;
-    'partners: for (via, theirs) in skies.iter().enumerate() {
+    let mut total = 0usize;
+    let mut inside: Vec<(usize, &Entry)> = vec![];
+    for (via, theirs) in skies.iter().enumerate() {
         if !theirs.fresh(s.stale_after_s) {
             continue;
         }
         for e in &theirs.entries {
-            if !e.has_pos || !known.insert(&*e.hex) || !e.in_bbox(&bbox) {
+            if !e.has_pos || !known.insert(&*e.hex) {
                 continue;
             }
-            if n >= MAP_MAX {
-                break 'partners;
+            total += 1;
+            if e.in_bbox(&bbox) {
+                inside.push((via, e));
             }
-            if n > 0 {
-                body.push(',');
-            }
-            body.push('{');
-            for f in MAP_FIELDS {
-                if let Some(kv) = e.field(f) {
-                    body.push_str(kv);
-                    body.push(',');
-                }
-            }
-            body.push_str("\"via\":");
-            body.push_str(&via.to_string());
-            body.push('}');
-            n += 1;
         }
     }
-    body.push_str("]}");
+    // thinned: the first aircraft of each grid cell, cells sized so a
+    // regional box keeps up to MAP_MAX and a wide one a coverage picture
+    if wide || inside.len() > MAP_MAX {
+        let c = if wide {
+            (span_lon.max(span_lat * 1.5) / MAP_WIDE_CELLS).max(0.01)
+        } else {
+            (span_lon * span_lat / MAP_MAX as f64).sqrt().max(0.01)
+        };
+        let mut cells: HashSet<(i64, i64)> = HashSet::new();
+        inside.retain(|(_, e)| {
+            let (lat, lon) = (e.lat.unwrap_or(0.0), e.lon.unwrap_or(0.0));
+            let x = ((lon - bbox.w).rem_euclid(360.0) / c).floor() as i64;
+            let y = ((lat - bbox.s) / c).floor() as i64;
+            cells.insert((x, y))
+        });
+    }
+    inside.truncate(MAP_MAX);
+    for (n, (via, e)) in inside.iter().enumerate() {
+        if n > 0 {
+            body.push(',');
+        }
+        body.push('{');
+        for f in MAP_FIELDS {
+            if let Some(kv) = e.field(f) {
+                body.push_str(kv);
+                body.push(',');
+            }
+        }
+        body.push_str("\"via\":");
+        body.push_str(&via.to_string());
+        body.push('}');
+    }
+    body.push_str("],\"total\":");
+    body.push_str(&total.to_string());
+    body.push('}');
     Ok(json(body, NO_STORE))
 }
 
