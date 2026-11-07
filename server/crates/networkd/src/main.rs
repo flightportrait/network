@@ -128,8 +128,8 @@ fn start_tasks(app: &Arc<App>) {
         tokio::spawn(sky::read_lines(app.clone(), s.live_json.clone()));
         tokio::spawn(sky::publish(app.clone()));
     }
-    if let Some(p) = &app.partner {
-        tokio::spawn(partner::read_lines(p.clone(), s.partner_live_json.clone()));
+    for p in &app.partners {
+        tokio::spawn(partner::read_lines(p.clone()));
         tokio::spawn(partner::publish(p.clone()));
         if p.store.is_some() {
             tokio::spawn(partner::keep(p.clone(), s.partner_sample_s));

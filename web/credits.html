@@ -168,11 +168,23 @@
       return r.ok ? r.json() : null;
     }).then(function (d) {
       if (!d || !d.credit || !d.credit.name) return;
-      var a = document.getElementById("partner-name");
-      a.textContent = d.credit.name;
-      if (d.credit.url) a.href = d.credit.url; else a.removeAttribute("href");
-      document.getElementById("partner-credit").textContent = d.credit.name;
-      document.getElementById("partner-src").hidden = false;
+      // one entry per partner, in the layer's order
+      var tpl = document.getElementById("partner-src"), last = tpl;
+      (d.credits || [d.credit]).forEach(function (c, i) {
+        var box = i ? tpl.cloneNode(true) : tpl;
+        if (i) {
+          [box].concat([].slice.call(box.querySelectorAll("[id]"))).forEach(function (n) {
+            n.removeAttribute("id");
+          });
+          last.parentNode.insertBefore(box, last.nextSibling);
+          last = box;
+        }
+        var a = box.querySelector("h3 a");
+        a.textContent = c.name;
+        if (c.url) a.href = c.url; else a.removeAttribute("href");
+        box.querySelector(".credit span").textContent = c.name;
+        box.hidden = false;
+      });
     }).catch(function () {});
   })();
 </script>

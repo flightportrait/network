@@ -15,6 +15,18 @@ fn float(name: &str, default: f64) -> f64 {
     env::var(name).ok().filter(|v| !v.is_empty()).and_then(|v| v.trim().parse().ok()).unwrap_or(default)
 }
 
+/// One partner network: its readsb JSON position port, the name and link
+/// credited wherever its aircraft are drawn (an empty name keeps them off
+/// the map), and its internal store, one SQLite file of its own (empty:
+/// no store).
+#[derive(Clone, Debug, Default)]
+pub struct PartnerSettings {
+    pub live_json: String,
+    pub name: String,
+    pub url: String,
+    pub store: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct Settings {
     pub bind: String,
@@ -95,20 +107,16 @@ pub struct Settings {
     /// the bearer token every /fleet/v1 request carries (empty: the
     /// fleet tier stays off)
     pub fleet_token: String,
-    /// a partner network's readsb JSON position port (empty: none); its
-    /// aircraft reach the fleet tier only (partner.rs)
-    pub partner_live_json: String,
-    /// the partner's name and link, credited wherever its aircraft are
-    /// drawn; an empty name keeps them off the map
-    pub partner_name: String,
-    pub partner_url: String,
+    /// the partner networks that feed us, each under its own agreement:
+    /// NETWORKD_PARTNER_*, then NETWORKD_PARTNER2_* .. NETWORKD_PARTNER9_*;
+    /// one without a LIVE_JSON is not there. Their aircraft reach the
+    /// fleet tier only (partner.rs)
+    pub partners: Vec<PartnerSettings>,
     /// the origins the map's partner layer answers (our own site)
     pub partner_map_origins: Vec<String>,
     pub partner_map_rate_limit: usize,
-    /// the partner's internal store, one SQLite file of its own (empty: no
-    /// store), kept a rolling `partner_keep_days`, sampled every
-    /// `partner_sample_s`
-    pub partner_store: String,
+    /// each partner's internal store is kept a rolling `partner_keep_days`,
+    /// sampled every `partner_sample_s`
     pub partner_keep_days: i64,
     pub partner_sample_s: f64,
 }
@@ -186,16 +194,25 @@ impl Settings {
             boards_path: s("NETWORK_API_BOARDS_PATH", "data/boards.db"),
             fleet_bind: s("NETWORKD_FLEET_BIND", "").trim().to_string(),
             fleet_token: s("NETWORKD_FLEET_TOKEN", "").trim().to_string(),
-            partner_live_json: s("NETWORKD_PARTNER_LIVE_JSON", "").trim().to_string(),
-            partner_name: s("NETWORKD_PARTNER_NAME", "").trim().to_string(),
-            partner_url: s("NETWORKD_PARTNER_URL", "").trim().to_string(),
+            partners: (1..=9)
+                .filter_map(|n| {
+                    let pre = if n == 1 { "NETWORKD_PARTNER_".to_string() } else { format!("NETWORKD_PARTNER{n}_") };
+                    let get = |k: &str| s(&format!("{pre}{k}"), "").trim().to_string();
+                    let live_json = get("LIVE_JSON");
+                    (!live_json.is_empty()).then(|| PartnerSettings {
+                        live_json,
+                        name: get("NAME"),
+                        url: get("URL"),
+                        store: get("STORE"),
+                    })
+                })
+                .collect(),
             partner_map_origins: s("NETWORKD_PARTNER_MAP_ORIGINS", "https://flightportrait.com,https://www.flightportrait.com")
                 .split(',')
                 .map(|o| o.trim().trim_end_matches('/').to_string())
                 .filter(|o| !o.is_empty())
                 .collect(),
             partner_map_rate_limit: int("NETWORKD_PARTNER_MAP_RATE_LIMIT", 120) as usize,
-            partner_store: s("NETWORKD_PARTNER_STORE", "").trim().to_string(),
             partner_keep_days: int("NETWORKD_PARTNER_KEEP_DAYS", 14),
             partner_sample_s: int("NETWORKD_PARTNER_SAMPLE_S", 120) as f64,
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),

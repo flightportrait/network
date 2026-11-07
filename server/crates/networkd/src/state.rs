@@ -63,9 +63,9 @@ pub struct App {
     pub stations: Option<Arc<crate::stations::Registry>>,
     /// the private fleet tier's lookups, remembered between requests
     pub fleet: crate::fleet::Caches,
-    /// a partner network's live sky, when one feeds us; read by the
+    /// the partner networks' live skies, in settings order; read by the
     /// fleet tier only (partner.rs)
-    pub partner: Option<Arc<crate::partner::Partner>>,
+    pub partners: Vec<Arc<crate::partner::Partner>>,
     published: watch::Sender<u64>,
 }
 
@@ -122,8 +122,11 @@ impl App {
             stations,
             local,
             fleet: crate::fleet::Caches::default(),
-            partner: (!settings.partner_live_json.is_empty() && !settings.point_mode())
-                .then(|| crate::partner::Partner::new(settings.max_aircraft, crate::partner::Store::from_settings(&settings))),
+            partners: if settings.point_mode() {
+                vec![]
+            } else {
+                settings.partners.iter().map(|p| crate::partner::Partner::from_settings(settings.max_aircraft, p, settings.partner_keep_days)).collect()
+            },
             snapshot: SnapshotCell::new(),
             published,
             settings,

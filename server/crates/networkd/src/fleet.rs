@@ -387,14 +387,15 @@ async fn aircraft_array(app: &Arc<App>, snap: &Arc<Snapshot>, picks: &[(u32, Opt
     Ok(buf)
 }
 
-/// The network's fresh snapshot, with a partner network's aircraft the
-/// network did not hear laid after its own: frames only (partner.rs).
+/// The network's fresh snapshot, with each partner network's aircraft
+/// that the network and the partners before it did not hear laid after:
+/// frames only (partner.rs).
 fn sky(app: &App) -> Result<Arc<Snapshot>, ApiError> {
-    let snap = fresh(app)?;
-    Ok(match &app.partner {
-        Some(p) => p.fleet_sky(snap, app.settings.stale_after_s),
-        None => snap,
-    })
+    let mut snap = fresh(app)?;
+    for p in &app.partners {
+        snap = p.fleet_sky(snap, app.settings.stale_after_s);
+    }
+    Ok(snap)
 }
 
 /// GET /fleet/v1/point/{lat}/{lon}/{radius_nm}: /v2/point's envelope,
@@ -468,17 +469,18 @@ pub async fn callsign(State(app): State<Arc<App>>, Path(asked): Path<String>) ->
 const NEAR_MAX_NM: f64 = 50.0;
 
 /// GET /fleet/v1/partner/near/{lat}/{lon}/{radius_nm}?hours=24: the
-/// partner network's aircraft seen near a frame in the last hours, the
-/// closest first, from the partner's internal store (partner.rs). The
-/// frames' "your sky" history; 404 where no store is kept.
+/// partner networks' aircraft seen near a frame in the last hours, the
+/// closest first, from their internal stores (partner.rs). The frames'
+/// "your sky" history; 404 where no store is kept.
 pub async fn partner_near(
     State(app): State<Arc<App>>,
     Path((lat, lon, radius)): Path<(String, String, String)>,
     req: Request,
 ) -> ApiResult {
-    let Some(p) = app.partner.clone().filter(|p| p.store.is_some()) else {
+    let kept: Vec<_> = app.partners.iter().filter(|p| p.store.is_some()).cloned().collect();
+    if kept.is_empty() {
         return Err(ApiError::new(404, "not_found", "no partner history here"));
-    };
+    }
     let (Some(lat), Some(lon), Some(radius)) = (py_float(&lat), py_float(&lon), py_float(&radius)) else {
         return Err(ApiError::new(422, "invalid_request", "lat, lon and radius are numbers"));
     };
@@ -493,7 +495,7 @@ pub async fn partner_near(
         .unwrap_or(24.0)
         .min(max_h);
     let since = (now_s() - hours * 3600.0) as i64;
-    let seen = tokio::task::spawn_blocking(move || p.store.as_ref().unwrap().near(lat, lon, radius, since))
+    let seen = tokio::task::spawn_blocking(move || crate::partner::near_all(&kept, lat, lon, radius, since))
         .await
         .map_err(|_| ApiError::new(500, "internal", "partner history failed"))?
         .map_err(|e| ApiError::new(500, "internal", format!("partner history: {e}")))?;
@@ -694,9 +696,16 @@ mod tests {
         s.fleet_bind = "127.0.0.1:0".into();
         s.fleet_token = TOKEN.into();
         // a partner endpoint makes the partner sky; no task reads it in tests
-        s.partner_live_json = if partner { "127.0.0.1:9".into() } else { String::new() };
-        s.partner_name = if partner { "Partner Net".into() } else { String::new() };
-        s.partner_url = "https://partner.example".into();
+        s.partners = if partner {
+            vec![crate::settings::PartnerSettings {
+                live_json: "127.0.0.1:9".into(),
+                name: "Partner Net".into(),
+                url: "https://partner.example".into(),
+                store: String::new(),
+            }]
+        } else {
+            vec![]
+        };
         s.partner_map_origins = vec!["https://flightportrait.com".into()];
         let app = App::new(s);
         app.routes.refresh();
@@ -944,7 +953,7 @@ mod tests {
                 Entry::with_hidden(v, h)
             })
             .collect();
-        a.partner.as_ref().unwrap().set_snapshot(Arc::new(Snapshot::new(now_s(), entries)));
+        a.partners[0].set_snapshot(Arc::new(Snapshot::new(now_s(), entries)));
 
         let mut fleet = router(a.clone());
         let (status, _, v) = call(&mut fleet, "/fleet/v1/point/1.3521/103.8198/100", Some(TOKEN)).await;
@@ -1006,7 +1015,7 @@ mod tests {
         assert_eq!(ac.len(), 1);
         let keys: Vec<&str> = ac[0].as_object().unwrap().keys().map(String::as_str).collect();
         for k in &keys {
-            assert!(["hex", "flight", "t", "lat", "lon", "alt_baro", "gs", "track", "category"].contains(k), "{k}");
+            assert!(["hex", "flight", "t", "lat", "lon", "alt_baro", "gs", "track", "category", "via"].contains(k), "{k}");
         }
         assert_eq!(ac[0]["hex"], "beef01");
         // no box, or a box wider than a region: refused
@@ -1027,6 +1036,62 @@ mod tests {
         for path in ["/openapi.json", "/llms.txt"] {
             let (_, body) = text(&mut public, path, None).await;
             assert!(!body.contains("map/partner"), "{path}");
+        }
+    }
+
+    fn snapshot_of(rows: &[&str]) -> Arc<Snapshot> {
+        let entries = rows
+            .iter()
+            .map(|r| {
+                let (v, h) = parse_aircraft_full(r).unwrap();
+                Entry::with_hidden(v, h)
+            })
+            .collect();
+        Arc::new(Snapshot::new(now_s(), entries))
+    }
+
+    /// Two partners: frames get both, each aircraft once; the map credits
+    /// each aircraft to the first partner that hears it, and a second
+    /// partner reaches nothing public either.
+    #[tokio::test]
+    async fn two_partners_each_credited_for_their_own_aircraft() {
+        let a = {
+            let a = app_with("partners2", true);
+            let mut app = Arc::try_unwrap(a).ok().unwrap();
+            app.partners.push(crate::partner::Partner::named(1000, "Second Net", "https://second.example", "127.0.0.1:9", None));
+            Arc::new(app)
+        };
+        a.partners[0].set_snapshot(snapshot_of(&[r#"{"hex":"beef01","flight":"PRTNR1","lat":1.30,"lon":103.70}"#]));
+        a.partners[1].set_snapshot(snapshot_of(&[
+            // heard by the first partner too: credited there, drawn once
+            r#"{"hex":"beef01","flight":"PRTNR1","lat":1.31,"lon":103.71}"#,
+            r#"{"hex":"5ec0d1","flight":"SECND1","lat":1.32,"lon":103.72}"#,
+            // heard by the network: the network's
+            r#"{"hex":"76cd01","flight":"SIA322","lat":7.77777,"lon":101.11111}"#,
+        ]));
+
+        let mut fleet = router(a.clone());
+        let (_, _, v) = call(&mut fleet, "/fleet/v1/point/1.3521/103.8198/100", Some(TOKEN)).await;
+        let hexes: Vec<&str> = v["ac"].as_array().unwrap().iter().map(|x| x["hex"].as_str().unwrap()).collect();
+        for h in ["beef01", "5ec0d1", "76cd01"] {
+            assert_eq!(hexes.iter().filter(|x| **x == h).count(), 1, "{h} in {hexes:?}");
+        }
+
+        let mut public = crate::router(a.clone());
+        let (status, _, body) =
+            text_from(&mut public, "/v1/map/partner?bbox=100,0,110,10", None, Some("https://flightportrait.com")).await;
+        assert_eq!(status, 200);
+        let v: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(v["credit"]["name"], "partner net");
+        assert_eq!(v["credits"][1]["name"], "second net");
+        assert_eq!(v["credits"][1]["url"], "https://second.example");
+        let ac = v["aircraft"].as_array().unwrap();
+        let via: Vec<(&str, i64)> = ac.iter().map(|x| (x["hex"].as_str().unwrap(), x["via"].as_i64().unwrap())).collect();
+        assert_eq!(via, [("beef01", 0), ("5ec0d1", 1)]);
+
+        for path in ["/v1/now", "/v1/aircraft", "/v2/point/1.3521/103.8198/250", "/v1/search?q=SECND1", "/v2/search?q=SECND1"] {
+            let (_, body) = text(&mut public, path, None).await;
+            assert!(!body.contains("5ec0d1"), "5ec0d1 leaked on {path}");
         }
     }
 
@@ -1055,7 +1120,7 @@ mod tests {
         // swap in a partner that has the store
         let a = {
             let mut app = Arc::try_unwrap(a).ok().unwrap();
-            app.partner = Some(p);
+            app.partners = vec![p];
             Arc::new(app)
         };
         let mut r = router(a.clone());

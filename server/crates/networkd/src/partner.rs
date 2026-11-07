@@ -1,18 +1,19 @@
-//! Partner data: the live sky of a peer network that feeds us under its
-//! own agreement, not the feeder terms. It may drive the frames and
+//! Partner data: the live skies of peer networks that feed us, each under
+//! its own agreement, not the feeder terms. It may drive the frames and
 //! nothing public: no public route, stream, trace, estimate, squawk,
 //! station or release reads it. The fleet tier is its only reader,
 //! through `fleet_sky`, which lays the partner's aircraft the network
 //! did not hear after the network's own.
 //!
-//! The partner's stream is its own readsb (NETWORKD_PARTNER_LIVE_JSON,
-//! that readsb's JSON position port), never merged into the network's
-//! aggregator. The test at the end holds the rule in the source: only
+//! Each partner's stream is its own readsb (NETWORKD_PARTNER_LIVE_JSON,
+//! NETWORKD_PARTNER2_LIVE_JSON, ..: that readsb's JSON position port),
+//! never merged into the network's aggregator. The test at the end holds the rule in the source: only
 //! this module, the fleet tier and the wiring name it.
 //!
 //! One public door, by agreement: `map`, the map's partner layer. Live
-//! positions of the partner's aircraft the network does not hear, for
-//! our own site only, credited, never cached, never in the OpenAPI.
+//! positions of the partners' aircraft the network does not hear, for
+//! our own site only, each credited to its partner, never cached, never
+//! in the OpenAPI.
 //!
 //! Internal use, by agreement: `Store`, the partner's positions sampled
 //! into one SQLite file of their own (NETWORKD_PARTNER_STORE), apart from
@@ -49,6 +50,11 @@ const MAP_SPAN_LAT: f64 = 40.0;
 const NO_STORE: &str = "no-store";
 
 pub struct Partner {
+    /// credited wherever its aircraft are drawn; empty keeps them off the map
+    pub name: String,
+    pub url: String,
+    /// its readsb's JSON position port
+    pub live_json: String,
     pub store: Option<Store>,
     live: Mutex<LiveSky>,
     snapshot: SnapshotCell,
@@ -64,12 +70,34 @@ struct Merged {
 
 impl Partner {
     pub fn new(max_aircraft: usize, store: Option<Store>) -> Arc<Partner> {
+        Partner::named(max_aircraft, "", "", "", store)
+    }
+
+    pub fn named(max_aircraft: usize, name: &str, url: &str, live_json: &str, store: Option<Store>) -> Arc<Partner> {
         Arc::new(Partner {
+            name: name.to_string(),
+            url: url.to_string(),
+            live_json: live_json.to_string(),
             store,
             live: Mutex::new(LiveSky::new(max_aircraft)),
             snapshot: SnapshotCell::new(),
             merged: Mutex::new(None),
         })
+    }
+
+    pub fn from_settings(max_aircraft: usize, p: &crate::settings::PartnerSettings, keep_days: i64) -> Arc<Partner> {
+        let store = if p.store.is_empty() {
+            None
+        } else {
+            match Store::open(&p.store, keep_days) {
+                Ok(st) => Some(st),
+                Err(e) => {
+                    eprintln!("partner store {}: {e}", p.store);
+                    None
+                }
+            }
+        };
+        Partner::named(max_aircraft, &p.name, &p.url, &p.live_json, store)
     }
 
     pub fn set_snapshot(&self, s: Arc<Snapshot>) {
@@ -102,7 +130,8 @@ impl Partner {
 
 /// Keep one connection to the partner readsb's JSON port; merge every
 /// line into the partner's own state.
-pub async fn read_lines(partner: Arc<Partner>, endpoint: String) {
+pub async fn read_lines(partner: Arc<Partner>) {
+    let endpoint = partner.live_json.clone();
     let mut backoff = 1.0f64;
     loop {
         match tokio::time::timeout(Duration::from_secs(10), TcpStream::connect(&endpoint)).await {
@@ -215,19 +244,6 @@ fn text(v: &Option<crate::pyjson::Val>) -> Option<String> {
 }
 
 impl Store {
-    pub fn from_settings(s: &crate::settings::Settings) -> Option<Store> {
-        if s.partner_store.is_empty() {
-            return None;
-        }
-        match Store::open(&s.partner_store, s.partner_keep_days) {
-            Ok(st) => Some(st),
-            Err(e) => {
-                eprintln!("partner store {}: {e}", s.partner_store);
-                None
-            }
-        }
-    }
-
     pub fn open(path: &str, keep_days: i64) -> rusqlite::Result<Store> {
         let conn = rusqlite::Connection::open(path)?;
         conn.execute_batch(STORE_SCHEMA)?;
@@ -340,6 +356,36 @@ impl Store {
     }
 }
 
+/// The aircraft every partner's store saw near a place since `since`, one
+/// row per aircraft (the earliest first sighting, the latest last, the
+/// closest pass), the closest first.
+pub fn near_all(partners: &[Arc<Partner>], lat: f64, lon: f64, radius_nm: f64, since: i64) -> rusqlite::Result<Vec<Seen>> {
+    let mut by_hex: std::collections::HashMap<String, Seen> = std::collections::HashMap::new();
+    for p in partners {
+        let Some(st) = &p.store else { continue };
+        for s in st.near(lat, lon, radius_nm, since)? {
+            match by_hex.get_mut(&s.hex) {
+                None => {
+                    by_hex.insert(s.hex.clone(), s);
+                }
+                Some(o) => {
+                    o.first = o.first.min(s.first);
+                    if s.last >= o.last {
+                        o.last = s.last;
+                        o.flight = s.flight.or(o.flight.take());
+                    }
+                    o.t = o.t.take().or(s.t);
+                    o.closest_nm = o.closest_nm.min(s.closest_nm);
+                }
+            }
+        }
+    }
+    let mut out: Vec<Seen> = by_hex.into_values().collect();
+    out.sort_by(|a, b| a.closest_nm.total_cmp(&b.closest_nm));
+    out.truncate(NEAR_MAX);
+    Ok(out)
+}
+
 /// Sample the partner's fresh snapshot into the store every `every_s`,
 /// and prune the window once an hour.
 pub async fn keep(partner: Arc<Partner>, every_s: f64) {
@@ -383,18 +429,20 @@ fn from_site(origins: &[String], headers: &axum::http::HeaderMap) -> bool {
     get(header::REFERER).is_some_and(|r| origins.iter().any(|x| r == x || r.starts_with(&format!("{x}/"))))
 }
 
-/// GET /v1/map/partner?bbox=: the partner's live aircraft the network
-/// does not hear, for our map. Positions only: no history, no search, no
+/// GET /v1/map/partner?bbox=: the partners' live aircraft the network
+/// does not hear, for our map. `credits` lists the named partners; each
+/// aircraft's `via` is its partner's place in that list (`credit` is the
+/// first, for pages that know one partner). Positions only: no history, no search, no
 /// fields beyond MAP_FIELDS. Answered only to the site's own pages,
 /// throttled, `no-store`. A browser page elsewhere gets 403; a scraper
 /// can forge an Origin, which is why the agreement promises "never
 /// offered", not "impossible to copy".
 pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
     let s = &app.settings;
-    let partner = match &app.partner {
-        Some(p) if !s.partner_name.is_empty() => p,
-        _ => return Err(ApiError::new(404, "not_found", "Not Found")),
-    };
+    let named: Vec<&Arc<Partner>> = app.partners.iter().filter(|p| !p.name.is_empty()).collect();
+    if named.is_empty() {
+        return Err(ApiError::new(404, "not_found", "Not Found"));
+    }
     if !from_site(&s.partner_map_origins, req.headers()) {
         return Err(ApiError::new(403, "forbidden", "this layer belongs to the FlightPortrait map"));
     }
@@ -411,42 +459,58 @@ pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
     if span_lon > MAP_SPAN_LON || bbox.n - bbox.s > MAP_SPAN_LAT {
         return Err(ApiError::new(422, "invalid_request", "bbox is wider than the map's layer answers"));
     }
-    let theirs = partner.snapshot.get();
     let ours = app.snapshot();
+    let credit = |body: &mut String, p: &Partner| {
+        body.push_str("{\"name\":");
+        write_str(body, &p.name);
+        body.push_str(",\"url\":");
+        write_str(body, &p.url);
+        body.push('}');
+    };
     let mut body = String::with_capacity(4096);
-    body.push_str("{\"credit\":{\"name\":");
-    write_str(&mut body, &s.partner_name);
-    body.push_str(",\"url\":");
-    write_str(&mut body, &s.partner_url);
-    body.push_str("},\"now\":");
-    write_float(&mut body, theirs.generated_at);
+    body.push_str("{\"credit\":");
+    credit(&mut body, named[0]);
+    body.push_str(",\"credits\":[");
+    for (i, p) in named.iter().enumerate() {
+        if i > 0 {
+            body.push(',');
+        }
+        credit(&mut body, p);
+    }
+    body.push_str("],\"now\":");
+    let skies: Vec<Arc<Snapshot>> = named.iter().map(|p| p.snapshot.get()).collect();
+    let now = skies.iter().map(|t| t.generated_at).fold(0.0f64, f64::max);
+    write_float(&mut body, now);
     body.push_str(",\"aircraft\":[");
-    if theirs.fresh(s.stale_after_s) {
-        let known: HashSet<&str> = ours.entries.iter().map(|e| &*e.hex).collect();
-        let mut n = 0;
+    // the network's aircraft, then each partner's in turn: an aircraft is
+    // drawn once, credited to the first partner that hears it
+    let mut known: HashSet<&str> = ours.entries.iter().map(|e| &*e.hex).collect();
+    let mut n = 0;
+    'partners: for (via, theirs) in skies.iter().enumerate() {
+        if !theirs.fresh(s.stale_after_s) {
+            continue;
+        }
         for e in &theirs.entries {
-            if !e.has_pos || known.contains(&*e.hex) || !e.in_bbox(&bbox) {
+            if !e.has_pos || !known.insert(&*e.hex) || !e.in_bbox(&bbox) {
                 continue;
+            }
+            if n >= MAP_MAX {
+                break 'partners;
             }
             if n > 0 {
                 body.push(',');
             }
             body.push('{');
-            let mut first = true;
             for f in MAP_FIELDS {
                 if let Some(kv) = e.field(f) {
-                    if !first {
-                        body.push(',');
-                    }
                     body.push_str(kv);
-                    first = false;
+                    body.push(',');
                 }
             }
+            body.push_str("\"via\":");
+            body.push_str(&via.to_string());
             body.push('}');
             n += 1;
-            if n >= MAP_MAX {
-                break;
-            }
         }
     }
     body.push_str("]}");

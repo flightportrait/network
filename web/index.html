@@ -2670,10 +2670,10 @@
   }
   // ---- partner coverage ---------------------------------------------
   // Aircraft a partner network hears and ours does not (/v1/map/partner):
-  // drawn live, credited, on this map only. No search, no list, no
+  // drawn live, each credited to its partner (credits[via]), on this map only. No search, no list, no
   // history: the layer is a picture of coverage, not data. A server
   // without a partner answers 404 and the layer never starts.
-  var partner = { data: [], credit: null, at: 0, recv: 0, timer: null, glide: null, off: false };
+  var partner = { data: [], credits: null, at: 0, recv: 0, timer: null, glide: null, off: false };
   function partnerShown() {
     return !partner.off && !document.body.classList.contains("replaying");
   }
@@ -2703,7 +2703,7 @@
         return r.ok ? r.json() : null;
       }).then(function (d) {
         if (!d) return;
-        if (!partner.credit && d.credit && d.credit.name) addLayer(d.credit);
+        if (!partner.credits && d.credit && d.credit.name) addLayer(d.credits || [d.credit]);
         var live = {};
         (state.aircraft || []).forEach(function (a) { live[a.hex] = 1; });
         partner.data = (d.aircraft || []).filter(function (a) { return !live[a.hex]; });
@@ -2717,12 +2717,16 @@
       clearInterval(partner.timer);
       clearInterval(partner.glide);
     }
-    function addLayer(credit) {
-      partner.credit = credit;
-      var link = credit.url
-        ? "<a href='" + esc(credit.url) + "' target='_blank' rel='noopener'>" + esc(credit.name) + "</a>"
-        : esc(credit.name);
-      map.addSource("partner", { type: "geojson", attribution: "Coverage partly via " + link,
+    function addLayer(credits) {
+      partner.credits = credits;
+      var links = credits.map(function (c) {
+        return c.url
+          ? "<a href='" + esc(c.url) + "' target='_blank' rel='noopener'>" + esc(c.name) + "</a>"
+          : esc(c.name);
+      });
+      var who = links.length > 1
+        ? links.slice(0, -1).join(", ") + " and " + links[links.length - 1] : links[0];
+      map.addSource("partner", { type: "geojson", attribution: "Coverage partly via " + who,
         data: { type: "FeatureCollection", features: [] } });
       map.addLayer({ id: "partner", type: "symbol", source: "partner",
         layout: {
@@ -2788,7 +2792,7 @@
       var a = partner.data[i], p = glided(a, partnerElapsed()), out = {};
       for (var k in a) out[k] = a[k];
       out.lon = p[0]; out.lat = p[1]; out.seen_pos = 0; out._heard = Date.now();
-      out._partner = partner.credit;
+      out._partner = partner.credits[a.via || 0] || partner.credits[0];
       return out;
     }
     return null;
