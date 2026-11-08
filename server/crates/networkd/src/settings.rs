@@ -115,6 +115,12 @@ pub struct Settings {
     /// the origins the map's partner layer answers (our own site)
     pub partner_map_origins: Vec<String>,
     pub partner_map_rate_limit: usize,
+    /// the keys our own apps present (X-FlightPortrait-App) to read the same
+    /// layer: the apps' counterpart of the site's origin. Several, so a
+    /// new app release can carry a new key while the old one still works;
+    /// none, and the apps' door is shut. Keys under 16 characters are ignored
+    pub partner_app_keys: Vec<String>,
+    pub partner_app_rate_limit: usize,
     /// each partner's internal store is kept a rolling `partner_keep_days`,
     /// sampled every `partner_sample_s`
     pub partner_keep_days: i64,
@@ -213,6 +219,12 @@ impl Settings {
                 .filter(|o| !o.is_empty())
                 .collect(),
             partner_map_rate_limit: int("NETWORKD_PARTNER_MAP_RATE_LIMIT", 120) as usize,
+            partner_app_keys: s("NETWORKD_PARTNER_APP_KEYS", "")
+                .split(',')
+                .map(|k| k.trim().to_string())
+                .filter(|k| k.len() >= 16)
+                .collect(),
+            partner_app_rate_limit: int("NETWORKD_PARTNER_APP_RATE_LIMIT", 360) as usize,
             partner_keep_days: int("NETWORKD_PARTNER_KEEP_DAYS", 14),
             partner_sample_s: int("NETWORKD_PARTNER_SAMPLE_S", 120) as f64,
             deflate_takeover: matches!(s("NETWORKD_DEFLATE_TAKEOVER", "").as_str(), "1" | "true" | "yes"),

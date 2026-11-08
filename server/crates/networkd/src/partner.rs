@@ -12,8 +12,8 @@
 //!
 //! One public door, by agreement: `map`, the map's partner layer. Live
 //! positions of the partners' aircraft the network does not hear, for
-//! our own site only, each credited to its partner, never cached, never
-//! in the OpenAPI.
+//! our own site and our own apps only, each credited to its partner,
+//! never cached, never in the OpenAPI.
 //!
 //! Internal use, by agreement: `Store`, the partner's positions sampled
 //! into one SQLite file of their own (NETWORKD_PARTNER_STORE), apart from
@@ -32,7 +32,7 @@ use tokio::net::TcpStream;
 
 use crate::http::{client_ip, json, peer_of, query_param, throttle, ApiError, ApiResult};
 use crate::live::parse_bbox;
-use crate::pyjson::{write_float, write_str};
+use crate::pyjson::{write_float, write_str, Val};
 use crate::sky::{parse_aircraft_full, Entry, LiveSky, Snapshot, SnapshotCell, F_HEX, F_FLIGHT, F_LAT, F_LON, F_ALT, F_TRACK};
 use crate::state::{now_s, App};
 
@@ -42,6 +42,9 @@ const PUBLISH_S: f64 = 1.0;
 /// position (hex, flight, t, lat, lon, alt_baro, gs, track, category).
 const MAP_FIELDS: [usize; 9] = [F_HEX, F_FLIGHT, 2, F_LAT, F_LON, F_ALT, 7, F_TRACK, 9];
 const MAP_MAX: usize = 1000;
+/// What a call-sign lookup answers at most: one flight, a few airframes
+/// at worst (a call sign reused the same day).
+const FLIGHT_MAX: usize = 4;
 /// The widest box the map's layer answers in full, in degrees: a regional
 /// view. A wider box gets a picture of the coverage, one aircraft per grid
 /// cell of MAP_WIDE_CELLS across, so a script cannot take a partner's whole
@@ -421,6 +424,16 @@ pub async fn keep(partner: Arc<Partner>, every_s: f64) {
     }
 }
 
+/// The request comes from one of our own apps: its X-FlightPortrait-App
+/// header is a listed key. A key ships inside the apps, so like the
+/// site's Origin it keeps the layer ours, not secret.
+fn from_app(keys: &[String], headers: &axum::http::HeaderMap) -> bool {
+    headers
+        .get("x-flightportrait-app")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|k| keys.iter().any(|x| x == k.trim()))
+}
+
 /// The request comes from one of the site's own pages: its Origin, or
 /// failing that its Referer, is a listed origin.
 fn from_site(origins: &[String], headers: &axum::http::HeaderMap) -> bool {
@@ -437,27 +450,48 @@ fn from_site(origins: &[String], headers: &axum::http::HeaderMap) -> bool {
 /// first, for pages that know one partner). `total` counts the partners'
 /// positioned aircraft the network does not hear, the whole world, for
 /// the map's headline. A box wider than a region, or holding more than
-/// MAP_MAX, is thinned to one aircraft per grid cell. Positions only: no history, no search, no
-/// fields beyond MAP_FIELDS. Answered only to the site's own pages,
-/// throttled, `no-store`. A browser page elsewhere gets 403; a scraper
-/// can forge an Origin, which is why the agreement promises "never
-/// offered", not "impossible to copy".
+/// MAP_MAX, is thinned to one aircraft per grid cell. `?flight=CS` in
+/// place of the box answers that one call sign, wherever a partner hears
+/// it, FLIGHT_MAX at most (the apps' Track a flight). Positions only: no
+/// history, no listing beyond the box, no fields beyond MAP_FIELDS.
+/// Answered only to our own site's pages and our own apps (an app key),
+/// each throttled on its own, `no-store`. Anything else gets 403; a
+/// scraper can forge an Origin or lift an app key, which is why the
+/// agreement promises "never offered", not "impossible to copy".
 pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
     let s = &app.settings;
     let named: Vec<&Arc<Partner>> = app.partners.iter().filter(|p| !p.name.is_empty()).collect();
     if named.is_empty() {
         return Err(ApiError::new(404, "not_found", "Not Found"));
     }
-    if !from_site(&s.partner_map_origins, req.headers()) {
+    let app_door = from_app(&s.partner_app_keys, req.headers());
+    if !app_door && !from_site(&s.partner_map_origins, req.headers()) {
         return Err(ApiError::new(403, "forbidden", "this layer belongs to the FlightPortrait map"));
     }
     let ip = client_ip(&app, req.headers(), peer_of(&req));
-    throttle(&app, &ip, "partner_map", s.partner_map_rate_limit)?;
+    if app_door {
+        throttle(&app, &ip, "partner_app", s.partner_app_rate_limit)?;
+    } else {
+        throttle(&app, &ip, "partner_map", s.partner_map_rate_limit)?;
+    }
+    // ?flight=: the one call sign, wherever a partner hears it (the apps'
+    // Track a flight). Live position only, a handful of aircraft at most.
+    let flight = match query_param(req.uri().query(), "flight") {
+        Some(f) if !f.is_empty() => {
+            let f = f.trim().to_uppercase();
+            if f.is_empty() || f.len() > 8 || !f.chars().all(|c| c.is_ascii_alphanumeric()) {
+                return Err(ApiError::new(422, "invalid_request", "invalid flight"));
+            }
+            Some(f)
+        }
+        _ => None,
+    };
     let bbox = match query_param(req.uri().query(), "bbox").as_deref() {
         Some(b) if b.chars().count() > 80 => {
             return Err(ApiError::new(422, "invalid_request", "query.bbox: String should have at most 80 characters"))
         }
         Some(b) if !b.is_empty() => parse_bbox(b)?,
+        _ if flight.is_some() => parse_bbox("-180,-90,180,90")?,
         _ => return Err(ApiError::new(422, "invalid_request", "bbox is required")),
     };
     let span_lon = if bbox.w <= bbox.e { bbox.e - bbox.w } else { 360.0 - bbox.w + bbox.e };
@@ -500,14 +534,22 @@ pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
                 continue;
             }
             total += 1;
-            if e.in_bbox(&bbox) {
+            if let Some(f) = &flight {
+                let same = match &e.vals[F_FLIGHT] {
+                    Some(Val::Str(cs)) => cs.trim().eq_ignore_ascii_case(f),
+                    _ => false,
+                };
+                if same && inside.len() < FLIGHT_MAX {
+                    inside.push((via, e));
+                }
+            } else if e.in_bbox(&bbox) {
                 inside.push((via, e));
             }
         }
     }
     // thinned: the first aircraft of each grid cell, cells sized so a
     // regional box keeps up to MAP_MAX and a wide one a coverage picture
-    if wide || inside.len() > MAP_MAX {
+    if flight.is_none() && (wide || inside.len() > MAP_MAX) {
         let c = if wide {
             (span_lon.max(span_lat * 1.5) / MAP_WIDE_CELLS).max(0.01)
         } else {

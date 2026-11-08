@@ -707,6 +707,7 @@ mod tests {
             vec![]
         };
         s.partner_map_origins = vec!["https://flightportrait.com".into()];
+        s.partner_app_keys = vec![APP_KEY.into()];
         let app = App::new(s);
         app.routes.refresh();
         let rows = [
@@ -912,6 +913,66 @@ mod tests {
     async fn text(r: &mut Router, path: &str, token: Option<&str>) -> (u16, String) {
         let (status, _, body) = text_from(r, path, token, None).await;
         (status, body)
+    }
+
+    const APP_KEY: &str = "test-app-key-0123456789";
+
+    async fn text_app(r: &mut Router, path: &str, key: Option<&str>) -> (u16, String) {
+        let mut b = axum::http::Request::builder().uri(path);
+        if let Some(k) = key {
+            b = b.header("X-FlightPortrait-App", k);
+        }
+        let resp = r.call(b.body(Body::empty()).unwrap()).await.unwrap();
+        let status = resp.status().as_u16();
+        let bytes = axum::body::to_bytes(resp.into_body(), 8 << 20).await.unwrap();
+        (status, String::from_utf8_lossy(&bytes).to_lowercase())
+    }
+
+    /// Our apps read the same layer with their key: the box for the map,
+    /// `flight=` for Track a flight. Only partner-only aircraft, never
+    /// without the key, and still nowhere in the API's own description.
+    #[tokio::test]
+    async fn our_apps_read_the_partner_layer_with_their_key() {
+        let a = app_with("partner-app", true);
+        a.partners[0].set_snapshot(snapshot_of(&[
+            r#"{"hex":"beef01","flight":"PRTNR1","t":"A20N","lat":1.23456,"lon":103.65432,"alt_baro":9000}"#,
+            r#"{"hex":"beef02","flight":"PRTNR1","lat":48.1,"lon":11.5}"#,
+            r#"{"hex":"beef03","flight":"OTHER9","lat":1.3,"lon":103.7}"#,
+            // heard by the network too: the network's /v1 answers it, not this layer
+            r#"{"hex":"76cd01","flight":"SIA322","lat":1.4,"lon":103.9}"#,
+        ]));
+        let mut public = crate::router(a.clone());
+        let layer = "/v1/map/partner?bbox=100,0,110,10";
+        for key in [None, Some("wrong-key-0123456789"), Some(""), Some("test-app-key")] {
+            let (status, body) = text_app(&mut public, layer, key).await;
+            assert_eq!(status, 403, "{key:?}");
+            assert!(!body.contains("beef01"));
+        }
+        let (status, body) = text_app(&mut public, layer, Some(APP_KEY)).await;
+        assert_eq!(status, 200);
+        assert!(body.contains("beef01") && body.contains("beef03") && body.contains("partner net"));
+        assert!(!body.contains("beef02") && !body.contains("76cd01"));
+
+        // Track a flight: the call sign anywhere, no box needed
+        let (status, body) = text_app(&mut public, "/v1/map/partner?flight=prtnr1", Some(APP_KEY)).await;
+        assert_eq!(status, 200);
+        let v: Value = serde_json::from_str(&body).unwrap();
+        let mut hexes: Vec<&str> = v["aircraft"].as_array().unwrap().iter().map(|x| x["hex"].as_str().unwrap()).collect();
+        hexes.sort();
+        assert_eq!(hexes, ["beef01", "beef02"]);
+        let (_, body) = text_app(&mut public, "/v1/map/partner?flight=SIA322", Some(APP_KEY)).await;
+        assert!(!body.contains("76cd01"), "the network's own aircraft stay on /v1");
+        for bad in ["PRT-NR1", "ABCDEFGHI", "%20"] {
+            let (status, _) = text_app(&mut public, &format!("/v1/map/partner?flight={bad}"), Some(APP_KEY)).await;
+            assert_eq!(status, 422, "{bad}");
+        }
+        // the flight lookup is the same door: shut without the key
+        let (status, _) = text_app(&mut public, "/v1/map/partner?flight=PRTNR1", None).await;
+        assert_eq!(status, 403);
+        for path in ["/openapi.json", "/llms.txt"] {
+            let (_, body) = text(&mut public, path, None).await;
+            assert!(!body.contains("map/partner") && !body.contains("flightportrait-app"), "{path}");
+        }
     }
 
     async fn text_from(
