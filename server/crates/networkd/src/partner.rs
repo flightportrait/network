@@ -33,7 +33,7 @@ use tokio::net::TcpStream;
 use crate::http::{client_ip, json, peer_of, query_param, throttle, ApiError, ApiResult};
 use crate::live::parse_bbox;
 use crate::pyjson::{write_float, write_str, Val};
-use crate::sky::{parse_aircraft_full, Entry, LiveSky, Snapshot, SnapshotCell, F_HEX, F_FLIGHT, F_LAT, F_LON, F_ALT, F_TRACK};
+use crate::sky::{parse_aircraft_full, BBox, Entry, LiveSky, Snapshot, SnapshotCell, F_HEX, F_FLIGHT, F_LAT, F_LON, F_ALT, F_TRACK};
 use crate::state::{now_s, App};
 
 /// How often the partner's snapshot is rebuilt while its lines flow.
@@ -444,6 +444,31 @@ fn from_site(origins: &[String], headers: &axum::http::HeaderMap) -> bool {
     get(header::REFERER).is_some_and(|r| origins.iter().any(|x| r == x || r.starts_with(&format!("{x}/"))))
 }
 
+/// The grid for a regional box holding more than MAP_MAX: the finest whose
+/// occupied cells still fit, so a busy sky fills the answer. Aircraft bunch
+/// up, so a grid of MAP_MAX cells over the box leaves most of them empty.
+fn fill_cell(inside: &[(usize, &Entry)], bbox: &BBox, span_lon: f64, span_lat: f64) -> f64 {
+    let occupied = |c: f64| {
+        let mut cells: HashSet<(i64, i64)> = HashSet::with_capacity(MAP_MAX * 2);
+        for (_, e) in inside {
+            let (lat, lon) = (e.lat.unwrap_or(0.0), e.lon.unwrap_or(0.0));
+            cells.insert((((lon - bbox.w).rem_euclid(360.0) / c).floor() as i64, ((lat - bbox.s) / c).floor() as i64));
+        }
+        cells.len()
+    };
+    let mut fits = (span_lon * span_lat / MAP_MAX as f64).sqrt().max(0.01);
+    let mut over = fits / 16.0;
+    for _ in 0..8 {
+        let mid = (fits * over).sqrt();
+        if occupied(mid) <= MAP_MAX {
+            fits = mid;
+        } else {
+            over = mid;
+        }
+    }
+    fits
+}
+
 /// GET /v1/map/partner?bbox=: the partners' live aircraft the network
 /// does not hear, for our map. `credits` lists the named partners; each
 /// aircraft's `via` is its partner's place in that list (`credit` is the
@@ -548,12 +573,12 @@ pub async fn map(State(app): State<Arc<App>>, req: Request) -> ApiResult {
         }
     }
     // thinned: the first aircraft of each grid cell, cells sized so a
-    // regional box keeps up to MAP_MAX and a wide one a coverage picture
+    // regional box fills MAP_MAX and a wide one is a coverage picture
     if flight.is_none() && (wide || inside.len() > MAP_MAX) {
         let c = if wide {
             (span_lon.max(span_lat * 1.5) / MAP_WIDE_CELLS).max(0.01)
         } else {
-            (span_lon * span_lat / MAP_MAX as f64).sqrt().max(0.01)
+            fill_cell(&inside, &bbox, span_lon, span_lat)
         };
         let mut cells: HashSet<(i64, i64)> = HashSet::new();
         inside.retain(|(_, e)| {
@@ -628,6 +653,33 @@ mod tests {
         st.prune(t0 + 14 * 86_400 + 60).unwrap();
         assert_eq!(st.near(1.3521, 103.8198, 10.0, 0).unwrap()[0].first, t0 + 120);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_busy_box_fills_the_answer_instead_of_leaving_cells_empty() {
+        // 3000 aircraft bunched into a corner of a 60 by 40 box, as a real sky is
+        let rows: Vec<String> = (0..3000)
+            .map(|i| {
+                let (lat, lon) = (1.0 + (i % 60) as f64 * 0.1, 1.0 + (i / 60) as f64 * 0.2);
+                format!(r#"{{"hex":"{i:06x}","lat":{lat},"lon":{lon}}}"#)
+            })
+            .collect();
+        let refs: Vec<&str> = rows.iter().map(String::as_str).collect();
+        let sky = snap(now_s(), &refs);
+        let inside: Vec<(usize, &Entry)> = sky.entries.iter().map(|e| (0, e)).collect();
+        let bbox = BBox { w: 0.0, s: 0.0, e: 60.0, n: 40.0 };
+        let count = |c: f64| {
+            let cells: HashSet<(i64, i64)> = inside
+                .iter()
+                .map(|(_, e)| ((e.lon.unwrap() / c).floor() as i64, (e.lat.unwrap() / c).floor() as i64))
+                .collect();
+            cells.len()
+        };
+        let coarse = (60.0f64 * 40.0 / MAP_MAX as f64).sqrt();
+        let filled = count(fill_cell(&inside, &bbox, 60.0, 40.0));
+        assert!(filled <= MAP_MAX, "{filled}");
+        assert!(filled > MAP_MAX * 8 / 10, "{filled}");
+        assert!(count(coarse) < MAP_MAX / 2, "{}", count(coarse));
     }
 
     #[test]

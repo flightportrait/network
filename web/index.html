@@ -2673,51 +2673,112 @@
   // drawn live, each credited to its partner (credits[via]), on this map only. No search, no list, no
   // history: the layer is a picture of coverage, not data. A server
   // without a partner answers 404 and the layer never starts.
-  var partner = { data: [], credits: null, at: 0, recv: 0, timer: null, glide: null, off: false };
+  var partner = { data: [], credits: null, timer: null, glide: null, off: false,
+                  asked: null, sent: 0, applied: 0, polled: 0, wait: null };
   function partnerShown() {
     return !partner.off && !document.body.classList.contains("replaying");
   }
   function setupPartner(map) {
-    // The view plus a margin. The layer answers a regional box (up to 60°
-    // by 40°) in full; zoomed out further it sends a coverage picture,
-    // one aircraft per grid cell.
-    function regionBox() {
+    // The layer answers a regional box (up to 60° by 40°) in full; wider
+    // it sends a coverage picture, one aircraft per grid cell. So the box
+    // is the view plus 75% each side, trimmed to what is answered in full.
+    var SPAN_LON = 60, SPAN_LAT = 40, HOLD_MS = 60000, HOLD_MAX = 2000;
+    function wrap(x) { return ((x + 180) % 360 + 360) % 360 - 180; }
+    function lonSpan(b) { return ((b[2] - b[0]) % 360 + 360) % 360 || (b[2] > b[0] ? 360 : 0); }
+    function viewNow() {
       var b = map.getBounds();
-      var w = b.getWest(), e = b.getEast(), so = b.getSouth(), n = b.getNorth();
-      var mw = (e - w) * 0.2, mh = (n - so) * 0.2;
-      w -= mw; e += mw; so = Math.max(-85, so - mh); n = Math.min(85, n + mh);
+      return { w: b.getWest(), e: b.getEast(), s: b.getSouth(), n: b.getNorth() };
+    }
+    function regionBox(v) {
+      var dw = v.e - v.w, dh = v.n - v.s;
+      // a view too wide for that keeps a slim margin, so its coverage
+      // picture is not spread any thinner than the screen needs
+      var mw = dw * 0.2, mh = dh * 0.2;
+      if (dw <= SPAN_LON && dh <= SPAN_LAT) {
+        mw = Math.min(dw * 0.75, (SPAN_LON - dw) / 2);
+        mh = Math.min(dh * 0.75, (SPAN_LAT - dh) / 2);
+      }
+      var w = v.w - mw, e = v.e + mw, so = Math.max(-85, v.s - mh), n = Math.min(85, v.n + mh);
       if (e - w >= 359) return [-180, so, 180, n];
-      var wrap = function (x) { return ((x + 180) % 360 + 360) % 360 - 180; };
       return [wrap(w), so, wrap(e), n];
+    }
+    // The last box asked already holds what the view needs, so a move costs
+    // no request: the view and a quarter of it each side lie inside, the
+    // box was answered in full, and the view has not zoomed far enough in
+    // for a thinned answer to show.
+    function covered(v) {
+      var a = partner.asked;
+      if (!a) return false;
+      var span = lonSpan(a), dw = v.e - v.w, dh = v.n - v.s;
+      if (span > SPAN_LON || a[3] - a[1] > SPAN_LAT || dw * 5 < span) return false;
+      var west = ((v.w - dw * 0.25 - a[0]) % 360 + 360) % 360;
+      return west + dw * 1.5 <= span && v.s - dh * 0.25 >= a[1] && v.n + dh * 0.25 <= a[3];
+    }
+    function inBox(b, a) {
+      return a.lat >= b[1] && a.lat <= b[3] && ((a.lon - b[0]) % 360 + 360) % 360 <= lonSpan(b);
+    }
+    // An answer replaces what was held inside its box; recent aircraft
+    // outside stay held, so panning back shows them at once.
+    function merged(fresh, box, now, live) {
+      var seen = {};
+      fresh.forEach(function (a) { seen[a.hex] = 1; });
+      var kept = partner.data.filter(function (a) {
+        return !seen[a.hex] && !live[a.hex] && now - a.recv < HOLD_MS && !inBox(box, a);
+      });
+      if (kept.length > HOLD_MAX) {
+        kept.sort(function (x, y) { return y.recv - x.recv; });
+        kept.length = HOLD_MAX;
+      }
+      return kept.concat(fresh);
+    }
+    // A move the last box does not cover asks at once, at most one request
+    // a second; the last move inside that second is sent when it is up.
+    function follow() {
+      clearTimeout(partner.wait);
+      if (!partnerShown() || document.hidden || covered(viewNow())) return;
+      var left = 1000 - (Date.now() - partner.polled);
+      if (left <= 0) poll();
+      else partner.wait = setTimeout(follow, left);
     }
     function poll() {
       if (!partnerShown() || document.hidden) return;
-      var box = regionBox();
-      if (!box) {
-        partner.data = [];
-        draw();
-        return;
-      }
+      var box = regionBox(viewNow());
+      var sent = ++partner.sent;
+      partner.polled = Date.now();
+      partner.asked = box;
       var q = "?bbox=" + box.map(function (x) { return x.toFixed(3); }).join(",");
       fetch(API + "/v1/map/partner" + q).then(function (r) {
         if (r.status === 404) { stop(); return null; }
         return r.ok ? r.json() : null;
       }).then(function (d) {
-        if (!d) return;
+        if (!d) {
+          if (partner.sent === sent) partner.asked = null;
+          return;
+        }
+        // a slow answer for a view already left never replaces a newer one
+        if (sent <= partner.applied) return;
+        partner.applied = sent;
         if (!partner.credits && d.credit && d.credit.name) addLayer(d.credits || [d.credit]);
         var live = {};
         (state.aircraft || []).forEach(function (a) { live[a.hex] = 1; });
-        partner.data = (d.aircraft || []).filter(function (a) { return !live[a.hex]; });
-        partner.at = d.now || Date.now() / 1000;
-        partner.recv = Date.now();
+        var now = Date.now(), age = Math.max(0, Math.min(30, d.now ? now / 1000 - d.now : 0));
+        var fresh = (d.aircraft || []).filter(function (a) {
+          a.recv = now;
+          a.age = age;
+          return !live[a.hex];
+        });
+        partner.data = merged(fresh, box, now, live);
         partner.total = d.total || 0;
         paintCount();
         draw();
-      }).catch(function () {});
+      }).catch(function () {
+        if (partner.sent === sent) partner.asked = null;
+      });
     }
     function stop() {
       partner.off = true;
       partner.total = 0;
+      clearTimeout(partner.wait);
       clearInterval(partner.timer);
       clearInterval(partner.glide);
     }
@@ -2758,26 +2819,22 @@
     function draw() {
       var src = map.getSource("partner");
       if (!src) return;
-      var dt = partnerElapsed();
       src.setData({ type: "FeatureCollection",
         features: partnerShown() ? partner.data.map(function (a) {
           return { type: "Feature", properties: { hex: a.hex, flight: a.flight || "",
               track: a.track, icon: "icon-" + iconFor(a) },
-            geometry: { type: "Point", coordinates: glided(a, dt) } };
+            geometry: { type: "Point", coordinates: glided(a, partnerElapsed(a)) } };
         }) : [] });
     }
     // playback belongs to the archive, which holds no partner aircraft
     new MutationObserver(function () { draw(); if (partnerShown()) poll(); })
       .observe(document.body, { attributes: true, attributeFilter: ["class"] });
     poll();
-    partner.timer = setInterval(poll, 10000);
-    var moved = 0;
-    map.on("moveend", function () {
-      var now = Date.now();
-      if (partner.off || now - moved < 3000) return;
-      moved = now;
-      poll();
-    });
+    // refreshed when 10 s have passed since the last request of any kind
+    partner.timer = setInterval(function () {
+      if (Date.now() - partner.polled >= 10000) poll();
+    }, 1000);
+    map.on("moveend", follow);
     if (!reducedMotion) {
       partner.glide = setInterval(function () {
         if (partnerShown() && !document.hidden && partner.data.length) draw();
@@ -2791,16 +2848,15 @@
     el("count-aircraft").textContent =
       state.total + (partnerShown() ? (partner.total || 0) : 0);
   }
-  function partnerElapsed() {
-    var age = Math.max(0, Math.min(30, partner.recv / 1000 - partner.at));
-    return (Date.now() - partner.recv) / 1000 + age;
+  function partnerElapsed(a) {
+    return (Date.now() - a.recv) / 1000 + a.age;
   }
   // The card's view of a partner aircraft: where it is drawn now.
   function partnerOf(hex) {
     if (!partnerShown()) return null;
     for (var i = 0; i < partner.data.length; i++) {
       if (partner.data[i].hex !== hex) continue;
-      var a = partner.data[i], p = glided(a, partnerElapsed()), out = {};
+      var a = partner.data[i], p = glided(a, partnerElapsed(a)), out = {};
       for (var k in a) out[k] = a[k];
       out.lon = p[0]; out.lat = p[1]; out.seen_pos = 0; out._heard = Date.now();
       out._partner = partner.credits[a.via || 0] || partner.credits[0];
