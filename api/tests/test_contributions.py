@@ -40,6 +40,8 @@ AIRPORTS_CSV = (
     '"CN","CN-51","Chengdu","yes","ZUUU","CTU","ZUUU",,,,\n'
     '11,"ZBAA","large_airport","Beijing Capital",40.08,116.58,116,"AS","CN",'
     '"CN-11","Beijing","yes","ZBAA","PEK","ZBAA",,,,\n'
+    '12,"CA-1291","small_airport","A local strip",49.9,-97.2,780,"NA","CA",'
+    '"CA-MB","Winnipeg","no",,,,,,,\n'
 )
 
 # SIA842 leaves SIN daily and is last heard over Vietnam heading north,
@@ -499,6 +501,32 @@ def test_propose_files_the_sole_airport_the_airline_flies_to(ctx, tmp_path):
         session.close()
     assert client.get("/v1/flights/SIA842").json()["route"] == ["SIN", "TFU"]
     assert client.get("/v1/contributors").json()["contributors"] == []
+
+
+def test_a_local_airport_code_never_reaches_the_claims(ctx, tmp_path):
+    """AKT1359, fp-data 2026-10-05 onward: an answer naming CA-1291 (no
+    IATA code, ident too long for claims.origin) stopped the nightly
+    before the snapshot. Postgres raises; sqlite only stores it, so the
+    test asks that nothing was filed."""
+    class Book:
+        def __init__(self, gap):
+            self.gap = gap
+
+        def get(self, callsign):
+            return self.gap
+
+    client, app, sm = _setup(ctx, tmp_path)
+    session = sm()
+    try:
+        asked = Book({"side": "origin", "known": "SIN"})
+        assert contributions.file_submission(
+            session, asked, {"callsign": "AKT1359", "origin": "CA-1291"}) is None
+        known = Book({"side": "dest", "known": "CA-1291"})
+        assert contributions.file_submission(
+            session, known, {"callsign": "AKT1738", "dest": "SIN"}) is None
+        assert session.query(Claim).count() == 0
+    finally:
+        session.close()
 
 
 def test_answered_questions_leave_the_list_and_can_be_withdrawn(ctx, tmp_path):

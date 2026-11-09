@@ -446,6 +446,10 @@ def file_submission(session, book, sub, now=None):
         return None
     code = missing.iata or missing.ident
     origin, dest = (gap["known"], code) if side == "dest" else (code, gap["known"])
+    # A field with no IATA code answers with its long local ident, which
+    # no route is served under.
+    if max(len(origin), len(dest)) > Claim.origin.type.length:
+        return None
     claim = session.execute(
         select(Claim).where(Claim.callsign == callsign, Claim.origin == origin,
                             Claim.dest == dest)).scalars().first()
