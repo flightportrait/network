@@ -482,25 +482,51 @@ def test_suggestions_follow_the_evidence(ctx, tmp_path):
     assert client.get("/v1/gaps/SIA842").json()["suggested"] == ["TFU", "CTU"]
 
 
-def test_propose_files_the_sole_airport_the_airline_flies_to(ctx, tmp_path):
+def test_propose_never_infers_an_airport(ctx, tmp_path):
+    """SIA842 has rotations and a heading that leave one airport the
+    airline flies to, and no timetable. That inference agreed with the
+    boards about one time in ten: the question stays open."""
     client, app, sm = _setup(ctx, tmp_path)
     session = sm()
     try:
-        filed, approved = contributions.propose(session, app.state.gaps,
-                                                app.state.routes)
-        assert (filed, approved) == (1, 1)
-        claim = session.query(Claim).one()
-        assert (claim.callsign, claim.dest, claim.status) == \
-            ("SIA842", "TFU", "approved")
-        assert claim.reviewed_by == "verdict"
-        assert session.query(Endorsement).one().key_name == "evidence"
-        # a second pass leaves it alone
         assert contributions.propose(session, app.state.gaps,
                                      app.state.routes) == (0, 0)
+        assert session.query(Claim).count() == 0
     finally:
         session.close()
-    assert client.get("/v1/flights/SIA842").json()["route"] == ["SIN", "TFU"]
-    assert client.get("/v1/contributors").json()["contributors"] == []
+    assert client.get("/v1/flights/SIA842").status_code == 404
+
+
+def test_withdraw_guesses_leaves_every_other_voice_alone(ctx, tmp_path):
+    client, app, sm = _setup(ctx, tmp_path)
+    session = sm()
+    book = app.state.gaps
+
+    def filed(callsign, code, key, side="dest"):
+        return contributions.file_submission(
+            session, book, {"callsign": callsign, side: code, "key_name": key})
+    try:
+        guess = filed("SIA842", "TFU", "evidence")
+        contributions.approve(session, book, guess.id)
+        waiting = filed("SIA843", "TFU", "evidence", side="origin")
+        backed = filed("QFA9", "SIN", "evidence")
+        filed("QFA9", "SIN", "a-person")
+        session.commit()
+        before = contributions.withdraw_guesses(session)
+        assert before == {"approved": 1, "pending": 1}
+        assert guess.status == "approved" and waiting.status == "pending"
+        assert client.get("/v1/flights/SIA842").json()["route"] == ["SIN", "TFU"]
+
+        assert contributions.withdraw_guesses(session, apply=True) == before
+        assert guess.status == "rejected" and waiting.status == "rejected"
+        assert backed.status == "pending"
+        row = session.query(RouteCatalog).filter_by(callsign="SIA842").one()
+        assert row.closed_reason == "withdrawn" and row.valid_to is not None
+        assert contributions.withdraw_guesses(session) == {"approved": 0,
+                                                           "pending": 0}
+    finally:
+        session.close()
+    assert client.get("/v1/flights/SIA842").status_code == 404
 
 
 def test_a_local_airport_code_never_reaches_the_claims(ctx, tmp_path):
@@ -533,7 +559,10 @@ def test_answered_questions_leave_the_list_and_can_be_withdrawn(ctx, tmp_path):
     client, app, sm = _setup(ctx, tmp_path)
     session = sm()
     try:
-        contributions.propose(session, app.state.gaps, app.state.routes)
+        answer = contributions.file_submission(
+            session, app.state.gaps,
+            {"callsign": "SIA842", "dest": "TFU", "key_name": "a-person"})
+        contributions.approve(session, app.state.gaps, answer.id)
         assert client.get("/v1/gaps").json()["total"] == 3       # SIA842 answered
         assert "SIA842" not in [g["callsign"] for g in
                                 client.get("/v1/gaps").json()["gaps"]]

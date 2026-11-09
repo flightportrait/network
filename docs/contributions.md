@@ -58,9 +58,9 @@ When the known airport's published timetable lists exactly one other
 end for the airline and number (the marketed SQ826 answers the callsign
 SIA826), the network files that answer itself each night, with the
 endorser `timetable`; the catalog row it becomes is marked published.
-Otherwise, when the filters leave exactly one airport the airline flies
-to, it files that, with the endorser `evidence`. Both are judged like
-any other claim.
+It is judged like any other claim. The network never files an airport
+it only inferred: without a timetable or a person, the question stays
+open.
 
 A claim with no failing check and two corroborating signals enters the
 catalog on its own. A claim that fails a check is closed. Anything in

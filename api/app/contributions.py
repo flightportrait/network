@@ -43,7 +43,6 @@ CORRIDOR_DEG = 45
 ROTATION_TOLERANCE = 0.25
 ROTATION_FLOOR_KM = 400
 MIN_ROTATIONS = 2
-PROPOSE_ROTATIONS = 3
 SUGGESTIONS = 3
 MAX_CLAIMS_PER_QUESTION = 3
 PURGE_AFTER_DAYS = 90
@@ -51,6 +50,7 @@ PULL_PAGE = 500
 # The key a claim filed from an airport's published timetable carries,
 # and how far the published time may sit from the observed one.
 TIMETABLE_KEY = "timetable"
+GUESS_KEY = "evidence"           # retired: see withdraw_guesses
 CLOCK_TOLERANCE_MIN = 45
 CLOCK_MIN_SEEN = 3
 FLIGHT_NUMBER = re.compile(r"^([A-Z]{3})0*(\d+)[A-Z]{0,2}$")
@@ -607,19 +607,18 @@ def pull(session, book, fetch, now=None, routes=None, legs=None):
                    Claim.id.in_(select(Endorsement.claim_id).where(
                        or_(Endorsement.key_name.is_(None),
                            Endorsement.key_name.not_in(
-                               ("evidence", TIMETABLE_KEY)))))))
+                               (GUESS_KEY, TIMETABLE_KEY)))))))
     ).scalar_one()
     session.commit()
     return counts
 
 
 def propose(session, book, routes, now=None, legs=None):
-    """File what the evidence points at and judge it like any other
-    claim. First the known airport's published timetable, when it lists
-    exactly one other end for this airline and number; otherwise, with
-    enough rotations, the one airport the airline flies to at this
-    distance and heading. Returns (filed, approved). Questions with an
-    open or approved claim are left alone."""
+    """File what the known airport's published timetable says, when it
+    lists exactly one other end for this airline and number, and judge
+    it like any other claim. Returns (filed, approved). Questions with
+    an open or approved claim are left alone. Nothing is inferred here:
+    a hole is better than a wrong route."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
     airports = AirportIndex()
     network = routes.by_airline()
@@ -631,19 +630,11 @@ def propose(session, book, routes, now=None, legs=None):
         if callsign in taken:
             continue
         told = timetable.answers(session, gap, callsign)
-        if len(told) == 1:
-            code = next(iter(told))
-            sub = {"callsign": callsign, "key_name": TIMETABLE_KEY,
-                   "note": "the airport's published timetable"}
-        elif (gap.get("n_rot") or 0) >= PROPOSE_ROTATIONS:
-            code = unique_candidate(session, airports, network, gap, callsign)
-            sub = {"callsign": callsign, "key_name": "evidence",
-                   "note": "the one airport the airline flies to at this "
-                           "distance and heading"}
-        else:
-            code = None
-        if code is None:
+        if len(told) != 1:
             continue
+        code = next(iter(told))
+        sub = {"callsign": callsign, "key_name": TIMETABLE_KEY,
+               "note": "the airport's published timetable"}
         sub["dest" if gap["side"] == "dest" else "origin"] = code
         claim = file_submission(session, book, sub, now)
         if claim is None:
@@ -880,6 +871,36 @@ def withdraw(session, claim_id, note=None):
     return claim
 
 
+def withdraw_guesses(session, apply=False, note=None):
+    """Retire what propose once filed from rotation and heading alone:
+    every approved or pending claim whose only voice is the "evidence"
+    key. Boards agreed with these about one time in ten (2026-11-09). A
+    claim a person or a timetable also stands behind stays. Returns
+    {status: count}; nothing changes unless apply."""
+    voiced = select(Endorsement.claim_id).where(
+        or_(Endorsement.key_name.is_(None), Endorsement.key_name != GUESS_KEY))
+    claims = session.execute(
+        select(Claim).where(
+            Claim.status.in_(("approved", "pending")),
+            Claim.anonymous_count == 0,
+            Claim.id.in_(select(Endorsement.claim_id).where(
+                Endorsement.key_name == GUESS_KEY)),
+            Claim.id.not_in(voiced)).order_by(Claim.id)).scalars().all()
+    counts = {"approved": 0, "pending": 0}
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for claim in claims:
+        counts[claim.status] += 1
+        if not apply:
+            continue
+        if claim.status == "approved":
+            withdraw(session, claim.id, note)
+        else:
+            claim.status, claim.reviewed_at = "rejected", now
+            claim.reviewed_by, claim.review_note = "operator", note
+    session.commit()
+    return counts
+
+
 def reconcile(session, routes_book, today=None):
     """Close catalog rows observation has overtaken: the same route now
     observed end to end, or a different one. Returns (callsign, reason)."""
@@ -974,6 +995,9 @@ def main(argv=None):
     sub.add_parser("reconcile")
     sub.add_parser("recheck")
     sub.add_parser("propose")
+    p = sub.add_parser("withdraw-guesses")
+    p.add_argument("--apply", action="store_true", help="without it, only counts")
+    p.add_argument("--note", default="retired: inferred from rotation and heading alone")
     args = ap.parse_args(argv)
 
     from .gaps_db import GapBook
@@ -1052,6 +1076,11 @@ def main(argv=None):
                 print("reopened #%d %s %s -> %s" % (
                     claim.id, claim.callsign, claim.origin, claim.dest))
             print("recheck: %d reopened" % len(done))
+        elif args.cmd == "withdraw-guesses":
+            counts = withdraw_guesses(session, args.apply, args.note)
+            print("%s: %d approved, %d pending" % (
+                "withdrawn" if args.apply else "would withdraw",
+                counts["approved"], counts["pending"]))
         elif args.cmd == "propose":
             book = GapBook(settings.gaps_path)
             if not book.available():
