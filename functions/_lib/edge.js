@@ -42,11 +42,17 @@ export class Append {
   constructor(value) { this.value = value; }
   element(e) { e.append(this.value, { html: true }); }
 }
+export class Remove {
+  element(e) { e.remove(); }
+}
 
 // The head every rendered page gets: title, description, canonical, and
-// noindex when the entity has nothing to show yet.
+// noindex when the entity has nothing to show yet. The static page's own
+// robots tag (the bare page stays out of search) is dropped first, so a
+// rendered entity is indexed on its own merits.
 export function headRewriter(title, desc, url, extraHead, indexable) {
   return new HTMLRewriter()
+    .on('meta[name="robots"]', new Remove())
     .on("title", new SetText(title))
     .on('meta[name="description"]', new SetAttr("content", desc))
     .on('meta[property="og:title"]', new SetAttr("content", title))
