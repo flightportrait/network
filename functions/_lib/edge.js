@@ -66,7 +66,11 @@ export function headRewriter(title, desc, url, extraHead, indexable) {
 
 // null for a 404; throws when the API is busy or down
 export async function api(path) {
-  const r = await fetch(API + path, { cf: { cacheTtl: TTL, cacheEverything: true } });
+  // Only answers are cached: a 429 or 503 cached for an hour would keep
+  // serving the busy page long after the API has recovered.
+  const r = await fetch(API + path, {
+    cf: { cacheEverything: true, cacheTtlByStatus: { "200-299": TTL, "404": 600, "400-599": 0 } },
+  });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`api ${r.status}`);
   return r.json();
@@ -105,6 +109,14 @@ export async function cachedPage(context, url, staticPath, build) {
   });
   context.waitUntil(cache.put(key, res.clone()));
   return res;
+}
+
+// HEAD gets the GET answer without its body. Without it a dynamic route
+// has no handler for HEAD and Pages answers 404, which link checkers and
+// some crawlers read as a dead page.
+export async function headOf(response) {
+  const r = await response;
+  return new Response(null, { status: r.status, headers: r.headers });
 }
 
 export function notFound(context) {

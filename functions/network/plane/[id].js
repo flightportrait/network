@@ -2,6 +2,7 @@
 // /network/plane/{registration} redirects to its hex, which is the
 // stable address (a registration can move to another airframe).
 import { airframePage, hexForReg } from "../../_lib/plane.js";
+import { headOf } from "../../_lib/edge.js";
 
 export async function onRequestGet(context) {
   const id = String(context.params.id || "");
@@ -21,4 +22,8 @@ export async function onRequestGet(context) {
   }
   return context.env.ASSETS.fetch(new URL("/404", context.request.url))
     .then((r) => new Response(r.body, { status: 404, headers: r.headers }));
+}
+
+export function onRequestHead(context) {
+  return headOf(onRequestGet(context));
 }
