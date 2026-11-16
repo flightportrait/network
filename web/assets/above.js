@@ -13,13 +13,19 @@
   var WORDS = {
     en: { unit: "mi", radii: [10, 25, 50], near: "Near you", around: "Around ",
           here: "At your location", within: "within", exact: "Use my exact location",
-          denied: "Location not shared", ft: "ft" },
+          denied: "Location not shared", ft: "ft",
+          none: "No planes within {r} right now. The sky may be quiet, or our antennas don't reach it yet.",
+          add: "Add an antenna" },
     de: { unit: "km", radii: [20, 50, 100], near: "In deiner Nähe", around: "Rund um ",
           here: "An deinem Standort", within: "im Umkreis von", exact: "Meinen genauen Standort verwenden",
-          denied: "Standort nicht freigegeben", ft: "ft" },
+          denied: "Standort nicht freigegeben", ft: "ft",
+          none: "Gerade keine Flugzeuge im Umkreis von {r}. Vielleicht ist der Himmel ruhig, oder unsere Antennen reichen noch nicht bis hierher.",
+          add: "Eine Antenne beitragen" },
     fr: { unit: "km", radii: [20, 50, 100], near: "Près de vous", around: "Autour de ",
           here: "À votre position", within: "dans un rayon de", exact: "Utiliser ma position exacte",
-          denied: "Position non partagée", ft: "ft" }
+          denied: "Position non partagée", ft: "ft",
+          none: "Aucun avion dans un rayon de {r} en ce moment. Le ciel est peut-être calme, ou nos antennes ne l\u2019atteignent pas encore.",
+          add: "Ajouter une antenne" }
   };
   var lang = (document.documentElement.lang || "en").slice(0, 2);
   var W = WORDS[lang] || WORDS.en;
@@ -80,6 +86,14 @@
   }
 
   var planes = [];
+  var answered = false; // the API has answered for the current position
+  // Said out loud when the answer is empty: a bare page read as broken,
+  // most often where the network has no antennas yet.
+  var none = document.createElement("p");
+  none.id = "none";
+  none.hidden = true;
+  none.style.cssText = "margin:18px 0 22px;max-width:46ch;font-size:15px;line-height:1.45;color:var(--quiet,#6b665c)";
+  el("list").parentNode.insertBefore(none, el("list"));
   function row(a) {
     var cs = a.flight || "";
     var type = (a.t && types[a.t] && types[a.t][0]) || a.t || "";
@@ -102,6 +116,11 @@
   function draw() {
     el("rows").innerHTML = planes.map(row).join("");
     el("list").hidden = !planes.length;
+    none.hidden = !(answered && pos && !planes.length);
+    if (!none.hidden) {
+      none.innerHTML = esc(W.none.replace("{r}", radius + " " + W.unit)) +
+        " <a href='/network/join'>" + esc(W.add) + "</a>";
+    }
   }
 
   var timer = null;
@@ -118,6 +137,7 @@
       })
       .then(function (d) {
         if (!d || p !== pos) return;
+        answered = true;
         planes = (d.ac || []).filter(function (a) { return a.alt_baro !== "ground"; });
         wantRoutes(planes);
         draw();
@@ -142,13 +162,16 @@
     if (r === radius) o.selected = true;
     sel.appendChild(o);
   });
-  sel.addEventListener("change", function () { radius = +sel.value; poll(); });
+  sel.addEventListener("change", function () { radius = +sel.value; answered = false; draw(); poll(); });
 
   var btn = el("exact");
   if (!navigator.geolocation) btn.hidden = true;
   btn.addEventListener("click", function () {
     navigator.geolocation.getCurrentPosition(function (g) {
       pos = { lat: g.coords.latitude, lon: g.coords.longitude };
+      answered = false;
+      planes = [];
+      draw();
       where(W.here);
       btn.hidden = true;
       poll();
