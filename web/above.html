@@ -27,7 +27,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F5F1E6">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebPage", "name": "Planes above me", "description": "What plane is above me? Every flight over you right now, nearest first: airline, aircraft, registration, altitude and route, from the FlightPortrait network's antennas.", "url": "https://flightportrait.com/network/above", "inLanguage": "en", "isPartOf": {"@type": "WebSite", "name": "FlightPortrait", "url": "https://flightportrait.com/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Network", "item": "https://flightportrait.com/network/"}, {"@type": "ListItem", "position": 2, "name": "Planes above me", "item": "https://flightportrait.com/network/above"}]}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebPage", "name": "Planes above me", "description": "What plane is above me? Every flight over you right now, nearest first: airline, aircraft, registration, altitude and route, from the FlightPortrait network's antennas.", "url": "https://flightportrait.com/network/above", "inLanguage": "en", "isPartOf": {"@type": "WebSite", "name": "FlightPortrait", "url": "https://flightportrait.com/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Network", "item": "https://flightportrait.com/network/"}, {"@type": "ListItem", "position": 2, "name": "Planes above me", "item": "https://flightportrait.com/network/above"}]}, {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is it free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. No account and no app, in any browser."}}, {"@type": "Question", "name": "Do you keep my location?", "acceptedAnswer": {"@type": "Answer", "text": "No. It stays in this page and is used only to ask for the aircraft around you."}}, {"@type": "Question", "name": "How far does it look?", "acceptedAnswer": {"@type": "Answer", "text": "10, 25 or 50 miles around you, your choice. The list starts with the nearest aircraft."}}, {"@type": "Question", "name": "Can I have this on my wall?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. FlightPortrait draws the planes over your home as a portrait on a 13.3-inch color e-ink frame."}}]}]}</script>
 <style>
   :root{
     --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
@@ -85,6 +85,16 @@
     text-decoration:none;border-radius:6px;padding:6px 13px;
     font:14px Palatino,Georgia,serif}
   .framecard a:hover{background:var(--red)}
+  .guide{max-width:640px;margin:48px 0 0;font-size:17px;line-height:1.55}
+  .guide h2{font-weight:400;font-size:24px;margin:36px 0 10px}
+  .guide p,.guide li{margin:0 0 10px}
+  .guide ol,.guide ul{padding-left:22px;margin:0 0 10px}
+  .guide a{color:var(--ink)}
+  .guide a:hover{color:var(--red)}
+  .guide details{border-top:1px solid var(--line);padding:12px 0}
+  .guide details:last-child{border-bottom:1px solid var(--line)}
+  .guide summary{cursor:pointer;font-size:17px}
+  .guide details p{margin:8px 0 0;color:var(--quiet)}
   .langs{margin-top:28px;font-size:14px;color:var(--quiet)}
   .searchbox{position:relative;flex:0 1 240px;min-width:150px}
   .searchbox input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
@@ -138,6 +148,34 @@
         <tbody id="rows"></tbody>
       </table>
     </div>
+    <section class="guide">
+      <h2>What plane is flying over me?</h2>
+      <p>This page lists every aircraft our antennas can hear within the radius you pick, nearest first, and refreshes every 20 seconds. On its own it guesses your city from your connection. Share your exact location to see the planes over your street.</p>
+      <h2>How to identify a plane overhead</h2>
+      <ol>
+        <li>Note roughly where it is in the sky and which way it is heading.</li>
+        <li>Open this page and choose <em>Use my exact location</em>.</li>
+        <li>Match height and distance. An airliner at 35,000 ft can be 10 miles away and still look overhead. One at 3,000 ft is probably landing or taking off nearby.</li>
+        <li>Tap the flight number for its route and recent flights, or the registration for that aircraft's own history.</li>
+      </ol>
+      <h2>Why a plane might be missing</h2>
+      <ul>
+        <li>Our antennas don't cover every sky yet. Partner networks fill some of the gaps, credited under the table.</li>
+        <li>Some aircraft, many military ones among them, don't broadcast a position.</li>
+        <li>A plane that only just came into range shows up on the next refresh, within 20 seconds.</li>
+      </ul>
+      <h2>Where the positions come from</h2>
+      <p>Airliners broadcast their identity, position and altitude by radio (ADS-B, on 1090 MHz) several times a second. Receivers run by the FlightPortrait community pick those signals up, and this page asks them which aircraft are near you. A Raspberry Pi and a small USB radio are enough to <a href="/network/join">add an antenna</a> where you live and fill in your own sky.</p>
+      <h2>Questions</h2>
+      <details><summary>Is it free?</summary>
+        <p>Yes. No account and no app, in any browser.</p></details>
+      <details><summary>Do you keep my location?</summary>
+        <p>No. It stays in this page and is used only to ask for the aircraft around you.</p></details>
+      <details><summary>How far does it look?</summary>
+        <p>10, 25 or 50 miles around you, your choice. The list starts with the nearest aircraft.</p></details>
+      <details><summary>Can I have this on my wall?</summary>
+        <p>Yes. FlightPortrait draws the planes over your home as a portrait on a 13.3-inch color e-ink frame. <a href="/frame/">See the frame</a>.</p></details>
+    </section>
     <div class="framecard">
       <img src="assets/frame.jpg" alt="A FlightPortrait frame on a wall">
       <div>

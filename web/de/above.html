@@ -22,7 +22,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F5F1E6">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebPage", "name": "Welche Flugzeuge fliegen über mir?", "description": "Welche Flugzeuge fliegen gerade über mir? Alle Flüge über dir, live und die nächsten zuerst: Airline, Flugzeugtyp, Kennzeichen, Höhe und Route, von den Antennen des FlightPortrait Netzwerks.", "url": "https://flightportrait.com/network/de/above", "inLanguage": "de", "isPartOf": {"@type": "WebSite", "name": "FlightPortrait", "url": "https://flightportrait.com/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Netzwerk", "item": "https://flightportrait.com/network/"}, {"@type": "ListItem", "position": 2, "name": "Welche Flugzeuge fliegen über mir?", "item": "https://flightportrait.com/network/de/above"}]}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebPage", "name": "Welche Flugzeuge fliegen über mir?", "description": "Welche Flugzeuge fliegen gerade über mir? Alle Flüge über dir, live und die nächsten zuerst: Airline, Flugzeugtyp, Kennzeichen, Höhe und Route, von den Antennen des FlightPortrait Netzwerks.", "url": "https://flightportrait.com/network/de/above", "inLanguage": "de", "isPartOf": {"@type": "WebSite", "name": "FlightPortrait", "url": "https://flightportrait.com/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Netzwerk", "item": "https://flightportrait.com/network/"}, {"@type": "ListItem", "position": 2, "name": "Welche Flugzeuge fliegen über mir?", "item": "https://flightportrait.com/network/de/above"}]}, {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Ist das kostenlos?", "acceptedAnswer": {"@type": "Answer", "text": "Ja. Kein Konto und keine App, in jedem Browser."}}, {"@type": "Question", "name": "Speichert ihr meinen Standort?", "acceptedAnswer": {"@type": "Answer", "text": "Nein. Er bleibt auf dieser Seite und dient nur dazu, die Flugzeuge um dich herum abzufragen."}}, {"@type": "Question", "name": "Wie weit reicht die Suche?", "acceptedAnswer": {"@type": "Answer", "text": "20, 50 oder 100 Kilometer um dich herum, nach Wahl. Die Liste beginnt mit dem nächsten Flugzeug."}}, {"@type": "Question", "name": "Kann ich das an meine Wand hängen?", "acceptedAnswer": {"@type": "Answer", "text": "Ja. FlightPortrait zeichnet die Flugzeuge über deinem Zuhause als Porträt auf einem 13,3-Zoll-Rahmen aus farbigem E-Ink."}}]}]}</script>
 <style>
   :root{
     --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
@@ -80,6 +80,16 @@
     text-decoration:none;border-radius:6px;padding:6px 13px;
     font:14px Palatino,Georgia,serif}
   .framecard a:hover{background:var(--red)}
+  .guide{max-width:640px;margin:48px 0 0;font-size:17px;line-height:1.55}
+  .guide h2{font-weight:400;font-size:24px;margin:36px 0 10px}
+  .guide p,.guide li{margin:0 0 10px}
+  .guide ol,.guide ul{padding-left:22px;margin:0 0 10px}
+  .guide a{color:var(--ink)}
+  .guide a:hover{color:var(--red)}
+  .guide details{border-top:1px solid var(--line);padding:12px 0}
+  .guide details:last-child{border-bottom:1px solid var(--line)}
+  .guide summary{cursor:pointer;font-size:17px}
+  .guide details p{margin:8px 0 0;color:var(--quiet)}
   .langs{margin-top:28px;font-size:14px;color:var(--quiet)}
   .searchbox{position:relative;flex:0 1 240px;min-width:150px}
   .searchbox input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
@@ -133,6 +143,34 @@
         <tbody id="rows"></tbody>
       </table>
     </div>
+    <section class="guide">
+      <h2>Welches Flugzeug fliegt gerade über mir?</h2>
+      <p>Diese Seite zeigt jedes Flugzeug, das unsere Antennen im gewählten Umkreis empfangen, die nächsten zuerst, und aktualisiert sich alle 20 Sekunden. Ohne Freigabe schätzt sie deine Stadt anhand deiner Verbindung. Teile deinen genauen Standort, dann siehst du die Flugzeuge über deiner Straße.</p>
+      <h2>So erkennst du ein Flugzeug am Himmel</h2>
+      <ol>
+        <li>Merke dir ungefähr, wo es am Himmel ist und in welche Richtung es fliegt.</li>
+        <li>Öffne diese Seite und wähle <em>Meinen genauen Standort verwenden</em>.</li>
+        <li>Vergleiche Höhe und Entfernung. Ein Verkehrsflugzeug in 10.000 Metern kann 15 Kilometer entfernt sein und trotzdem direkt über dir wirken. Eines in 1.000 Metern landet oder startet wahrscheinlich in der Nähe.</li>
+        <li>Tippe auf die Flugnummer für Route und letzte Flüge, oder auf das Kennzeichen für die Geschichte genau dieses Flugzeugs.</li>
+      </ol>
+      <h2>Warum ein Flugzeug fehlen kann</h2>
+      <ul>
+        <li>Unsere Antennen decken noch nicht jeden Himmel ab. Partnernetzwerke füllen einige Lücken, genannt unter der Tabelle.</li>
+        <li>Manche Flugzeuge, darunter viele militärische, senden keine Position.</li>
+        <li>Ein Flugzeug, das gerade erst in Reichweite kommt, erscheint bei der nächsten Aktualisierung, innerhalb von 20 Sekunden.</li>
+      </ul>
+      <h2>Woher die Positionen kommen</h2>
+      <p>Verkehrsflugzeuge senden mehrmals pro Sekunde Kennung, Position und Höhe per Funk (ADS-B, auf 1090 MHz). Empfänger aus der FlightPortrait Community fangen diese Signale auf, und diese Seite fragt sie, welche Flugzeuge in deiner Nähe sind. Ein Raspberry Pi und ein kleiner USB-Empfänger genügen, um <a href="/network/join">eine Antenne beizutragen</a> und deinen eigenen Himmel abzudecken.</p>
+      <h2>Fragen</h2>
+      <details><summary>Ist das kostenlos?</summary>
+        <p>Ja. Kein Konto und keine App, in jedem Browser.</p></details>
+      <details><summary>Speichert ihr meinen Standort?</summary>
+        <p>Nein. Er bleibt auf dieser Seite und dient nur dazu, die Flugzeuge um dich herum abzufragen.</p></details>
+      <details><summary>Wie weit reicht die Suche?</summary>
+        <p>20, 50 oder 100 Kilometer um dich herum, nach Wahl. Die Liste beginnt mit dem nächsten Flugzeug.</p></details>
+      <details><summary>Kann ich das an meine Wand hängen?</summary>
+        <p>Ja. FlightPortrait zeichnet die Flugzeuge über deinem Zuhause als Porträt auf einem 13,3-Zoll-Rahmen aus farbigem E-Ink. <a href="/de/">Zum Rahmen</a>.</p></details>
+    </section>
     <div class="framecard">
       <img src="assets/frame.jpg" alt="Ein FlightPortrait Rahmen an einer Wand">
       <div>

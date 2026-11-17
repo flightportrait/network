@@ -34,7 +34,8 @@ function ident(d) {
 
 function head(d, s) {
   const { reg, type, operator } = ident(d);
-  const title = [reg, type, operator].filter(Boolean).join(" · ") +
+  // the registration plus what people search it with ("flight history")
+  const title = [reg + " flight history", type, operator].filter(Boolean).join(" · ") +
     ". FlightPortrait network";
   let desc = reg + (operator || type ? ", " + [operator, type].filter(Boolean).join(" ") : "") +
     " (" + d.hex.toUpperCase() + ")";

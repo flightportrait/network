@@ -22,7 +22,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F5F1E6">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebPage", "name": "Les avions dans le ciel en ce moment", "description": "Quels avions sont au-dessus de moi ? Le trafic aérien en direct au-dessus de vous, les plus proches d'abord : compagnie, appareil, immatriculation, altitude et trajet, depuis les antennes du réseau FlightPortrait.", "url": "https://flightportrait.com/network/fr/above", "inLanguage": "fr", "isPartOf": {"@type": "WebSite", "name": "FlightPortrait", "url": "https://flightportrait.com/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Réseau", "item": "https://flightportrait.com/network/"}, {"@type": "ListItem", "position": 2, "name": "Les avions dans le ciel en ce moment", "item": "https://flightportrait.com/network/fr/above"}]}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebPage", "name": "Les avions dans le ciel en ce moment", "description": "Quels avions sont au-dessus de moi ? Le trafic aérien en direct au-dessus de vous, les plus proches d'abord : compagnie, appareil, immatriculation, altitude et trajet, depuis les antennes du réseau FlightPortrait.", "url": "https://flightportrait.com/network/fr/above", "inLanguage": "fr", "isPartOf": {"@type": "WebSite", "name": "FlightPortrait", "url": "https://flightportrait.com/"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Réseau", "item": "https://flightportrait.com/network/"}, {"@type": "ListItem", "position": 2, "name": "Les avions dans le ciel en ce moment", "item": "https://flightportrait.com/network/fr/above"}]}, {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Est-ce gratuit ?", "acceptedAnswer": {"@type": "Answer", "text": "Oui. Sans compte et sans application, dans n'importe quel navigateur."}}, {"@type": "Question", "name": "Gardez-vous ma position ?", "acceptedAnswer": {"@type": "Answer", "text": "Non. Elle reste dans cette page et sert seulement à demander les avions autour de vous."}}, {"@type": "Question", "name": "Jusqu'où regarde-t-elle ?", "acceptedAnswer": {"@type": "Answer", "text": "20, 50 ou 100 kilomètres autour de vous, au choix. La liste commence par l'avion le plus proche."}}, {"@type": "Question", "name": "Puis-je avoir ça au mur ?", "acceptedAnswer": {"@type": "Answer", "text": "Oui. FlightPortrait dessine les avions au-dessus de chez vous en portrait, sur un cadre de 13,3 pouces en e-ink couleur."}}]}]}</script>
 <style>
   :root{
     --paper:#F5F1E6; --ink:#221F1A; --red:#B8402E; --green:#3D7A50;
@@ -80,6 +80,16 @@
     text-decoration:none;border-radius:6px;padding:6px 13px;
     font:14px Palatino,Georgia,serif}
   .framecard a:hover{background:var(--red)}
+  .guide{max-width:640px;margin:48px 0 0;font-size:17px;line-height:1.55}
+  .guide h2{font-weight:400;font-size:24px;margin:36px 0 10px}
+  .guide p,.guide li{margin:0 0 10px}
+  .guide ol,.guide ul{padding-left:22px;margin:0 0 10px}
+  .guide a{color:var(--ink)}
+  .guide a:hover{color:var(--red)}
+  .guide details{border-top:1px solid var(--line);padding:12px 0}
+  .guide details:last-child{border-bottom:1px solid var(--line)}
+  .guide summary{cursor:pointer;font-size:17px}
+  .guide details p{margin:8px 0 0;color:var(--quiet)}
   .langs{margin-top:28px;font-size:14px;color:var(--quiet)}
   .searchbox{position:relative;flex:0 1 240px;min-width:150px}
   .searchbox input{width:100%;font:14px 'Helvetica Neue',Arial,sans-serif;
@@ -133,6 +143,34 @@
         <tbody id="rows"></tbody>
       </table>
     </div>
+    <section class="guide">
+      <h2>Quel avion passe au-dessus de moi ?</h2>
+      <p>Cette page liste chaque avion que nos antennes captent dans le rayon choisi, les plus proches d'abord, et se met à jour toutes les 20 secondes. Sans autorisation, elle devine votre ville d'après votre connexion. Partagez votre position exacte pour voir les avions au-dessus de votre rue.</p>
+      <h2>Comment identifier un avion dans le ciel</h2>
+      <ol>
+        <li>Repérez à peu près où il se trouve dans le ciel et dans quelle direction il va.</li>
+        <li>Ouvrez cette page et choisissez <em>Utiliser ma position exacte</em>.</li>
+        <li>Comparez l'altitude et la distance. Un avion de ligne à 10 000 mètres peut être à 15 kilomètres et sembler juste au-dessus. Un avion à 1 000 mètres est sans doute en train d'atterrir ou de décoller pas loin.</li>
+        <li>Touchez le numéro de vol pour sa route et ses vols récents, ou l'immatriculation pour l'histoire de cet avion précis.</li>
+      </ol>
+      <h2>Pourquoi un avion peut manquer</h2>
+      <ul>
+        <li>Nos antennes ne couvrent pas encore tout le ciel. Des réseaux partenaires comblent une partie des trous, cités sous le tableau.</li>
+        <li>Certains avions, dont beaucoup d'avions militaires, n'émettent pas leur position.</li>
+        <li>Un avion qui vient d'entrer dans le rayon apparaît à la mise à jour suivante, en moins de 20 secondes.</li>
+      </ul>
+      <h2>D'où viennent les positions</h2>
+      <p>Les avions de ligne émettent plusieurs fois par seconde leur identité, leur position et leur altitude par radio (ADS-B, sur 1090 MHz). Des récepteurs tenus par la communauté FlightPortrait captent ces signaux, et cette page leur demande quels avions sont près de vous. Un Raspberry Pi et un petit récepteur USB suffisent pour <a href="/network/join">ajouter une antenne</a> chez vous et couvrir votre propre ciel.</p>
+      <h2>Questions</h2>
+      <details><summary>Est-ce gratuit ?</summary>
+        <p>Oui. Sans compte et sans application, dans n'importe quel navigateur.</p></details>
+      <details><summary>Gardez-vous ma position ?</summary>
+        <p>Non. Elle reste dans cette page et sert seulement à demander les avions autour de vous.</p></details>
+      <details><summary>Jusqu'où regarde-t-elle ?</summary>
+        <p>20, 50 ou 100 kilomètres autour de vous, au choix. La liste commence par l'avion le plus proche.</p></details>
+      <details><summary>Puis-je avoir ça au mur ?</summary>
+        <p>Oui. FlightPortrait dessine les avions au-dessus de chez vous en portrait, sur un cadre de 13,3 pouces en e-ink couleur. <a href="/fr/">Voir le cadre</a>.</p></details>
+    </section>
     <div class="framecard">
       <img src="assets/frame.jpg" alt="Un cadre FlightPortrait au mur">
       <div>

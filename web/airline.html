@@ -244,6 +244,18 @@
   .empty{padding:40px 0;color:var(--quiet)}
   .note{color:var(--quiet);font-size:14px;padding:12px 0 0}
   .foot{padding:40px 0 60px;color:var(--quiet);font-size:14px}
+  /* the way to the frame from every entity page (the pages search sends
+     people to); same card and words as the above page */
+  .framecard{display:flex;gap:16px;align-items:center;max-width:420px;
+    margin:40px 0 0;padding:12px 16px 12px 12px;background:var(--card);
+    border:1px solid var(--line);border-radius:8px}
+  .framecard img{width:72px;height:88px;flex:none;display:block;
+    object-fit:cover;border-radius:2px}
+  .framecard p{margin:0 0 10px;font-size:15px;line-height:1.35}
+  .framecard a{display:inline-block;background:var(--ink);color:var(--paper);
+    text-decoration:none;border-radius:6px;padding:6px 13px;
+    font:14px Palatino,Georgia,serif}
+  .framecard a:hover{background:var(--red)}
 </style>
 </head>
 <body>
@@ -288,6 +300,13 @@
       trace archives: aircraft seen flying the airline's callsigns, routes the
       archives saw. Not a published fleet or timetable. Data ODbL &middot;
       <a href="/network/credits.html">Credits</a>.</div>
+    <div class="framecard">
+      <img src="assets/frame.jpg" alt="A FlightPortrait frame on a wall" width="72" height="88" loading="lazy">
+      <div>
+        <p>The planes over your home, drawn and framed.</p>
+        <a href="/frame/">See the frame</a>
+      </div>
+    </div>
   </div>
 </main>
 
